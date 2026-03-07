@@ -6,16 +6,22 @@
 
 ## Overview
 
-**nispa - VibeVoice Studio** is a powerful, locally-hosted Text-to-Speech (TTS) application designed to provide high-quality voice synthesis. Leveraging the Microsoft VibeVoice model, it offers a seamless integration between a blazing-fast Python FastAPI backend and a modern React/TypeScript frontend. 
 
-This project aims to give creators, developers, and researchers a user-friendly GUI to generate offline speech, manage voice profiles, and visualize audio with an integrated waveform player—all while remaining completely private and running entirely on your local machine.
+**nispa - VibeVoice Studio** is a powerful, locally-hosted Text-to-Speech (TTS) application designed to provide high-quality voice synthesis. It leverages the Microsoft VibeVoice model as its core engine, seamlessly integrating a fast Python FastAPI backend and a modern React/TypeScript frontend.
+
+
+
 
 ## Key Features
 
-- **Local & Private TTS Engine:** Fully offline voice generation utilizing the VibeVoice core.
-- **Dynamic Voice Management:** Seamlessly select and configure different voices with varying languages, accents, and genders.
-- **Modern User Interface:** A sleek React-based UI featuring an interactive waveform player, subtitle mode, and project settings.
-- **One-Click Setup & Launch:** Zero manual configuration required. Integrated `.bat` scripts handle both installation and execution workflows automatically.
+- **Offline Voice Generation:** Local, private TTS synthesis using VibeVoice models, with support for voice cloning from reference audio.
+- **Flexible Voice Management:** Easily select, filter, and configure voice profiles (language, accent, gender) for custom results.
+- **Modern User Interface:** React-based UI with waveform audio player, subtitle mode, script editor, and project settings.
+- **Job Management:** Create, update, archive, and view synthesis jobs via API and frontend.
+- **Subtitle & Script Tools:** Automatic subtitle parsing, segmentation, and translation for multi-language workflows.
+- **Audio Visualization & Export:** Interactive waveform player, timeline management, and audio download options.
+- **System Monitoring:** Health check and hardware info endpoints (GPU, CUDA, etc.).
+- **One-Click Setup & Launch:** No manual configuration required; integrated `.bat` scripts handle installation and startup.
 
 ---
 
@@ -34,8 +40,8 @@ We have engineered the setup process to be as frictionless as possible. You **do
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/nispa-voiceover.git
-cd nispa-voiceover
+git clone https://github.com/nispa/nispa-vibevoice-studio.git
+cd nispa-vibevoice-studio
 ```
 
 ### 2. Installation
@@ -45,6 +51,21 @@ Simply double-click on `install.bat` (or run it via Command Prompt). This automa
 - Clone the commuinty VibeVoice repository into `data/vibevoice` and install it.
 - Set up necessary data directories (`data/model` and `data/voices`).
 - Install all NPM dependencies for the React frontend.
+
+## Model Zoo
+
+You can download VibeVoice models from Hugging Face and place them in the `data/model` directory. Choose the model that best fits your needs:
+
+| Model | Context Length | Generation Length | Speakers | Download Link |
+|-------|----------------|------------------|----------|---------------|
+| VibeVoice-Streaming-0.5B | 8K | Real-time | 1 | [HF link](https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B) |
+| VibeVoice-1.5B | 64K | ~90 min | Up to 4 | [HF link](https://huggingface.co/vibevoice/VibeVoice-1.5B) |
+| VibeVoice-Large (7B) | 32K | ~45 min | Up to 4 | [HF link](https://huggingface.co/vibevoice/VibeVoice-7B) |
+
+
+**VibeVoice Engine:**
+VibeVoice is the underlying TTS engine powering this application. For standard synthesis, it uses pre-trained models located in the `data/model` directory. For voice cloning, you must provide at least 10 seconds of clear reference audio (WAV format) for each custom voice. Place these files in the `data/voices` directory, following the naming convention (e.g., `en-john_man.wav`). The engine will use these samples to clone the voice and generate speech in your desired language and style.
+
 
 ### 3. Running the Application
 Double-click on `start.bat`. This launch script will:
