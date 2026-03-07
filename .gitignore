@@ -1,0 +1,104 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Frontend dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Node
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Large ML model files
+data/model/*
+data/model/*.safetensors
+data/model/**/*.safetensors
+!data/model/*/README.md
+!data/model/*/config.json
+!data/model/*/configuration.json
+!data/model/*/preprocessor_config.json
+!data/model/*/generation_config.json
+!data/model/*/quantization_config.json
+!data/model/*/model.safetensors.index.json
+
+# Database
+backend/jobs.db
+
+# Voice data
+data/voices/*
+*.wav
+*.mp3
+*.flac
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.tmp
+*.temp
