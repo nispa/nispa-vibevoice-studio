@@ -1,4 +1,4 @@
-# VibeVoice Studio (nispa-voiceover)
+# Nispa VibeVoice Studio 
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
