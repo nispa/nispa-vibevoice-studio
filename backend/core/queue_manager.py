@@ -30,20 +30,11 @@ class OutputRedirector:
             for line in lines[:-1]:
                 line = line.strip()
                 if line:
-                    # Append strictly to logs array directly without timestamp so it looks like raw output
                     if self.task_id in self.qm.tasks:
-                        # Try to parse tqdm progress e.g. "15%|..."
-                        match = re.search(r'(\d+)%', line)
-                        if match:
-                            try:
-                                # Map 0-100% of tqdm to roughly 22-90% of the overall task progress
-                                inner_prog = int(match.group(1))
-                                overall_prog = 22 + int((inner_prog / 100) * 68)
-                                self.qm.tasks[self.task_id]["progress"] = overall_prog
-                            except ValueError:
-                                pass
-                        
-                        self.qm.tasks[self.task_id]["logs"].append(line)
+                        # We no longer parse tqdm progress or append raw output to logs.
+                        # This prevents the progress bar from jumping due to underlying library output.
+                        pass
+            self.current_line = lines[-1]
             self.current_line = lines[-1]
 
     def flush(self):

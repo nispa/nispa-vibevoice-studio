@@ -22,12 +22,21 @@ export const GenerationControls: React.FC = () => {
         setSelectedModel,
         activityLogs,
         setActivityLogs,
+        showLogsModal,
         setShowLogsModal,
+        currentAudioUrl,
         setCurrentAudioUrl,
         setErrorMsg,
         groupByPunctuation,
-        subtitleSegments
+        subtitleSegments,
+        saveJobDraft,
+        generationProgress: progress,
+        setGenerationProgress: setProgress
     } = useSubtitleContext();
+
+    const lastLogRef = React.useRef<string>('');
+
+    const [outputFormat, setOutputFormat] = React.useState<'mp3' | 'wav'>('mp3');
 
     const handleGenerate = async () => {
         if (!subtitleFile) {
@@ -40,28 +49,26 @@ export const GenerationControls: React.FC = () => {
             return;
         }
 
+        // CONFIRM OVERWRITE
+        if (currentAudioUrl) {
+            const confirmOverwrite = window.confirm("A generated audio already exists. Starting a new generation will replace it in the current preview. (The file is already saved in the backend outputs folder). Do you want to continue?");
+            if (!confirmOverwrite) return;
+        }
+
         setErrorMsg('');
         setIsProcessing(true);
         setAudioUrl(null);
-        setActivityLogs([]); // Reset logs for new generation
-        setShowLogsModal(true); // Open logs modal
+        setActivityLogs([]); 
+        setProgress(0);
+        lastLogRef.current = '';
+        setShowLogsModal(true);
 
         const addLog = (message: string) => {
+            if (message === lastLogRef.current) return;
+            lastLogRef.current = message;
             const timestamp = new Date().toLocaleTimeString();
             setActivityLogs(prev => [...prev, `[${timestamp}] ${message}`]);
         };
-
-        addLog(`Starting audio generation for subtitle file: ${subtitleFile.name}`);
-        addLog(`Selected voice: ${voices.find(v => v.id === selectedVoiceId)?.name || selectedVoiceId}`);
-        addLog(`Selected model: ${selectedModel}`);
-
-        // Check if subtitles have been edited
-        const segmentsUsed = subtitleSegments.length > 0 ? subtitleSegments.length : 'original file';
-        addLog(`Using ${segmentsUsed} subtitle segments`);
-
-        if (groupByPunctuation) {
-            addLog(`✓ Intelligent grouping: Segments will be grouped by punctuation marks`);
-        }
 
         const formData = new FormData();
         if (subtitleSegments && subtitleSegments.length > 0) {
@@ -73,65 +80,85 @@ export const GenerationControls: React.FC = () => {
         formData.append('voice_id', selectedVoiceId);
         formData.append('model_name', selectedModel);
         formData.append('group_by_punctuation', groupByPunctuation.toString());
+        formData.append('output_format', outputFormat);
 
         try {
-            addLog('Sending request to server...');
-            const res = await fetch('http://localhost:8000/api/generate-audio', {
+            addLog(`Submitting generation task (${outputFormat.toUpperCase()}) to server...`);
+            const res = await fetch('http://localhost:8000/api/tasks/generate-subtitles', {
                 method: 'POST',
                 body: formData,
             });
 
             if (!res.ok) {
-                addLog(`Server returned status code: ${res.status}`);
                 const errData = await res.json().catch(() => ({}));
-                const errorMsg = errData.detail || "Generation failed on the server.";
-                addLog(`Error: ${errorMsg}`);
-                throw new Error(errorMsg);
+                throw new Error(errData.detail || "Failed to submit task.");
             }
 
-            addLog('Server response received, processing audio...');
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            setCurrentAudioUrl(url); // Store for modal preview
-            setAudioUrl(url);
-            addLog(`✓ Audio generation completed successfully! (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+            const { task_id } = await res.json();
+            addLog(`Task created: ${task_id}. Waiting for progress...`);
 
-            // Save job record
-            if (subtitleSegments.length > 0) {
-                addLog('Archiving job to database...');
-                try {
-                    const jobData = {
-                        original_filename: subtitleFile.name,
-                        subtitle_segments: subtitleSegments,
-                        modified_segments: subtitleSegments,
-                        voice_id: selectedVoiceId,
-                        voice_name: voices.find(v => v.id === selectedVoiceId)?.name || selectedVoiceId,
-                        model_name: selectedModel,
-                        group_by_punctuation: groupByPunctuation,
-                        notes: 'Completed generation'
-                    };
+            // Connect to EventSource for progress updates
+            const eventSource = new EventSource(`http://localhost:8000/api/tasks/${task_id}/stream`);
 
-                    const jobRes = await fetch('http://localhost:8000/api/jobs/create', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(jobData),
-                    });
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
 
-                    if (jobRes.ok) {
-                        const savedJob = await jobRes.json();
-                        addLog(`✓ Job #${savedJob.id} archived`);
+                if (data.type === 'progress' || data.type === 'complete') {
+                    if (data.status) addLog(data.status);
+                    
+                    // Independent Frontend Progress Calculation
+                    if (data.current_item && data.total_items) {
+                        const calcProgress = (data.current_item / data.total_items) * 100;
+                        setProgress(calcProgress);
+                    } else if (data.progress !== undefined) {
+                        // Fallback if specialized fields are missing
+                        setProgress(data.progress);
                     }
-                } catch (jobErr) {
-                    addLog(`Note: Could not archive job: ${String(jobErr)}`);
                 }
-            }
+
+                if (data.type === 'complete') {
+                    eventSource.close();
+                    setProgress(100);
+                    
+                    const byteCharacters = atob(data.audioBase64);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    setCurrentAudioUrl(url);
+                    setAudioUrl(url);
+                    setIsProcessing(false);
+                    addLog('✓ Generation finished.');
+
+                    // Auto-archive
+                    if (subtitleSegments.length > 0) {
+                        saveJobDraft('Completed generation', subtitleSegments, subtitleFile.name);
+                    }
+                }
+
+                if (data.type === 'error') {
+                    eventSource.close();
+                    setErrorMsg(data.message);
+                    addLog(`✗ Error: ${data.message}`);
+                    setIsProcessing(false);
+                }
+            };
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                setErrorMsg("Lost connection to server while generating.");
+                setIsProcessing(false);
+            };
+
         } catch (err: any) {
             const errorMessage = err.message || 'An unexpected error occurred.';
             setErrorMsg(errorMessage);
-            addLog(`✗ Generation failed: ${errorMessage}`);
-        } finally {
+            addLog(`✗ Submission failed: ${errorMessage}`);
             setIsProcessing(false);
-            addLog('Generation process finished.');
         }
     };
 
@@ -151,6 +178,28 @@ export const GenerationControls: React.FC = () => {
                 selectedModel={selectedModel}
                 onModelSelect={setSelectedModel}
             />
+
+            {/* 6. Output Format */}
+            <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Output Format</h4>
+                </div>
+                <div className="flex gap-3">
+                    {(['mp3', 'wav'] as const).map((fmt) => (
+                        <button
+                            key={fmt}
+                            onClick={() => setOutputFormat(fmt)}
+                            className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
+                                outputFormat === fmt
+                                    ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300'
+                                    : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                            }`}
+                        >
+                            {fmt.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
             {/* Action */}
             <div className="pt-4 border-t border-slate-800 flex justify-end items-center gap-4">

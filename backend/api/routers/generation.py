@@ -299,6 +299,99 @@ async def generate_script(
     )
 
 
+@router.post("/tasks/generate-subtitles")
+async def create_subtitle_task(
+    subtitle_file: Optional[UploadFile] = File(None),
+    voice_id: str = Form(...),
+    model_name: str = Form("VibeVoice-1.5B"),
+    group_by_punctuation: bool = Form(False),
+    subtitle_segments: Optional[str] = Form(None),
+    output_format: str = Form("mp3")
+):
+    """
+    Creates a new background task for timed subtitle generation.
+    Returns the task_id.
+    """
+    segments = []
+
+    if subtitle_segments:
+        try:
+            segments_data = json.loads(subtitle_segments)
+            for seg in segments_data:
+                segments.append(SubtitleSegment(
+                    index=seg.get("index", 0),
+                    start_time_ms=seg.get("start_ms", 0),
+                    end_time_ms=seg.get("end_ms", 0),
+                    text=seg.get("text", "")
+                ))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid subtitle_segments JSON: {str(e)}")
+    elif subtitle_file:
+        is_vtt = subtitle_file.filename.endswith(".vtt")
+        content = await subtitle_file.read()
+        content_str = content.decode("utf-8")
+        segments = parse_subtitles(content_str, is_vtt=is_vtt)
+    else:
+        raise HTTPException(status_code=400, detail="Either subtitle_file or subtitle_segments is required")
+
+    async def subtitle_job(task_id: str):
+        import base64
+        import os
+        from datetime import datetime
+        
+        # Apply grouping if requested
+        job_segments = segments
+        if group_by_punctuation:
+            job_segments = group_subtitles_by_punctuation(segments)
+        
+        total_items = len(job_segments)
+        segments_with_audio = []
+        
+        for idx, seg in enumerate(job_segments):
+            for idx, seg in enumerate(job_segments):
+                if queue_manager.get_task(task_id).get("status") == TaskStatus.CANCELLED:
+                    return
+
+                # Progress based purely on completed items
+                current_progress = int((idx / total_items) * 100)
+                yield {
+                    "progress": current_progress, 
+                    "total_items": total_items,
+                    "current_item": idx + 1,
+                    "message": f"[TTS] Synthesizing text #{seg.index} ({len(seg.text)} chars): '{seg.text}'"
+                }
+
+                wav_bytes = await asyncio.to_thread(
+                    tts_engine.synthesize, seg.text, model_name, None, voice_id
+                )
+                segments_with_audio.append((seg, wav_bytes))
+
+            # Final jump after all items are done
+            yield {"progress": 100, "total_items": total_items, "current_item": total_items, "message": f"Finalizing audio file..."}
+        final_audio_bytes = await asyncio.to_thread(align_subtitles_audio, segments_with_audio, output_format)
+        
+        # PERSISTENCE
+        try:
+            output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "outputs"))
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"subtitle_voiceover_{timestamp}.{output_format.lower()}"
+            with open(os.path.join(output_dir, filename), "wb") as f:
+                f.write(final_audio_bytes)
+        except:
+            pass
+
+        audio_b64 = base64.b64encode(final_audio_bytes).decode('utf-8')
+        yield {
+            "progress": 100, 
+            "message": "Completed!", 
+            "audio_b64": audio_b64,
+            "format": output_format.lower()
+        }
+
+    task_id = queue_manager.submit_task(subtitle_job)
+    return {"status": "success", "task_id": task_id}
+
 @router.post("/tasks/generate")
 async def create_generation_task(
     script_file: Optional[UploadFile] = File(None),
@@ -328,42 +421,50 @@ async def create_generation_task(
 
     async def generation_job(task_id: str):
         import base64
+        import os
+        from datetime import datetime
         
-        yield {"progress": 10, "message": "Parsing script..."}
         script_lines = parse_script(content_str)
-        
         if not script_lines:
             raise Exception("No valid speaker lines found in script")
             
-        total_lines = len(script_lines)
-        yield {"progress": 15, "message": f"Found {total_lines} dialogue lines."}
-        
+        total_items = len(script_lines)
         lines_with_audio = []
+        
         for idx, line in enumerate(script_lines):
-            await asyncio.sleep(0.01)
-            
+            if queue_manager.get_task(task_id).get("status") == TaskStatus.CANCELLED:
+                return
+                
             voice_id = speaker_voice_map_dict.get(line.speaker)
             if not voice_id:
-                available = list(set(l.speaker for l in script_lines))
-                raise Exception(f"No voice found for {line.speaker}. (Available: {available})")
+                raise Exception(f"No voice found for {line.speaker}")
                 
-            progress = 20 + int((idx / total_lines) * 70)
-            yield {"progress": progress, "message": f"Synthesizing [{line.speaker}] ({idx+1}/{total_lines}): {line.text[:40]}..."}
+            current_progress = int((idx / total_items) * 100)
+            yield {
+                "progress": current_progress, 
+                "message": f"[TTS] Synthesizing text #{idx + 1} ({len(line.text)} chars): '{line.text}'"
+            }
             
-            # Send an explicit log that the model is generating
-            yield {"progress": progress + 2, "message": f"Loading TTS Engine and computing audio for [{line.speaker}]..."}
-
             wav_bytes = await asyncio.to_thread(
                 tts_engine.synthesize, line.text, model_name, None, voice_id
             )
-            
-            yield {"progress": progress + 5, "message": f"Audio for [{line.speaker}] generated successfully."}
             lines_with_audio.append(wav_bytes)
 
-        yield {"progress": 90, "message": "Aligning final audio stream..."}
-        final_mp3_bytes = await asyncio.to_thread(align_script_audio, lines_with_audio)
+        yield {"progress": 100, "message": "Finalizing audio file..."}
+        final_audio_bytes = await asyncio.to_thread(align_script_audio, lines_with_audio)
         
-        audio_b64 = base64.b64encode(final_mp3_bytes).decode('utf-8')
+        # PERSISTENCE
+        try:
+            output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "outputs"))
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"script_voiceover_{timestamp}.mp3"
+            with open(os.path.join(output_dir, filename), "wb") as f:
+                f.write(final_audio_bytes)
+        except:
+            pass
+
+        audio_b64 = base64.b64encode(final_audio_bytes).decode('utf-8')
         yield {"progress": 100, "message": "Completed!", "audio_b64": audio_b64}
         
     task_id = queue_manager.submit_task(generation_job)

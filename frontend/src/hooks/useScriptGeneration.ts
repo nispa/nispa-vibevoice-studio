@@ -16,9 +16,13 @@ export const useScriptGeneration = () => {
         const timestamp = new Date().toLocaleTimeString();
 
         if (message.type === 'progress') {
-            if (message.progress !== undefined) {
+            if (message.current_item && message.total_items) {
+                const calcProgress = (message.current_item / message.total_items) * 100;
+                setProgressValue(calcProgress);
+            } else if (message.progress !== undefined) {
                 setProgressValue(message.progress);
             }
+            
             if (message.status) {
                 setProgressMessages(prev => [...prev, `[${timestamp}] ${message.status}`]);
             }

@@ -57,6 +57,9 @@ interface SubtitleContextProps {
     showArchive: boolean;
     setShowArchive: (b: boolean) => void;
 
+    generationProgress: number;
+    setGenerationProgress: (p: number) => void;
+
     // Callbacks
     loadJobSegments: (job: any) => void;
     saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => Promise<void>;
@@ -94,6 +97,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [subtitleSegments, setSubtitleSegments] = useState<SubtitleSegment[]>([]);
     const [showEditor, setShowEditor] = useState(false);
     const [showArchive, setShowArchive] = useState(false);
+    const [generationProgress, setGenerationProgress] = useState(0);
 
     // Initialize selection when voices/models load
     useEffect(() => {
@@ -162,6 +166,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             subtitleSegments, setSubtitleSegments,
             showEditor, setShowEditor,
             showArchive, setShowArchive,
+            generationProgress, setGenerationProgress,
             loadJobSegments, saveJobDraft
         }}>
             {children}

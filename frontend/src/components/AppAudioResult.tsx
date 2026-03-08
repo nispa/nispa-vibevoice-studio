@@ -16,14 +16,20 @@ export default function AppAudioResult({ audioUrl, isProcessing }: AppAudioResul
             </h3>
             <audio controls src={audioUrl} className="w-full h-12 rounded-lg bg-slate-800" />
 
-            <a
-                href={audioUrl}
-                download="generated_audio.mp3"
+            <button
+                onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = audioUrl;
+                    a.download = `voiceover_${new Date().getTime()}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }}
                 className="mt-6 btn-primary w-fit ml-auto"
             >
                 <Upload size={18} className="rotate-180" />
-                Download MP3
-            </a>
+                Download Audio
+            </button>
         </div>
     );
 }

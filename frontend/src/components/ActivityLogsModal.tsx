@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Copy, Trash2, Download } from 'lucide-react';
+import { X, Copy, Trash2, Download, Loader2 } from 'lucide-react';
 
 interface ActivityLogsModalProps {
     isOpen: boolean;
@@ -8,6 +8,7 @@ interface ActivityLogsModalProps {
     title?: string;
     onClear?: () => void;
     audioUrl?: string | null;
+    progress?: number;
 }
 
 export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
@@ -17,23 +18,20 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
     title = 'Activity Logs',
     onClear,
     audioUrl,
+    progress = 0,
 }) => {
     const logsEndRef = useRef<HTMLDivElement>(null);
-
-    // Auto-scroll logs to bottom
-    useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: 'auto' });
-    }, [logs]);
 
     if (!isOpen) return null;
 
     const handleCopyLogs = () => {
         const logsText = logs.join('\n');
         navigator.clipboard.writeText(logsText).then(() => {
-            // You can add a toast notification here if needed
             console.log('Logs copied to clipboard');
         });
     };
+
+    const isProcessing = progress > 0 && progress < 100;
 
     return (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -42,15 +40,26 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
                 {/* Header */}
                 <div className="border-b border-slate-700/50 bg-slate-800/30 p-6 flex justify-between items-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[64px] -z-10" />
-                    <div className="relative z-10">
+                    <div className="relative z-10 flex-1">
                         <h2 className="text-2xl font-bold text-slate-100">
                             {title}
                         </h2>
-                        <p className="text-slate-400 text-sm mt-1">
-                            {logs.length} log entries
-                        </p>
+                        
+                        {/* Progress Bar */}
+                        <div className="mt-4 max-w-md">
+                            <div className="flex justify-between text-xs text-slate-400 mb-1.5 uppercase tracking-wider font-semibold">
+                                <span>{progress === 100 ? 'Completed' : 'Overall Progress'}</span>
+                                <span>{Math.round(progress)}%</span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-700/50 rounded-full overflow-hidden border border-slate-600/30">
+                                <div 
+                                    className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-500 ease-out shadow-[0_0_12px_rgba(168,85,247,0.4)]"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-start pt-1">
                         <button
                             onClick={handleCopyLogs}
                             title="Copy all logs to clipboard"
@@ -76,25 +85,27 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
                     </div>
                 </div>
 
-                {/* Logs TextArea */}
-                <div className="flex-1 overflow-auto p-6 bg-slate-950/50 font-mono text-sm shadow-inner relative">
-                    <div className="space-y-1.5 whitespace-pre-wrap break-words">
-                        {logs.length === 0 ? (
-                            <div className="text-slate-500 italic flex items-center justify-center h-full min-h-[200px]">
-                                No activity logs yet. Start processing to see logs here.
+                {/* Logs Area - Show ONLY the current sentence */}
+                <div className="flex-1 overflow-auto p-8 bg-slate-950/50 font-mono shadow-inner relative flex flex-col items-center justify-center text-center">
+                    {logs.length === 0 ? (
+                        <div className="text-slate-500 italic">
+                            Initializing...
+                        </div>
+                    ) : (
+                        <div className="animate-fade-in space-y-3">
+                            <div className="flex items-center justify-center gap-2">
+                                <p className="text-indigo-400 text-[10px] uppercase tracking-[0.2em] font-bold opacity-70">
+                                    Current Task
+                                </p>
+                                {isProcessing && (
+                                    <Loader2 size={12} className="text-indigo-400 animate-spin" />
+                                )}
                             </div>
-                        ) : (
-                            logs.map((log, idx) => (
-                                <div
-                                    key={idx}
-                                    className="text-slate-300 border-l-2 border-slate-700/50 pl-3 py-0.5 hover:bg-slate-800/30 hover:border-purple-500/50 transition-colors"
-                                >
-                                    <span className="text-slate-500 text-xs">[{idx + 1}]</span> {log}
-                                </div>
-                            ))
-                        )}
-                        <div ref={logsEndRef} />
-                    </div>
+                            <div className="text-xs md:text-sm text-slate-400 font-mono leading-relaxed max-w-2xl mx-auto italic">
+                                {logs[logs.length - 1].replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, '')}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Audio Player Preview */}
@@ -111,14 +122,24 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
                                     className="w-full h-10 rounded-lg bg-slate-900 border border-slate-700/50"
                                 />
                             </div>
-                            <a
-                                href={audioUrl}
-                                download="generated_audio.mp3"
+                            <button
+                                onClick={() => {
+                                    const a = document.createElement('a');
+                                    a.href = audioUrl;
+                                    // Try to guess format from blob type or just use .wav as safe default if it's high quality
+                                    // But here we can just use a generic name, the browser will handle the blob extension
+                                    a.download = `generated_audio_${new Date().getTime()}`;
+                                    // If we want to be precise, we'd need to know the format from the parent
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                }}
                                 title="Download the generated audio"
                                 className="p-3 bg-indigo-600 text-white hover:bg-indigo-500 rounded-lg transition shadow-lg shadow-indigo-500/20 flex items-center gap-2 whitespace-nowrap"
                             >
                                 <Download size={18} />
-                            </a>
+                                Download
+                            </button>
                         </div>
                     </div>
                 )}
