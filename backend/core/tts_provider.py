@@ -132,10 +132,13 @@ class VibeVoiceProvider(TTSProvider):
         Load a voice reference file and return its path.
         voice_id format: "lang-name_gender" (e.g., "it-davide_man")
         """
-        if not voice_id.endswith(".wav"):
-            voice_file = voice_id + ".wav"
+        # Sanitize voice_id to prevent path traversal
+        safe_voice_id = os.path.basename(voice_id)
+        
+        if not safe_voice_id.endswith(".wav"):
+            voice_file = safe_voice_id + ".wav"
         else:
-            voice_file = voice_id
+            voice_file = safe_voice_id
         
         voice_path = os.path.join(self.voices_dir, voice_file)
         

@@ -76,6 +76,9 @@ async def upload_voice(
     if '-' not in voice_id:
         raise HTTPException(status_code=400, detail="voice_id must contain language prefix (e.g., 'en-myvoice')")
     
+    # Sanitize voice_id to prevent path traversal
+    safe_voice_id = os.path.basename(voice_id)
+    
     try:
         file_content = await voice_file.read()
         
@@ -106,7 +109,7 @@ async def upload_voice(
         if audio.channels != reference_specs["channels"]:
             audio = audio.set_channels(reference_specs["channels"])
         
-        output_filename = f"{voice_id}.wav"
+        output_filename = f"{safe_voice_id}.wav"
         output_path = VOICES_DIR / output_filename
         
         audio.export(output_path, format="wav")
