@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RotateCcw, Plus, Trash2, Globe, Loader2 } from 'lucide-react';
+import { X, Save, RotateCcw, Plus } from 'lucide-react';
+import { SubtitleSegmentRow } from '../features/subtitle/components/editor/SubtitleSegmentRow';
 
 interface Segment {
     index: number;
@@ -16,16 +17,6 @@ interface SubtitleEditorModalProps {
     segments: Segment[];
     onSegmentsSave: (segments: Segment[]) => void;
     filename: string;
-    targetLanguage?: string;
-    selectedOllamaModel?: string;
-}
-
-function formatTime(ms: number): string {
-    const totalSeconds = Math.floor(ms / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
 function parseTimeToMs(timeStr: string): number {
@@ -40,11 +31,8 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
     segments: initialSegments,
     onSegmentsSave,
     filename,
-    targetLanguage,
-    selectedOllamaModel
 }) => {
     const [segments, setSegments] = useState<Segment[]>(initialSegments);
-    const [translatingIndex, setTranslatingIndex] = useState<number | null>(null);
 
     useEffect(() => {
         setSegments(initialSegments);
@@ -74,41 +62,10 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
         setSegments(segments.filter((_, i) => i !== index));
     };
 
-    const handleTranslateSegment = async (index: number) => {
-        if (!targetLanguage || !selectedOllamaModel) {
-            alert('Please select a target language and model in the main screen first.');
-            return;
-        }
-
-        setTranslatingIndex(index);
-        const seg = segments[index];
-
-        try {
-            const fd = new FormData();
-            fd.append('text', seg.text);
-            fd.append('target_language', targetLanguage);
-            fd.append('model_name', selectedOllamaModel);
-
-            const res = await fetch('http://localhost:8000/api/translate-segment', {
-                method: 'POST', body: fd
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                const updated = [...segments];
-                updated[index].original_text = seg.original_text || seg.text;
-                updated[index].text = data.translated_text;
-                updated[index].is_translated = true;
-                setSegments(updated);
-            } else {
-                alert('Translation failed.');
-            }
-        } catch (e) {
-            console.error(e);
-            alert('Error translating segment.');
-        } finally {
-            setTranslatingIndex(null);
-        }
+    const handleSegmentTranslated = (index: number, translatedSeg: Segment) => {
+        const updated = [...segments];
+        updated[index] = translatedSeg;
+        setSegments(updated);
     };
 
     const handleAddSegment = () => {
@@ -159,85 +116,16 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
                 <div className="flex-1 overflow-auto p-6 bg-slate-950/50">
                     <div className="space-y-4">
                         {segments.map((seg, idx) => (
-                            <div key={idx} className="bg-slate-800/40 border border-slate-700/30 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div className="grid grid-cols-12 gap-3 items-end">
-                                    {/* Index */}
-                                    <div className="col-span-1">
-                                        <label className="text-xs text-slate-500 block mb-1">Index</label>
-                                        <input
-                                            type="text"
-                                            disabled
-                                            value={seg.index}
-                                            className="w-full px-2 py-1.5 bg-slate-900/50 border border-slate-600/30 rounded text-slate-400 text-sm text-center"
-                                        />
-                                    </div>
-                                    {/* Start Time */}
-                                    <div className="col-span-3">
-                                        <label className="text-xs text-slate-500 block mb-1">Start</label>
-                                        <input
-                                            type="text"
-                                            value={formatTime(seg.start_ms)}
-                                            onChange={(e) => handleStartTimeChange(idx, e.target.value)}
-                                            className="w-full px-2 py-1.5 bg-slate-900/50 border border-slate-600/50 text-slate-200 rounded text-sm font-mono font-bold"
-                                        />
-                                    </div>
-                                    {/* End Time */}
-                                    <div className="col-span-3">
-                                        <label className="text-xs text-slate-500 block mb-1">End</label>
-                                        <input
-                                            type="text"
-                                            value={formatTime(seg.end_ms)}
-                                            onChange={(e) => handleEndTimeChange(idx, e.target.value)}
-                                            className="w-full px-2 py-1.5 bg-slate-900/50 border border-slate-600/50 text-slate-200 rounded text-sm font-mono font-bold"
-                                        />
-                                    </div>
-                                    {/* Duration (read-only) */}
-                                    <div className="col-span-3">
-                                        <label className="text-xs text-slate-500 block mb-1">Duration</label>
-                                        <input
-                                            type="text"
-                                            disabled
-                                            value={(seg.end_ms - seg.start_ms) / 1000 + 's'}
-                                            className="w-full px-2 py-1.5 bg-slate-900/50 border border-slate-600/30 rounded text-slate-400 text-sm text-center"
-                                        />
-                                    </div>
-                                    {/* Translate Button */}
-                                    <div className="col-span-1">
-                                        <button
-                                            onClick={() => handleTranslateSegment(idx)}
-                                            disabled={translatingIndex !== null}
-                                            title="Translate segment"
-                                            className={`w-full px-2 py-1.5 text-indigo-400 rounded-lg transition border border-indigo-500/20 group ${translatingIndex !== null ? 'opacity-50 cursor-not-allowed bg-slate-800' : 'bg-indigo-500/10 hover:bg-indigo-500/20 hover:border-indigo-500/50'}`}
-                                        >
-                                            {translatingIndex === idx ? (
-                                                <Loader2 size={16} className="mx-auto animate-spin" />
-                                            ) : (
-                                                <Globe size={16} className="mx-auto" />
-                                            )}
-                                        </button>
-                                    </div>
-                                    {/* Delete Button */}
-                                    <div className="col-span-1">
-                                        <button
-                                            onClick={() => handleDeleteSegment(idx)}
-                                            title="Delete segment"
-                                            className="w-full px-2 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition border border-red-500/20 hover:border-red-500/50"
-                                        >
-                                            <Trash2 size={16} className="mx-auto" />
-                                        </button>
-                                    </div>
-                                </div>
-                                {/* Text Area - Full Width Below */}
-                                <div className="mt-3">
-                                    <label className="text-xs text-slate-500 block mb-2">Text</label>
-                                    <textarea
-                                        value={seg.text}
-                                        onChange={(e) => handleTextChange(idx, e.target.value)}
-                                        placeholder="Subtitle text..."
-                                        className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600/50 text-slate-200 rounded text-sm resize-none focus:border-blue-500/50 focus:bg-slate-900 transition min-h-[60px]"
-                                    />
-                                </div>
-                            </div>
+                            <SubtitleSegmentRow
+                                key={idx}
+                                segment={seg}
+                                index={idx}
+                                onTextChange={handleTextChange}
+                                onStartTimeChange={handleStartTimeChange}
+                                onEndTimeChange={handleEndTimeChange}
+                                onDelete={handleDeleteSegment}
+                                onTranslated={handleSegmentTranslated}
+                            />
                         ))}
                     </div>
                 </div>

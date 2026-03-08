@@ -3,51 +3,44 @@ import { Loader2, Globe, Clock, CheckCircle } from 'lucide-react';
 import { CustomPromptEditor } from './translation/CustomPromptEditor';
 import { TranslationFeed } from './translation/TranslationFeed';
 import { ExecutionLogs } from './translation/ExecutionLogs';
+import { useTranslationContext } from '../features/subtitle/context/TranslationContext';
+import { useTranslationLoop } from '../features/subtitle/hooks/useTranslationLoop';
 
 interface TranslationProgressModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onStart: (prompt: string) => void;
-    onPause: () => void;
-    progress: number;
-    logs: string[];
-    currentOriginalText: string;
-    currentTranslatedText: string;
-    previousOriginalText?: string;
-    previousTranslatedText?: string;
-    estimatedTimeRemaining: number | null; // in seconds
-    isPausing: boolean;
-    hasStarted: boolean;
-    targetLanguage: string;
 }
+
+const formatTime = (seconds: number | null) => {
+    if (seconds === null) return 'Calculating...';
+    if (seconds < 60) return `${Math.ceil(seconds)}s remain`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.ceil(seconds % 60);
+    return `${mins}m ${secs}s remain`;
+};
 
 export const TranslationProgressModal: React.FC<TranslationProgressModalProps> = ({
     isOpen,
     onClose,
-    onStart,
-    onPause,
-    progress = 0,
-    logs = [],
-    currentOriginalText = '',
-    currentTranslatedText = '',
-    previousOriginalText = '',
-    previousTranslatedText = '',
-    estimatedTimeRemaining = null,
-    isPausing = false,
-    hasStarted = false,
-    targetLanguage = 'Target Language'
 }) => {
+    const {
+        progress,
+        logs,
+        currentOriginalText,
+        currentTranslatedText,
+        previousOriginalText,
+        previousTranslatedText,
+        estimatedTimeRemaining,
+        isPausing,
+        hasStarted,
+        targetLanguage
+    } = useTranslationContext();
+
+    const { runTranslationLoop, stopTranslation } = useTranslationLoop();
+
     const [customPrompt, setCustomPrompt] = useState(`You are a professional subtitle translator. Translate the following subtitle text to {target_language}. Keep the same tone. Return ONLY the translation, no extra text, no quotes, no explanations and don't add any additional information, and don't think:\n{text}`);
 
     if (!isOpen) return null;
-
-    const formatTime = (seconds: number | null) => {
-        if (seconds === null) return 'Calculating...';
-        if (seconds < 60) return `${Math.ceil(seconds)}s remain`;
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.ceil(seconds % 60);
-        return `${mins}m ${secs}s remain`;
-    };
 
     return (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -129,14 +122,14 @@ export const TranslationProgressModal: React.FC<TranslationProgressModalProps> =
                     <div className="flex gap-3">
                         {!hasStarted ? (
                             <button
-                                onClick={() => onStart(customPrompt)}
+                                onClick={() => runTranslationLoop(customPrompt)}
                                 className="px-5 py-2.5 bg-indigo-600/90 text-white hover:bg-indigo-500 rounded-lg transition font-medium shadow-lg shadow-indigo-500/20 flex items-center gap-2"
                             >
                                 Start Translation
                             </button>
                         ) : progress < 100 && (
                             <button
-                                onClick={onPause}
+                                onClick={stopTranslation}
                                 disabled={isPausing}
                                 className="px-5 py-2.5 bg-rose-600/90 text-white hover:bg-rose-500 rounded-lg transition font-medium shadow-lg shadow-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >

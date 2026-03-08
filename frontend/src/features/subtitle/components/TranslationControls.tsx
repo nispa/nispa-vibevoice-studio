@@ -1,10 +1,17 @@
 import React from 'react';
-import { Globe, Loader2 } from 'lucide-react';
+import { Globe, Loader2, Info } from 'lucide-react';
 import { useSubtitleContext, TARGET_LANGUAGES } from '../context/SubtitleContext';
+import { useTranslationContext } from '../context/TranslationContext';
 
 export const TranslationControls: React.FC = () => {
     const {
         subtitleFile,
+        subtitleSegments,
+        setSubtitleSegments,
+        groupByPunctuation
+    } = useSubtitleContext();
+
+    const {
         isTranslating,
         ollamaModels,
         selectedOllamaModel,
@@ -14,11 +21,9 @@ export const TranslationControls: React.FC = () => {
         translationProgress,
         setIsPausing,
         isPausedRef,
-        subtitleSegments,
-        setSubtitleSegments,
         setShowTranslationModal,
         setHasStartedTranslation
-    } = useSubtitleContext();
+    } = useTranslationContext();
 
     const handleStartTranslation = async () => {
         if (!subtitleFile || isTranslating) return;
@@ -65,16 +70,27 @@ export const TranslationControls: React.FC = () => {
                 <Globe size={18} className="text-indigo-400" />
                 <h3 className="text-sm font-semibold text-slate-200">AI Translation (Optional)</h3>
             </div>
+            
             <p className="text-xs text-slate-500 mb-4">
                 Translate your subtitles to another language using local LLModels. You can pause and resume later.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-3">
+            {/* Hint Box */}
+            <div className="mb-4 p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg flex items-start gap-2">
+                <Info size={14} className="text-indigo-400 mt-0.5 shrink-0" />
+                <div className="text-[10px] sm:text-xs text-slate-300 leading-relaxed">
+                    <p className="font-semibold text-indigo-300 mb-1">💡 Recommendation:</p>
+                    <p>AI translation works best after using <span className="text-amber-400 font-bold">Intelligent Grouping</span> above. 
+                    Recommended model: <span className="text-emerald-400 font-mono">huihui_ai/hy-mt1.5</span></p>
+                </div>
+            </div>
+
+            <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 mb-3">
                 <select
                     value={selectedOllamaModel}
                     onChange={(e) => setSelectedOllamaModel(e.target.value)}
                     disabled={isTranslating}
-                    className="flex-1 bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
+                    className="bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2.5 text-xs outline-none focus:border-indigo-500"
                 >
                     {ollamaModels.length === 0 && <option value="">Loading models...</option>}
                     {ollamaModels.map((model: string) => (
@@ -86,7 +102,7 @@ export const TranslationControls: React.FC = () => {
                     value={targetLanguage}
                     onChange={(e) => setTargetLanguage(e.target.value)}
                     disabled={isTranslating}
-                    className="flex-1 bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                    className="bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500"
                 >
                     {TARGET_LANGUAGES.map((lang: string) => (
                         <option key={lang} value={lang}>{lang}</option>
@@ -96,7 +112,7 @@ export const TranslationControls: React.FC = () => {
                 {isTranslating ? (
                     <button
                         onClick={handlePauseTranslation}
-                        className="flex-1 sm:flex-none px-4 py-2.5 bg-rose-600/90 hover:bg-rose-500 text-white rounded-lg transition inline-flex items-center justify-center gap-2 text-sm font-medium shadow-lg shadow-rose-500/20"
+                        className="px-4 py-2.5 bg-rose-600/90 hover:bg-rose-500 text-white rounded-lg transition inline-flex items-center justify-center gap-2 text-sm font-medium shadow-lg shadow-rose-500/20"
                     >
                         <Loader2 size={16} className="animate-spin" />
                         Pause
@@ -105,13 +121,20 @@ export const TranslationControls: React.FC = () => {
                     <button
                         onClick={handleStartTranslation}
                         disabled={!selectedOllamaModel}
-                        className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-600/90 hover:bg-indigo-500 text-white rounded-lg transition inline-flex items-center justify-center gap-2 text-sm font-medium shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2.5 bg-indigo-600/90 hover:bg-indigo-500 text-white rounded-lg transition inline-flex items-center justify-center gap-2 text-sm font-medium shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Globe size={16} />
                         {translationProgress > 0 && translationProgress < 100 ? "Resume" : "Translate"}
                     </button>
                 )}
             </div>
+
+            {/* Warning if grouping is off */}
+            {!groupByPunctuation && (
+                <p className="text-[10px] text-amber-500/80 italic mb-2">
+                    * Hint: Grouping is currently disabled. Subtitles might be too short for optimal translation.
+                </p>
+            )}
 
             {/* Progress Bar */}
             {(isTranslating || (translationProgress > 0 && translationProgress < 100)) && (

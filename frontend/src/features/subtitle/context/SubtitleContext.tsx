@@ -69,38 +69,6 @@ interface SubtitleContextProps {
     showArchive: boolean;
     setShowArchive: (b: boolean) => void;
 
-    // 5. Translation Config
-    targetLanguage: string;
-    setTargetLanguage: (l: string) => void;
-    ollamaModels: string[];
-    selectedOllamaModel: string;
-    setSelectedOllamaModel: (m: string) => void;
-
-    // 6. Translation Runtime
-    isTranslating: boolean;
-    setIsTranslating: (b: boolean) => void;
-    isPausedRef: React.MutableRefObject<boolean>;
-    translationProgress: number;
-    setTranslationProgress: React.Dispatch<React.SetStateAction<number>>;
-    showTranslationModal: boolean;
-    setShowTranslationModal: (b: boolean) => void;
-    translationLogs: string[];
-    setTranslationLogs: React.Dispatch<React.SetStateAction<string[]>>;
-    currentOriginalText: string;
-    setCurrentOriginalText: (t: string) => void;
-    currentTranslatedText: string;
-    setCurrentTranslatedText: (t: string) => void;
-    previousOriginalText: string;
-    setPreviousOriginalText: (t: string) => void;
-    previousTranslatedText: string;
-    setPreviousTranslatedText: (t: string) => void;
-    estimatedTimeRemaining: number | null;
-    setEstimatedTimeRemaining: React.Dispatch<React.SetStateAction<number | null>>;
-    isPausing: boolean;
-    setIsPausing: (b: boolean) => void;
-    hasStartedTranslation: boolean;
-    setHasStartedTranslation: (b: boolean) => void;
-
     // Callbacks
     loadJobSegments: (job: any) => void;
     saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => Promise<void>;
@@ -144,43 +112,7 @@ export const SubtitleProvider: React.FC<{
     const [showEditor, setShowEditor] = useState(false);
     const [showArchive, setShowArchive] = useState(false);
 
-    // 5. Translation Feature
-    const [targetLanguage, setTargetLanguage] = useState<string>('English');
-    const [isTranslating, setIsTranslating] = useState(false);
-    const isPausedRef = useRef(false);
-    const [translationProgress, setTranslationProgress] = useState(0);
-    const [ollamaModels, setOllamaModels] = useState<string[]>([]);
-    const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>('');
-
-    // 6. Translation Modal State
-    const [showTranslationModal, setShowTranslationModal] = useState(false);
-    const [translationLogs, setTranslationLogs] = useState<string[]>([]);
-    const [currentOriginalText, setCurrentOriginalText] = useState('');
-    const [currentTranslatedText, setCurrentTranslatedText] = useState('');
-    const [previousOriginalText, setPreviousOriginalText] = useState('');
-    const [previousTranslatedText, setPreviousTranslatedText] = useState('');
-    const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
-    const [isPausing, setIsPausing] = useState(false);
-    const [hasStartedTranslation, setHasStartedTranslation] = useState(false);
-
     // --- Effects (Initial API Loads) ---
-
-    // Load Ollama models for translation
-    useEffect(() => {
-        fetch('http://localhost:8000/api/ollama/models')
-            .then(res => res.json())
-            .then(data => {
-                if (data.models && data.models.length > 0) {
-                    setOllamaModels(data.models);
-                    if (data.models.includes('llama3')) {
-                        setSelectedOllamaModel('llama3');
-                    } else {
-                        setSelectedOllamaModel(data.models[0]);
-                    }
-                }
-            })
-            .catch(err => console.error("Failed to fetch Ollama models:", err));
-    }, []);
 
     // Load available voices
     useEffect(() => {
@@ -284,20 +216,6 @@ export const SubtitleProvider: React.FC<{
             subtitleSegments, setSubtitleSegments,
             showEditor, setShowEditor,
             showArchive, setShowArchive,
-            targetLanguage, setTargetLanguage,
-            ollamaModels, selectedOllamaModel, setSelectedOllamaModel,
-            isTranslating, setIsTranslating,
-            isPausedRef,
-            translationProgress, setTranslationProgress,
-            showTranslationModal, setShowTranslationModal,
-            translationLogs, setTranslationLogs,
-            currentOriginalText, setCurrentOriginalText,
-            currentTranslatedText, setCurrentTranslatedText,
-            previousOriginalText, setPreviousOriginalText,
-            previousTranslatedText, setPreviousTranslatedText,
-            estimatedTimeRemaining, setEstimatedTimeRemaining,
-            isPausing, setIsPausing,
-            hasStartedTranslation, setHasStartedTranslation,
             loadJobSegments, saveJobDraft
         }}>
             {children}

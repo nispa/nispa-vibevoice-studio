@@ -59,6 +59,16 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
                         <span className={`inline-block px-2 py-1 text-xs font-bold rounded border ${getStatusColor(job.status)}`}>
                             {job.status.toUpperCase()}
                         </span>
+                        {job.notes?.toLowerCase().includes('translation') && (
+                             <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 text-xs font-bold rounded">
+                                TRANSLATED
+                             </span>
+                        )}
+                        {job.group_by_punctuation && (
+                             <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 text-xs font-bold rounded">
+                                GROUPED
+                             </span>
+                        )}
                         <span className="text-sm font-mono text-slate-400">
                             #{job.id}
                         </span>

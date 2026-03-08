@@ -1,17 +1,19 @@
 import React from 'react';
-import { FileUp } from 'lucide-react';
+import { FileUp, Settings, AudioWaveform } from 'lucide-react';
 import FileUploadArea from './ui/FileUploadArea';
 import { ActivityLogsModal } from './ActivityLogsModal';
 import { SubtitlePreviewModal } from './SubtitlePreviewModal';
 import { SubtitleEditorModal } from './SubtitleEditorModal';
-import { JobArchiveModal } from './JobArchiveModal';
+import { JobArchivePanel } from './JobArchivePanel';
 import { TranslationProgressModal } from './TranslationProgressModal';
 
 import { SubtitleProvider, useSubtitleContext } from '../features/subtitle/context/SubtitleContext';
+import { TranslationProvider, useTranslationContext } from '../features/subtitle/context/TranslationContext';
 import { SubtitleGroupingControls } from '../features/subtitle/components/SubtitleGroupingControls';
 import { SubtitleActionButtons } from '../features/subtitle/components/SubtitleActionButtons';
 import { TranslationControls } from '../features/subtitle/components/TranslationControls';
 import { GenerationControls } from '../features/subtitle/components/GenerationControls';
+import { useTranslationLoop } from '../features/subtitle/hooks/useTranslationLoop';
 
 interface Props {
     isProcessing: boolean;
@@ -30,164 +32,92 @@ const SubtitleModeContent: React.FC = () => {
         // Modals state
         showLogsModal, setShowLogsModal, activityLogs, setActivityLogs, currentAudioUrl,
         showPreview, setShowPreview, previewData,
-        showEditor, setShowEditor, subtitleSegments, setSubtitleSegments, targetLanguage, selectedOllamaModel,
-        showArchive, setShowArchive, loadJobSegments,
-
-        // Translation Modal
-        showTranslationModal, setShowTranslationModal, isPausing, setIsPausing, isPausedRef,
-        isTranslating, setIsTranslating,
-        translationProgress, setTranslationProgress, translationLogs, setTranslationLogs,
-        currentOriginalText, setCurrentOriginalText, currentTranslatedText, setCurrentTranslatedText,
-        previousOriginalText, setPreviousOriginalText, previousTranslatedText, setPreviousTranslatedText,
-        estimatedTimeRemaining, setEstimatedTimeRemaining, hasStartedTranslation, setHasStartedTranslation,
-        saveJobDraft
+        showEditor, setShowEditor, subtitleSegments, setSubtitleSegments,
+        loadJobSegments,
     } = useSubtitleContext();
 
-    // From translation loop hook
-    const runTranslationLoop = async (customPrompt: string) => {
-        let currentSegments = [...subtitleSegments];
+    const {
+        showTranslationModal, setShowTranslationModal, isPausing, setIsPausing, isPausedRef,
+        translationProgress, translationLogs, 
+        currentOriginalText, currentTranslatedText, 
+        previousOriginalText, previousTranslatedText, 
+        estimatedTimeRemaining, hasStartedTranslation,
+        targetLanguage
+    } = useTranslationContext();
 
-        setIsTranslating(true);
-        setHasStartedTranslation(true);
-        setIsPausing(false);
-        isPausedRef.current = false;
-        setTranslationProgress(0);
-        setTranslationLogs([]);
-        setEstimatedTimeRemaining(null);
-
-        const addTransLog = (msg: string) => {
-            const time = new Date().toLocaleTimeString();
-            setTranslationLogs(prev => [...prev, `[${time}] ${msg}`]);
-        };
-
-        addTransLog(`Starting translation to ${targetLanguage} using model ${selectedOllamaModel}...`);
-
-        let translatedCount = currentSegments.filter(s => s.is_translated).length;
-        setTranslationProgress(Math.round((translatedCount / currentSegments.length) * 100));
-        let hasError = false;
-
-        const startTime = Date.now();
-        let sessionTranslatedCount = 0;
-
-        for (let i = 0; i < currentSegments.length; i++) {
-            if (isPausedRef.current) break;
-
-            const seg = currentSegments[i];
-            if (seg.is_translated) continue;
-
-            const prevTranslated = currentSegments.slice(0, i).reverse().find(s => s.is_translated);
-            if (prevTranslated) {
-                setPreviousOriginalText(prevTranslated.original_text || prevTranslated.text);
-                setPreviousTranslatedText(prevTranslated.text);
-            } else {
-                setPreviousOriginalText('');
-                setPreviousTranslatedText('');
-            }
-
-            setCurrentOriginalText(seg.text);
-            setCurrentTranslatedText('');
-            addTransLog(`Translating segment ${seg.index}...`);
-
-            try {
-                const fd = new FormData();
-                fd.append('text', seg.text);
-                fd.append('target_language', targetLanguage);
-                fd.append('model_name', selectedOllamaModel);
-                fd.append('prompt', customPrompt);
-
-                const res = await fetch('http://localhost:8000/api/translate-segment', {
-                    method: 'POST', body: fd
-                });
-
-                if (res.ok) {
-                    const data = await res.json();
-                    currentSegments[i] = {
-                        ...seg,
-                        original_text: seg.original_text || seg.text,
-                        text: data.translated_text,
-                        is_translated: true
-                    };
-
-                    setSubtitleSegments([...currentSegments]); // force update
-                    setCurrentTranslatedText(data.translated_text);
-                    addTransLog(`✓ Segment ${seg.index} translated.`);
-
-                    translatedCount++;
-                    sessionTranslatedCount++;
-                    setTranslationProgress(Math.round((translatedCount / currentSegments.length) * 100));
-
-                    const elapsed = Date.now() - startTime;
-                    const avgTime = elapsed / sessionTranslatedCount;
-                    const remainingSegments = currentSegments.length - translatedCount;
-                    setEstimatedTimeRemaining((avgTime * remainingSegments) / 1000);
-                } else {
-                    console.error(`Failed to translate segment ${seg.index}`);
-                    addTransLog(`✗ Failed to translate segment ${seg.index}`);
-                    hasError = true;
-                    break;
-                }
-            } catch (e) {
-                console.error(e);
-                addTransLog(`✗ Error translating segment ${seg.index}: ${String(e)}`);
-                hasError = true;
-                break;
-            }
-        }
-
-        setIsTranslating(false);
-
-        // Auto-save logic
-        const baseName = subtitleFile ? subtitleFile.name.replace(/\.[^/.]+$/, "") : "translated_subtitles";
-        const newFilename = `${baseName}_${targetLanguage}.srt`;
-
-        // Update pseudo file so user knows translation is attached
-        const translatedFile = new File([], newFilename, { type: 'text/plain' });
-        setSubtitleFile(translatedFile);
-
-        if (isPausedRef.current) {
-            saveJobDraft('Translation Paused Draft', currentSegments, newFilename);
-        } else if (!hasError) {
-            saveJobDraft(`Fully translated to ${targetLanguage}`, currentSegments, newFilename);
-            alert(`Translation to ${targetLanguage} complete! Saved to Job Archive.`);
-        } else {
-            alert('Translation encountered an error and paused. State saved.');
-            saveJobDraft('Translation Error Draft', currentSegments, newFilename);
-        }
-    };
+    const { runTranslationLoop, stopTranslation } = useTranslationLoop();
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-fade-in">
 
-            {/* 1. Subtitle Drag Area */}
-            <FileUploadArea
-                file={subtitleFile}
-                onFileChange={(file) => {
-                    setSubtitleFile(file);
-                    setErrorMsg('');
-                }}
-                inputRef={subtitleInputRef}
-                accept=".srt,.vtt"
-                icon={FileUp}
-                titleDefault="Upload Subtitles"
-                subtitleDefault="Drag and drop or click to select .srt / .vtt"
-                activeColorClass="blue-500"
-                activeBgClass="bg-blue-500/5"
-                activeTextClass="text-blue-500"
-            />
+            {/* SECTION 1: INPUT STAGE */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <FileUp size={18} className="text-indigo-400" />
+                        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Step 1: Input Source</h3>
+                    </div>
+                    <FileUploadArea
+                        file={subtitleFile}
+                        onFileChange={(file) => {
+                            setSubtitleFile(file);
+                            setErrorMsg('');
+                        }}
+                        inputRef={subtitleInputRef}
+                        accept=".srt,.vtt"
+                        icon={FileUp}
+                        titleDefault="Upload Subtitles"
+                        subtitleDefault="Drag and drop or click to select .srt / .vtt"
+                        activeColorClass="blue-500"
+                        activeBgClass="bg-blue-500/5"
+                        activeTextClass="text-blue-500"
+                    />
+                    {errorMsg && (
+                        <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-md text-sm">
+                            {errorMsg}
+                        </div>
+                    )}
+                </div>
 
-            {errorMsg && (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-md text-sm">
-                    {errorMsg}
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Or Load from Archive</h3>
+                    </div>
+                    <JobArchivePanel onLoadJob={loadJobSegments} />
+                </div>
+            </div>
+
+            {/* SECTION 2: EDITING & AI STAGE (Visible once input is present) */}
+            {subtitleFile && (
+                <div className="space-y-6 pt-4 border-t border-slate-700/30">
+                    <div className="flex items-center gap-2 px-1">
+                        <Settings size={18} className="text-emerald-400" />
+                        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Step 2: Refining & Translation</h3>
+                    </div>
+                    
+                    <div className="flex flex-col gap-6">
+                        <SubtitleGroupingControls />
+                        <SubtitleActionButtons />
+                        <TranslationControls />
+                    </div>
                 </div>
             )}
 
-            {/* Subtitle Modular Components */}
-            <SubtitleGroupingControls />
-            <SubtitleActionButtons />
-            <TranslationControls />
-            <GenerationControls />
+            {/* SECTION 3: VOICE & GENERATION STAGE (Visible once input is present) */}
+            {subtitleFile && (
+                <div className="space-y-6 pt-4 border-t border-slate-700/30">
+                    <div className="flex items-center gap-2 px-1">
+                        <AudioWaveform size={18} className="text-indigo-400" />
+                        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Step 3: Voice Selection & Synthesis</h3>
+                    </div>
+                    
+                    <div className="bg-slate-800/20 border border-slate-700/50 rounded-xl p-6 shadow-inner">
+                        <GenerationControls />
+                    </div>
+                </div>
+            )}
 
-            {/* Activity Logs Modal */}
+            {/* MODALS */}
             <ActivityLogsModal
                 isOpen={showLogsModal}
                 onClose={() => setShowLogsModal(false)}
@@ -197,7 +127,6 @@ const SubtitleModeContent: React.FC = () => {
                 audioUrl={currentAudioUrl}
             />
 
-            {/* Subtitle Preview Modal */}
             <SubtitlePreviewModal
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
@@ -211,33 +140,20 @@ const SubtitleModeContent: React.FC = () => {
                 }}
             />
 
-            {/* Subtitle Editor Modal */}
             <SubtitleEditorModal
+                key={subtitleSegments.length > 0 ? `editor-${subtitleSegments.length}-${subtitleSegments[0].text.substring(0, 5)}` : 'editor-empty'}
                 isOpen={showEditor}
                 onClose={() => setShowEditor(false)}
                 segments={subtitleSegments}
                 onSegmentsSave={(updatedSegments) => setSubtitleSegments(updatedSegments)}
                 filename={subtitleFile?.name || 'Subtitles'}
-                targetLanguage={targetLanguage}
-                selectedOllamaModel={selectedOllamaModel}
             />
 
-            {/* Job Archive Modal */}
-            <JobArchiveModal
-                isOpen={showArchive}
-                onClose={() => setShowArchive(false)}
-                onLoadJob={loadJobSegments}
-            />
-
-            {/* Translation Progress Modal */}
             <TranslationProgressModal
                 isOpen={showTranslationModal}
                 onClose={() => setShowTranslationModal(false)}
                 onStart={runTranslationLoop}
-                onPause={() => {
-                    setIsPausing(true);
-                    isPausedRef.current = true;
-                }}
+                onPause={stopTranslation}
                 progress={translationProgress}
                 logs={translationLogs}
                 currentOriginalText={currentOriginalText}
@@ -257,7 +173,9 @@ const SubtitleModeContent: React.FC = () => {
 export default function SubtitleMode(props: Props) {
     return (
         <SubtitleProvider {...props}>
-            <SubtitleModeContent />
+            <TranslationProvider>
+                <SubtitleModeContent />
+            </TranslationProvider>
         </SubtitleProvider>
     );
 }
