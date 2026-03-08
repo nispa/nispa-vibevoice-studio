@@ -90,7 +90,8 @@ Double-click on `start.bat`. This launch script will:
 
 Once the studio is running in your browser:
 1. **Scripting:** Enter or paste the text you want to synthesize into the main text editor.
-2. **Translation:** Choose tu edit script and translate line-by-line or choose to translate everithing at once using ollama service.
+2. **Translation:** Choose to edit the script and translate line-by-line or choose to translate everything at once using the translation service.
+   > **Note on Translation:** To use the translation features, you must have [OLLAMA](https://ollama.com/) installed and running on your machine. OLLAMA runs a local service (typically on port `11434`) that the application queries to perform high-quality, offline translations into your requested language.
 3. **Voice Selection:** Use the right-hand panel to open the **Voice Settings** and select a speaker profile (filtered by accent, language, or gender).
 4. **Synthesis:** Click the **Generate** button. The local backend will process the text and return the generated audio.
 5. **Playback:** Use the embedded waveform audio player to scrub through your audio, listen to the result and download result.
