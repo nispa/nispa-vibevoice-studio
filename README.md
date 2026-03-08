@@ -39,11 +39,12 @@ Before installing, ensure you have the following installed on your Windows machi
 
 We have engineered the setup process to be as frictionless as possible. You **do not** need to manually configure virtual environments or run distinct install commands.
 
-### 1. Clone the repository
+### 1. Clone the repository 
 ```bash
 git clone https://github.com/nispa/nispa-vibevoice-studio.git
 cd nispa-vibevoice-studio
 ```
+Or download zip release (yet in beta v0.1)
 
 ### 2. Installation
 Simply double-click on `install.bat` (or run it via Command Prompt). This automated script will:
