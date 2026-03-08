@@ -91,11 +91,37 @@ export function useJobArchive() {
         URL.revokeObjectURL(url);
     }, []);
 
+    const saveJobDraft = useCallback(async (jobData: any, silent = false) => {
+        try {
+            const res = await fetch('http://localhost:8000/api/jobs/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(jobData),
+            });
+
+            if (res.ok) {
+                const savedJob = await res.json();
+                if (!silent) {
+                    alert(`Job #${savedJob.id} saved as draft!`);
+                }
+                await loadJobs(); // Refresh the list
+                return savedJob;
+            } else {
+                if (!silent) alert('Failed to save job');
+            }
+        } catch (err) {
+            console.error('Error saving job:', err);
+            if (!silent) alert('Error saving job');
+        }
+        return null;
+    }, [loadJobs]);
+
     return {
         jobs,
         loading,
         loadJobs,
         deleteJob,
-        downloadSrt
+        downloadSrt,
+        saveJobDraft
     };
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import SubtitleMode from './components/SubtitleMode';
 import ScriptMode from './components/ScriptMode';
 import SystemInfo from './components/SystemInfo';
@@ -9,8 +9,8 @@ import AppAudioResult from './components/AppAudioResult';
 import { useGlobalContext } from './context/GlobalContext';
 
 function App() {
-  const { appMode, setAppMode, systemInfo, isProcessing, setIsProcessing, setAudioUrl, audioUrl } = useGlobalContext();
-  const [showSystemInfo, setShowSystemInfo] = React.useState(false);
+  const { appMode, setAppMode, systemInfo, isProcessing, audioUrl } = useGlobalContext();
+  const [showSystemInfo, setShowSystemInfo] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-50 flex flex-col items-center py-12 px-4 selection:bg-blue-500/30">
@@ -33,11 +33,7 @@ function App() {
         {/* Dynamic Mode Forms */}
         <div className="relative z-10 animate-fade-in">
           {appMode === 'subtitle' ? (
-            <SubtitleMode
-              isProcessing={isProcessing}
-              setIsProcessing={setIsProcessing}
-              setAudioUrl={setAudioUrl}
-            />
+            <SubtitleMode />
           ) : (
             <ScriptMode />
           )}

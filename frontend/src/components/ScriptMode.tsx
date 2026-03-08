@@ -8,10 +8,10 @@ import ScriptInputArea from './script/ScriptInputArea';
 import { useGlobalContext } from '../context/GlobalContext';
 
 function ScriptModeInner() {
-    const { isProcessing } = useGlobalContext();
+    const { isProcessing, models } = useGlobalContext();
     const {
         scriptFile, scriptText, speakers, setSpeakers,
-        models, selectedModel, setSelectedModel, errorMsg
+        selectedModel, setSelectedModel, errorMsg
     } = useScriptContext();
 
     const {

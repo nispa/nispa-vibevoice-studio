@@ -1,15 +1,9 @@
-import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useEffect } from 'react';
+import type { ReactNode, RefObject, Dispatch, SetStateAction, FC } from 'react';
+import { useGlobalContext } from '../../../context/GlobalContext';
+import { useJobArchive } from '../../../hooks/useJobArchive';
 
 // --- Interfaces ---
-
-export interface Voice {
-    id: string;
-    filename: string;
-    language: string;
-    accent: string;
-    name: string;
-    gender: string;
-}
 
 export interface SubtitleSegment {
     index: number;
@@ -26,27 +20,21 @@ export const TARGET_LANGUAGES = ['English', 'Italian', 'German', 'Spanish', 'Fre
 
 interface SubtitleContextProps {
     // 1. Core State (File, Parent App Props)
-    isProcessing: boolean;
-    setIsProcessing: (b: boolean) => void;
-    setAudioUrl: (url: string | null) => void;
-
     subtitleFile: File | null;
     setSubtitleFile: (f: File | null) => void;
-    subtitleInputRef: React.RefObject<HTMLInputElement>;
+    subtitleInputRef: RefObject<HTMLInputElement | null>;
     errorMsg: string;
     setErrorMsg: (msg: string) => void;
 
     // 2. TTS Voice & Model
-    voices: Voice[];
     selectedVoiceId: string;
     setSelectedVoiceId: (id: string) => void;
-    models: string[];
     selectedModel: string;
     setSelectedModel: (m: string) => void;
 
     // 3. Audio Generation Logs 
     activityLogs: string[];
-    setActivityLogs: React.Dispatch<React.SetStateAction<string[]>>;
+    setActivityLogs: Dispatch<SetStateAction<string[]>>;
     showLogsModal: boolean;
     setShowLogsModal: (b: boolean) => void;
     currentAudioUrl: string | null;
@@ -78,12 +66,9 @@ const SubtitleContext = createContext<SubtitleContextProps | undefined>(undefine
 
 // --- Provider Component ---
 
-export const SubtitleProvider: React.FC<{
-    children: ReactNode;
-    isProcessing: boolean;
-    setIsProcessing: (b: boolean) => void;
-    setAudioUrl: (url: string | null) => void;
-}> = ({ children, isProcessing, setIsProcessing, setAudioUrl }) => {
+export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
+    const { voices, models } = useGlobalContext();
+    const { saveJobDraft: saveJobAction } = useJobArchive();
 
     // 1. Core State
     const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
@@ -91,9 +76,7 @@ export const SubtitleProvider: React.FC<{
     const [errorMsg, setErrorMsg] = useState('');
 
     // 2. TTS Voice & Model
-    const [voices, setVoices] = useState<Voice[]>([]);
     const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
-    const [models, setModels] = useState<string[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>('VibeVoice-1.5B');
 
     // 3. Audio Generation Logs
@@ -112,35 +95,18 @@ export const SubtitleProvider: React.FC<{
     const [showEditor, setShowEditor] = useState(false);
     const [showArchive, setShowArchive] = useState(false);
 
-    // --- Effects (Initial API Loads) ---
-
-    // Load available voices
+    // Initialize selection when voices/models load
     useEffect(() => {
-        fetch('http://localhost:8000/api/voices')
-            .then(res => res.json())
-            .then(data => {
-                if (data.voices && data.voices.length > 0) {
-                    setVoices(data.voices);
-                    setSelectedVoiceId(data.voices[0].id);
-                }
-            })
-            .catch(err => console.error("Failed to fetch voices:", err));
-    }, []);
+        if (voices.length > 0 && !selectedVoiceId) {
+            setSelectedVoiceId(voices[0].id);
+        }
+    }, [voices, selectedVoiceId]);
 
-    // Load available models
     useEffect(() => {
-        fetch('http://localhost:8000/api/models')
-            .then(res => res.json())
-            .then(data => {
-                if (data.models && data.models.length > 0) {
-                    setModels(data.models);
-                    if (!data.models.includes('VibeVoice-1.5B')) {
-                        setSelectedModel(data.models[0]);
-                    }
-                }
-            })
-            .catch(err => console.error("Failed to fetch models:", err));
-    }, []);
+        if (models.length > 0 && !models.includes(selectedModel)) {
+            setSelectedModel(models[0]);
+        }
+    }, [models, selectedModel]);
 
     // --- Complex Callbacks ---
 
@@ -153,36 +119,18 @@ export const SubtitleProvider: React.FC<{
             return;
         }
 
-        try {
-            const jobData = {
-                original_filename: fileToSave,
-                subtitle_segments: segmentsToSave,
-                modified_segments: segmentsToSave,
-                voice_id: selectedVoiceId || "None",
-                voice_name: voices.find(v => v.id === selectedVoiceId)?.name || selectedVoiceId || "None",
-                model_name: selectedModel || "None",
-                group_by_punctuation: groupByPunctuation,
-                notes: customNote || 'Draft saved from UI'
-            };
+        const jobData = {
+            original_filename: fileToSave,
+            subtitle_segments: segmentsToSave,
+            modified_segments: segmentsToSave,
+            voice_id: selectedVoiceId || "None",
+            voice_name: voices.find(v => v.id === selectedVoiceId)?.name || selectedVoiceId || "None",
+            model_name: selectedModel || "None",
+            group_by_punctuation: groupByPunctuation,
+            notes: customNote || 'Draft saved from UI'
+        };
 
-            const res = await fetch('http://localhost:8000/api/jobs/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(jobData),
-            });
-
-            if (res.ok) {
-                const savedJob = await res.json();
-                if (!customNote) {
-                    alert(`Job #${savedJob.id} saved as draft!`);
-                }
-            } else {
-                if (!customNote) alert('Failed to save job');
-            }
-        } catch (err) {
-            console.error('Error saving job:', err);
-            if (!customNote) alert('Error saving job');
-        }
+        await saveJobAction(jobData, !!customNote);
     };
 
     const loadJobSegments = (job: any) => {
@@ -199,13 +147,11 @@ export const SubtitleProvider: React.FC<{
 
     return (
         <SubtitleContext.Provider value={{
-            isProcessing, setIsProcessing,
-            setAudioUrl,
             subtitleFile, setSubtitleFile,
             subtitleInputRef,
             errorMsg, setErrorMsg,
-            voices, selectedVoiceId, setSelectedVoiceId,
-            models, selectedModel, setSelectedModel,
+            selectedVoiceId, setSelectedVoiceId,
+            selectedModel, setSelectedModel,
             activityLogs, setActivityLogs,
             showLogsModal, setShowLogsModal,
             currentAudioUrl, setCurrentAudioUrl,

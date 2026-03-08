@@ -3,22 +3,26 @@ import { Settings, Loader2, Activity } from 'lucide-react';
 import VoiceSelector from '../../../components/ui/VoiceSelector';
 import ModelSelector from '../../../components/ui/ModelSelector';
 import { useSubtitleContext } from '../context/SubtitleContext';
+import { useGlobalContext } from '../../../context/GlobalContext';
 
 export const GenerationControls: React.FC = () => {
+    const { 
+        isProcessing, 
+        setIsProcessing, 
+        setAudioUrl, 
+        voices, 
+        models 
+    } = useGlobalContext();
+
     const {
-        isProcessing,
-        setIsProcessing,
         subtitleFile,
-        voices,
         selectedVoiceId,
         setSelectedVoiceId,
-        models,
         selectedModel,
         setSelectedModel,
         activityLogs,
         setActivityLogs,
         setShowLogsModal,
-        setAudioUrl,
         setCurrentAudioUrl,
         setErrorMsg,
         groupByPunctuation,
@@ -60,7 +64,12 @@ export const GenerationControls: React.FC = () => {
         }
 
         const formData = new FormData();
-        formData.append('subtitle_file', subtitleFile);
+        if (subtitleSegments && subtitleSegments.length > 0) {
+            formData.append('subtitle_segments', JSON.stringify(subtitleSegments));
+        } else if (subtitleFile) {
+            formData.append('subtitle_file', subtitleFile);
+        }
+
         formData.append('voice_id', selectedVoiceId);
         formData.append('model_name', selectedModel);
         formData.append('group_by_punctuation', groupByPunctuation.toString());

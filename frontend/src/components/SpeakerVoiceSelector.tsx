@@ -1,19 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Plus, X, AudioLines } from 'lucide-react';
+import { useGlobalContext } from '../context/GlobalContext';
 
 interface Speaker {
     id: string;
     name: string;
     voiceId: string;
-}
-
-interface Voice {
-    id: string;
-    filename: string;
-    language: string;
-    accent: string;
-    name: string;
-    gender: string;
 }
 
 interface Props {
@@ -22,19 +13,7 @@ interface Props {
 }
 
 export default function SpeakerVoiceSelector({ speakers, setSpeakers }: Props) {
-    const [voices, setVoices] = useState<Voice[]>([]);
-
-    // Load available voices
-    useEffect(() => {
-        fetch('http://localhost:8000/api/voices')
-            .then(res => res.json())
-            .then(data => {
-                if (data.voices && data.voices.length > 0) {
-                    setVoices(data.voices);
-                }
-            })
-            .catch(err => console.error("Failed to fetch voices:", err));
-    }, []);
+    const { voices } = useGlobalContext();
 
     const addSpeaker = () => {
         const nextNum = speakers.length + 1;

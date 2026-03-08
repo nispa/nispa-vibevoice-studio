@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Cpu, AlertCircle } from 'lucide-react';
 import { useSystemInfo } from '../hooks/useSystemInfo';
 import { CpuStats } from './system/CpuStats';

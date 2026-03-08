@@ -1,6 +1,6 @@
 
 import { Zap, Cpu } from 'lucide-react';
-import type { SystemInfoData } from './SystemInfo';
+import type { SystemInfoData } from '../hooks/useSystemInfo';
 
 interface SystemFooterProps {
   systemInfo: SystemInfoData | null;

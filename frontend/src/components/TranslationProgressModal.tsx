@@ -24,15 +24,15 @@ export const TranslationProgressModal: React.FC<TranslationProgressModalProps> =
     onClose,
 }) => {
     const {
-        progress,
-        logs,
+        translationProgress: progress,
+        translationLogs: logs,
         currentOriginalText,
         currentTranslatedText,
         previousOriginalText,
         previousTranslatedText,
         estimatedTimeRemaining,
         isPausing,
-        hasStarted,
+        hasStartedTranslation: hasStarted,
         targetLanguage
     } = useTranslationContext();
 

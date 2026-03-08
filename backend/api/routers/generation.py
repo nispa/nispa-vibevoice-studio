@@ -179,29 +179,49 @@ async def translate_subtitles(
 
 @router.post("/generate-audio")
 async def generate_audio(
-    subtitle_file: UploadFile = File(...),
+    subtitle_file: Optional[UploadFile] = File(None),
     voice_id: str = Form(...),
     model_name: str = Form("VibeVoice-1.5B"),
-    group_by_punctuation: bool = Form(False)
+    group_by_punctuation: bool = Form(False),
+    subtitle_segments: Optional[str] = Form(None)
 ):
     """
     Timed Subtitles Workflow: Parses .srt/.vtt and aligns synthesized audio to timestamps.
-    
-    group_by_punctuation: If True, groups segments separated mid-sentence back together
+    If subtitle_segments is provided as JSON, it uses those instead of parsing the file.
     """
-    if not subtitle_file.filename.endswith((".srt", ".vtt")):
-        raise HTTPException(status_code=400, detail="Invalid subtitle format. Use .srt or .vtt")
-    
+    segments = []
+
+    if subtitle_segments:
+        try:
+            segments_data = json.loads(subtitle_segments)
+            for seg in segments_data:
+                # Map frontend keys to SubtitleSegment (start_ms -> start_time_ms)
+                segments.append(SubtitleSegment(
+                    index=seg.get("index", 0),
+                    start_time_ms=seg.get("start_ms", 0),
+                    end_time_ms=seg.get("end_ms", 0),
+                    text=seg.get("text", "")
+                ))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid subtitle_segments JSON: {str(e)}")
+    elif subtitle_file:
+        if not subtitle_file.filename.endswith((".srt", ".vtt")):
+            raise HTTPException(status_code=400, detail="Invalid subtitle format. Use .srt or .vtt")
+        
+        is_vtt = subtitle_file.filename.endswith(".vtt")
+        content = await subtitle_file.read()
+        content_str = content.decode("utf-8")
+        try:
+            segments = parse_subtitles(content_str, is_vtt=is_vtt)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error parsing subtitles: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="Either subtitle_file or subtitle_segments is required")
+
     if not voice_id or voice_id.strip() == "":
         raise HTTPException(status_code=400, detail="voice_id is required")
-        
-    is_vtt = subtitle_file.filename.endswith(".vtt")
-    content = await subtitle_file.read()
-    content_str = content.decode("utf-8")
 
     try:
-        segments = parse_subtitles(content_str, is_vtt=is_vtt)
-        
         # Apply grouping if requested
         if group_by_punctuation:
             segments = group_subtitles_by_punctuation(segments)

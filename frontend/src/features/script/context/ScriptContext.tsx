@@ -16,7 +16,6 @@ interface ScriptContextProps {
     setSpeakers: (speakers: Speaker[] | ((prev: Speaker[]) => Speaker[])) => void;
     detectedSpeakers: string[];
     setDetectedSpeakers: (speakers: string[]) => void;
-    models: string[];
     selectedModel: string;
     setSelectedModel: (model: string) => void;
     errorMsg: string;
@@ -32,23 +31,8 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         { id: '1', name: 'Speaker1', voiceId: '' }
     ]);
     const [detectedSpeakers, setDetectedSpeakers] = useState<string[]>([]);
-    const [models, setModels] = useState<string[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>('VibeVoice-1.5B');
     const [errorMsg, setErrorMsg] = useState('');
-
-    useEffect(() => {
-        fetch('http://localhost:8000/api/models')
-            .then(res => res.json())
-            .then(data => {
-                if (data.models && data.models.length > 0) {
-                    setModels(data.models);
-                    if (!data.models.includes('VibeVoice-1.5B')) {
-                        setSelectedModel(data.models[0]);
-                    }
-                }
-            })
-            .catch(err => console.error("Failed to fetch models:", err));
-    }, []);
 
     // Sync detected speakers to speakers list with default voice
     useEffect(() => {
@@ -68,7 +52,6 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             scriptText, setScriptText,
             speakers, setSpeakers,
             detectedSpeakers, setDetectedSpeakers,
-            models,
             selectedModel, setSelectedModel,
             errorMsg, setErrorMsg
         }}>

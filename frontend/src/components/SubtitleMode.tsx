@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 import { FileUp, Settings, AudioWaveform } from 'lucide-react';
 import FileUploadArea from './ui/FileUploadArea';
 import { ActivityLogsModal } from './ActivityLogsModal';
@@ -13,15 +13,8 @@ import { SubtitleGroupingControls } from '../features/subtitle/components/Subtit
 import { SubtitleActionButtons } from '../features/subtitle/components/SubtitleActionButtons';
 import { TranslationControls } from '../features/subtitle/components/TranslationControls';
 import { GenerationControls } from '../features/subtitle/components/GenerationControls';
-import { useTranslationLoop } from '../features/subtitle/hooks/useTranslationLoop';
 
-interface Props {
-    isProcessing: boolean;
-    setIsProcessing: (b: boolean) => void;
-    setAudioUrl: (url: string | null) => void;
-}
-
-const SubtitleModeContent: React.FC = () => {
+const SubtitleModeContent: FC = () => {
     const {
         subtitleFile,
         setSubtitleFile,
@@ -37,15 +30,8 @@ const SubtitleModeContent: React.FC = () => {
     } = useSubtitleContext();
 
     const {
-        showTranslationModal, setShowTranslationModal, isPausing, setIsPausing, isPausedRef,
-        translationProgress, translationLogs, 
-        currentOriginalText, currentTranslatedText, 
-        previousOriginalText, previousTranslatedText, 
-        estimatedTimeRemaining, hasStartedTranslation,
-        targetLanguage
+        showTranslationModal, setShowTranslationModal
     } = useTranslationContext();
-
-    const { runTranslationLoop, stopTranslation } = useTranslationLoop();
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -152,27 +138,15 @@ const SubtitleModeContent: React.FC = () => {
             <TranslationProgressModal
                 isOpen={showTranslationModal}
                 onClose={() => setShowTranslationModal(false)}
-                onStart={runTranslationLoop}
-                onPause={stopTranslation}
-                progress={translationProgress}
-                logs={translationLogs}
-                currentOriginalText={currentOriginalText}
-                currentTranslatedText={currentTranslatedText}
-                previousOriginalText={previousOriginalText}
-                previousTranslatedText={previousTranslatedText}
-                estimatedTimeRemaining={estimatedTimeRemaining}
-                isPausing={isPausing}
-                hasStarted={hasStartedTranslation}
-                targetLanguage={targetLanguage}
             />
 
         </div>
     );
 };
 
-export default function SubtitleMode(props: Props) {
+export default function SubtitleMode() {
     return (
-        <SubtitleProvider {...props}>
+        <SubtitleProvider>
             <TranslationProvider>
                 <SubtitleModeContent />
             </TranslationProvider>

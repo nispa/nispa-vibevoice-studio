@@ -15,13 +15,20 @@
 ## Key Features
 
 - **Offline Voice Generation:** Local, private and unlimited TTS synthesis using VibeVoice models, with support for voice cloning from reference audio.
+- **Dynamic Mode Support:** Seamlessly switch between **Subtitle Mode** (timed) and **Script Mode** (untimed) with shared voice/model configurations.
 - **Flexible Voice Management:** Easily select, filter, and configure voice profiles (language, accent, gender) for custom results.
-- **Modern User Interface:** React-based UI with waveform audio player, subtitle mode, script editor, and project settings.
-- **Job Management:** Create, update, archive, and view synthesis jobs via API and frontend.
-- **Subtitle & Script Tools:** Automatic subtitle grouping, segmentation and editing.
-- **Subtitle Translation:** Using local ollama service for multi-language translation workflow row by row or paragraph by paragraph.
-- **System Monitoring:** Health check and hardware info endpoints (GPU, CUDA, etc.).
-- **One-Click Setup & Launch:** No manual configuration required; integrated `.bat` scripts handle installation and startup.
+- **Refined User Interface:** Modern React/TypeScript UI with modular components, waveform audio player, and real-time processing feedback.
+- **Intelligent Job Archive:** Save, update, and manage synthesis jobs with draft support and state recovery.
+- **Subtitle & Script Tools:** Automatic grouping, manual segment editing, and real-time preview of processing steps.
+- **Subtitle Translation:** Integration with local Ollama service for high-quality, offline multi-language translation.
+- **System Monitoring:** Integrated hardware dashboard (GPU VRAM, CUDA, MPS, RAM) to monitor local resource usage.
+- **One-Click Setup & Launch:** Automated `.bat` scripts handle full installation (venv, dependencies, engine cloning) and startup.
+
+---
+## Documentation & History
+
+- [Full Changelog](CHANGELOG.md) - Track all project updates and version history.
+- [Model Zoo](#model-zoo) - Information on supported VibeVoice models.
 
 ---
 

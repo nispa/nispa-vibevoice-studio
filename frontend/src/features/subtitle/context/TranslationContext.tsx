@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useEffect } from 'react';
+import type { ReactNode, MutableRefObject, Dispatch, SetStateAction, FC } from 'react';
 
 export interface TranslationContextProps {
     // Configuration
@@ -11,13 +12,13 @@ export interface TranslationContextProps {
     // Runtime State
     isTranslating: boolean;
     setIsTranslating: (b: boolean) => void;
-    isPausedRef: React.MutableRefObject<boolean>;
+    isPausedRef: MutableRefObject<boolean>;
     translationProgress: number;
-    setTranslationProgress: React.Dispatch<React.SetStateAction<number>>;
+    setTranslationProgress: Dispatch<SetStateAction<number>>;
     showTranslationModal: boolean;
     setShowTranslationModal: (b: boolean) => void;
     translationLogs: string[];
-    setTranslationLogs: React.Dispatch<React.SetStateAction<string[]>>;
+    setTranslationLogs: Dispatch<SetStateAction<string[]>>;
     currentOriginalText: string;
     setCurrentOriginalText: (t: string) => void;
     currentTranslatedText: string;
@@ -27,7 +28,7 @@ export interface TranslationContextProps {
     previousTranslatedText: string;
     setPreviousTranslatedText: (t: string) => void;
     estimatedTimeRemaining: number | null;
-    setEstimatedTimeRemaining: React.Dispatch<React.SetStateAction<number | null>>;
+    setEstimatedTimeRemaining: Dispatch<SetStateAction<number | null>>;
     isPausing: boolean;
     setIsPausing: (b: boolean) => void;
     hasStartedTranslation: boolean;
@@ -36,7 +37,7 @@ export interface TranslationContextProps {
 
 const TranslationContext = createContext<TranslationContextProps | undefined>(undefined);
 
-export const TranslationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) => {
     // 1. Configuration
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
     const [ollamaModels, setOllamaModels] = useState<string[]>([]);
