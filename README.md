@@ -14,12 +14,12 @@
 
 ## Key Features
 
-- **Offline Voice Generation:** Local, private TTS synthesis using VibeVoice models, with support for voice cloning from reference audio.
+- **Offline Voice Generation:** Local, private and unlimited TTS synthesis using VibeVoice models, with support for voice cloning from reference audio.
 - **Flexible Voice Management:** Easily select, filter, and configure voice profiles (language, accent, gender) for custom results.
 - **Modern User Interface:** React-based UI with waveform audio player, subtitle mode, script editor, and project settings.
 - **Job Management:** Create, update, archive, and view synthesis jobs via API and frontend.
-- **Subtitle & Script Tools:** Automatic subtitle parsing, segmentation, and translation for multi-language workflows.
-- **Audio Visualization & Export:** Interactive waveform player, timeline management, and audio download options.
+- **Subtitle & Script Tools:** Automatic subtitle grouping, segmentation and editing.
+- **Subtitle Translation:** Using local ollama service for multi-language translation workflow row by row or paragraph by paragraph.
 - **System Monitoring:** Health check and hardware info endpoints (GPU, CUDA, etc.).
 - **One-Click Setup & Launch:** No manual configuration required; integrated `.bat` scripts handle installation and startup.
 
@@ -31,6 +31,7 @@ Before installing, ensure you have the following installed on your Windows machi
 - **Python 3.11+** (Make sure it is added to your system PATH)
 - **Node.js** (v18+ recommended)
 - **Git** (Required for cloning the repository and external dependencies)
+- **Ollama + huihui_ai/hy-mt1.5-abliterated:7B** (Optional) to enable `offline` subtitle-translation service.
 
 ---
 
@@ -81,9 +82,10 @@ Double-click on `start.bat`. This launch script will:
 
 Once the studio is running in your browser:
 1. **Scripting:** Enter or paste the text you want to synthesize into the main text editor.
-2. **Voice Selection:** Use the right-hand panel to open the **Voice Settings** and select a speaker profile (filtered by accent, language, or gender).
-3. **Synthesis:** Click the **Generate** button. The local backend will process the text and return the generated audio.
-4. **Playback:** Use the embedded waveform audio player to scrub through your audio, listen to the result, and manage your timeline.
+2. **Translation:** Choose tu edit script and translate line-by-line or choose to translate everithing at once using ollama service.
+3. **Voice Selection:** Use the right-hand panel to open the **Voice Settings** and select a speaker profile (filtered by accent, language, or gender).
+4. **Synthesis:** Click the **Generate** button. The local backend will process the text and return the generated audio.
+5. **Playback:** Use the embedded waveform audio player to scrub through your audio, listen to the result and download result.
 
 ---
 
