@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Loader2, Info } from 'lucide-react';
+import { Globe, Loader2, Info, RefreshCw } from 'lucide-react';
 import { useSubtitleContext, TARGET_LANGUAGES } from '../context/SubtitleContext';
 import { useTranslationContext } from '../context/TranslationContext';
 
@@ -22,7 +22,9 @@ export const TranslationControls: React.FC = () => {
         setIsPausing,
         isPausedRef,
         setShowTranslationModal,
-        setHasStartedTranslation
+        setHasStartedTranslation,
+        refreshOllamaModels,
+        isLoadingModels
     } = useTranslationContext();
 
     const handleStartTranslation = async () => {
@@ -35,7 +37,7 @@ export const TranslationControls: React.FC = () => {
             try {
                 const formData = new FormData();
                 formData.append('subtitle_file', subtitleFile);
-                const res = await fetch('http://localhost:8000/api/preview-subtitles?group_by_punctuation=false', {
+                const res = await fetch(`http://localhost:8000/api/preview-subtitles?group_by_punctuation=${groupByPunctuation}`, {
                     method: 'POST', body: formData
                 });
                 if (res.ok) {
@@ -86,17 +88,28 @@ export const TranslationControls: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 mb-3">
-                <select
-                    value={selectedOllamaModel}
-                    onChange={(e) => setSelectedOllamaModel(e.target.value)}
-                    disabled={isTranslating}
-                    className="bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2.5 text-xs outline-none focus:border-indigo-500"
-                >
-                    {ollamaModels.length === 0 && <option value="">Loading models...</option>}
-                    {ollamaModels.map((model: string) => (
-                        <option key={model} value={model}>{model}</option>
-                    ))}
-                </select>
+                <div className="relative flex items-center">
+                    <select
+                        value={selectedOllamaModel}
+                        onChange={(e) => setSelectedOllamaModel(e.target.value)}
+                        disabled={isTranslating || isLoadingModels}
+                        className="w-full bg-slate-900 border border-slate-700 text-slate-300 rounded-lg pl-3 pr-10 py-2.5 text-xs outline-none focus:border-indigo-500 appearance-none disabled:opacity-50"
+                    >
+                        {ollamaModels.length === 0 && !isLoadingModels && <option value="">No models found</option>}
+                        {isLoadingModels && <option value="">Loading models...</option>}
+                        {ollamaModels.map((model: string) => (
+                            <option key={model} value={model}>{model}</option>
+                        ))}
+                    </select>
+                    <button
+                        onClick={() => refreshOllamaModels()}
+                        disabled={isTranslating || isLoadingModels}
+                        className="absolute right-2 p-1.5 text-slate-500 hover:text-indigo-400 transition-colors disabled:opacity-30"
+                        title="Refresh models"
+                    >
+                        <RefreshCw size={14} className={isLoadingModels ? 'animate-spin' : ''} />
+                    </button>
+                </div>
 
                 <select
                     value={targetLanguage}
@@ -120,7 +133,7 @@ export const TranslationControls: React.FC = () => {
                 ) : (
                     <button
                         onClick={handleStartTranslation}
-                        disabled={!selectedOllamaModel}
+                        disabled={!selectedOllamaModel || isLoadingModels}
                         className="px-4 py-2.5 bg-indigo-600/90 hover:bg-indigo-500 text-white rounded-lg transition inline-flex items-center justify-center gap-2 text-sm font-medium shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Globe size={16} />

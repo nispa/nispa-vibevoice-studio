@@ -123,6 +123,9 @@ const SubtitleModeContent: FC = () => {
                 originalFilename={subtitleFile?.name}
                 onUseAsInput={(file) => {
                     setSubtitleFile(file);
+                    if (previewData?.segments) {
+                        setSubtitleSegments(previewData.segments);
+                    }
                     setShowPreview(false);
                 }}
             />

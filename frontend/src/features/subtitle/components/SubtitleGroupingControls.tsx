@@ -11,6 +11,7 @@ export const SubtitleGroupingControls: React.FC = () => {
         loadingPreview,
         setShowPreview,
         setLoadingPreview,
+        setSubtitleSegments,
     } = useSubtitleContext();
 
     const loadPreview = async () => {
@@ -57,6 +58,7 @@ export const SubtitleGroupingControls: React.FC = () => {
                             onChange={(e) => {
                                 setGroupByPunctuation(e.target.checked);
                                 setPreviewData(null);
+                                setSubtitleSegments([]); // Clear segments to force re-parse
                             }}
                             className="w-4 h-4 rounded border-slate-600 accent-indigo-500 cursor-pointer"
                         />

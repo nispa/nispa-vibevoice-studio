@@ -33,6 +33,10 @@ export interface TranslationContextProps {
     setIsPausing: (b: boolean) => void;
     hasStartedTranslation: boolean;
     setHasStartedTranslation: (b: boolean) => void;
+    
+    // Refresh models
+    refreshOllamaModels: () => Promise<void>;
+    isLoadingModels: boolean;
 }
 
 const TranslationContext = createContext<TranslationContextProps | undefined>(undefined);
@@ -42,6 +46,7 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
     const [ollamaModels, setOllamaModels] = useState<string[]>([]);
     const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>('');
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
 
     // 2. Runtime State
     const [isTranslating, setIsTranslating] = useState(false);
@@ -57,13 +62,16 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
     const [isPausing, setIsPausing] = useState(false);
     const [hasStartedTranslation, setHasStartedTranslation] = useState(false);
 
-    // Load Ollama models for translation
-    useEffect(() => {
-        fetch('http://localhost:8000/api/ollama/models')
-            .then(res => res.json())
-            .then(data => {
-                if (data.models && data.models.length > 0) {
-                    setOllamaModels(data.models);
+    const refreshOllamaModels = async () => {
+        setIsLoadingModels(true);
+        try {
+            const res = await fetch('http://localhost:8000/api/ollama/models');
+            const data = await res.json();
+            if (data.models && data.models.length > 0) {
+                setOllamaModels(data.models);
+                
+                // Only auto-select if nothing is currently selected or current selection is gone
+                if (!selectedOllamaModel || !data.models.includes(selectedOllamaModel)) {
                     if (data.models.includes('huihui_ai/hy-mt1.5')) {
                         setSelectedOllamaModel('huihui_ai/hy-mt1.5');
                     } else if (data.models.includes('llama3')) {
@@ -72,8 +80,19 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
                         setSelectedOllamaModel(data.models[0]);
                     }
                 }
-            })
-            .catch(err => console.error("Failed to fetch Ollama models:", err));
+            } else {
+                setOllamaModels([]);
+            }
+        } catch (err) {
+            console.error("Failed to fetch Ollama models:", err);
+        } finally {
+            setIsLoadingModels(false);
+        }
+    };
+
+    // Load Ollama models for translation
+    useEffect(() => {
+        refreshOllamaModels();
     }, []);
 
     return (
@@ -91,7 +110,8 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
             previousTranslatedText, setPreviousTranslatedText,
             estimatedTimeRemaining, setEstimatedTimeRemaining,
             isPausing, setIsPausing,
-            hasStartedTranslation, setHasStartedTranslation
+            hasStartedTranslation, setHasStartedTranslation,
+            refreshOllamaModels, isLoadingModels
         }}>
             {children}
         </TranslationContext.Provider>

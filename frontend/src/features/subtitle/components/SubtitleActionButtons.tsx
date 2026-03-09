@@ -11,7 +11,8 @@ export const SubtitleActionButtons: React.FC = () => {
         setShowEditor,
         setLoadingPreview,
         loadingPreview,
-        saveJobDraft
+        saveJobDraft,
+        groupByPunctuation
     } = useSubtitleContext();
 
     const handleEditSubtitles = async () => {
@@ -30,7 +31,7 @@ export const SubtitleActionButtons: React.FC = () => {
             formData.append('subtitle_file', subtitleFile);
 
             const res = await fetch(
-                'http://localhost:8000/api/preview-subtitles?group_by_punctuation=false',
+                `http://localhost:8000/api/preview-subtitles?group_by_punctuation=${groupByPunctuation}`,
                 {
                     method: 'POST',
                     body: formData,
