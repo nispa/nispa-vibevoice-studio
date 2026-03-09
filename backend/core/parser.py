@@ -6,18 +6,41 @@ import io
 import re
 
 class SubtitleSegment(BaseModel):
+    """
+    Represents a single subtitle segment with timing and text content.
+    
+    Attributes:
+        index (int): The sequence number of the subtitle.
+        start_time_ms (int): Start time in milliseconds.
+        end_time_ms (int): End time in milliseconds.
+        text (str): The subtitle text content.
+    """
     index: int
     start_time_ms: int
     end_time_ms: int
     text: str
 
 class ScriptLine(BaseModel):
+    """
+    Represents a single line from a script with an associated speaker.
+    
+    Attributes:
+        speaker (str): The name of the speaker.
+        text (str): The spoken text content.
+    """
     speaker: str
     text: str
 
 def parse_subtitles(file_content: str, is_vtt: bool = False) -> List[SubtitleSegment]:
     """
     Parses an SRT or VTT string into a list of SubtitleSegment objects.
+
+    Args:
+        file_content (str): The raw string content of the subtitle file.
+        is_vtt (bool, optional): Whether the format is VTT. If False, assumes SRT. Defaults to False.
+
+    Returns:
+        List[SubtitleSegment]: A list of parsed subtitle segments.
     """
     segments = []
     
@@ -52,9 +75,15 @@ def parse_subtitles(file_content: str, is_vtt: bool = False) -> List[SubtitleSeg
 def parse_script(file_content: str) -> List[ScriptLine]:
     """
     Parses an untimed script where each line is expected to have a speaker label.
-    Example:
-    Speaker 1: Hello World!
-    Speaker 2: How are you?
+
+    The expected format is "Speaker Name: Dialogue text". If no speaker is detected, 
+    it defaults to the last identified speaker (initially "Speaker1").
+
+    Args:
+        file_content (str): The raw string content of the script.
+
+    Returns:
+        List[ScriptLine]: A list of script lines with their speakers.
     """
     lines = []
     
@@ -89,12 +118,15 @@ def parse_script(file_content: str) -> List[ScriptLine]:
 def group_subtitles_by_punctuation(segments: List[SubtitleSegment]) -> List[SubtitleSegment]:
     """
     Groups subtitle segments together when they are split mid-sentence.
-    Only creates new groups at sentence endings (. ! ? ; :).
-    
-    Maintains:
-    - start_time_ms from the first subtitle in the group
-    - end_time_ms from the last subtitle in the group
-    - Combines text with spaces
+
+    New groups are only created at sentence endings (identified by . ! ? ; :).
+    This helps in creating more natural-sounding TTS output by providing full sentences.
+
+    Args:
+        segments (List[SubtitleSegment]): The original list of subtitle segments.
+
+    Returns:
+        List[SubtitleSegment]: A list of merged subtitle segments, grouped by sentences.
     """
     if not segments:
         return []

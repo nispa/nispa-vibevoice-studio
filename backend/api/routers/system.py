@@ -1,17 +1,30 @@
 from fastapi import APIRouter
 import torch
 import platform
+import psutil
 
 router = APIRouter(prefix="/api")
 
 @router.get("/health")
 def read_health():
+    """
+    Checks the health status of the API.
+
+    Returns:
+        dict: A simple status message indicating the API is operational.
+    """
     return {"status": "ok"}
 
 @router.get("/system-info")
 def get_system_info():
     """
-    Returns system information including GPU availability and details.
+    Retrieves detailed information about the system's hardware and environment.
+
+    Includes GPU (CUDA/MPS) availability, CPU statistics, memory usage, 
+    and OS/Python environment details.
+
+    Returns:
+        dict: A comprehensive nested dictionary containing system, torch, GPU, and CPU information.
     """
     gpu_info = {
         "has_cuda": torch.cuda.is_available(),
@@ -44,7 +57,6 @@ def get_system_info():
     mps_available = torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else False
     
     # CPU info
-    import psutil
     cpu_info = {
         "physical_cores": psutil.cpu_count(logical=False),
         "logical_cores": psutil.cpu_count(logical=True),

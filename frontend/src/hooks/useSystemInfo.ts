@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react';
 
+/**
+ * Metadata for a single GPU device detected on the system.
+ */
 export interface GPUDevice {
     index: number;
     name: string;
@@ -10,6 +13,9 @@ export interface GPUDevice {
     error?: string;
 }
 
+/**
+ * Comprehensive system information structure returned by the backend.
+ */
 export interface SystemInfoData {
     system: {
         platform: string;
@@ -37,11 +43,22 @@ export interface SystemInfoData {
     };
 }
 
+/**
+ * Custom hook to fetch and manage system hardware information.
+ * 
+ * Periodically or on-demand retrieves CPU, GPU, and memory statistics 
+ * from the backend API.
+ * 
+ * @returns {object} State and handler for system information.
+ */
 export function useSystemInfo() {
     const [systemInfo, setSystemInfo] = useState<SystemInfoData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    /**
+     * Fetches current system hardware and software information from the backend.
+     */
     const fetchSystemInfo = useCallback(async () => {
         setIsLoading(true);
         setError(null);

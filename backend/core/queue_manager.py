@@ -3,11 +3,10 @@ import uuid
 import time
 import sys
 import re
-import time
-import sys
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, AsyncGenerator
 
 class TaskStatus:
+    """Enumeration of possible task states."""
     QUEUED = "queued"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -15,14 +14,28 @@ class TaskStatus:
     CANCELLED = "cancelled"
     
 class OutputRedirector:
-    def __init__(self, queue_manager, task_id):
+    """
+    Redirects stdout and stderr to capture log messages for a specific task.
+    
+    This class acts as a context manager that intercepts print statements and other 
+    standard output/error streams, allowing them to be associated with a task's logs.
+    """
+    def __init__(self, queue_manager: 'TTSQueueManager', task_id: str):
+        """
+        Initializes the OutputRedirector.
+
+        Args:
+            queue_manager (TTSQueueManager): The instance of the queue manager.
+            task_id (str): The unique identifier of the task.
+        """
         self.qm = queue_manager
         self.task_id = task_id
         self.original_stderr = sys.stderr
         self.original_stdout = sys.stdout
         self.current_line = ""
 
-    def write(self, s):
+    def write(self, s: str):
+        """Writes data to the original stdout and captures it for logging."""
         self.original_stdout.write(s)
         self.current_line += s
         if '\r' in self.current_line or '\n' in self.current_line:
@@ -35,35 +48,49 @@ class OutputRedirector:
                         # This prevents the progress bar from jumping due to underlying library output.
                         pass
             self.current_line = lines[-1]
-            self.current_line = lines[-1]
 
     def flush(self):
+        """Flushes the original stdout and stderr streams."""
         self.original_stdout.flush()
         self.original_stderr.flush()
 
     def __enter__(self):
+        """Starts redirecting stdout and stderr."""
         sys.stderr = self
         sys.stdout = self
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Stops redirecting and restores original streams."""
         if self.current_line.strip() and self.task_id in self.qm.tasks:
             self.qm.tasks[self.task_id]["logs"].append(self.current_line.strip())
         sys.stderr = self.original_stderr
         sys.stdout = self.original_stdout
 
 class TTSQueueManager:
+    """
+    Manages a queue of Text-to-Speech (TTS) generation tasks.
+    
+    Handles task submission, worker loop for processing tasks, task status updates, 
+    and task cancellation.
+    """
     def __init__(self):
+        """Initializes the TTSQueueManager with an empty queue and task registry."""
         self.queue = asyncio.Queue()
         self.tasks: Dict[str, Dict[str, Any]] = {}
         self.worker_task: Optional[asyncio.Task] = None
 
     async def start_worker(self):
-        """Starts the background worker if not already running."""
+        """
+        Starts the background worker loop if it is not already running.
+        """
         if self.worker_task is None or self.worker_task.done():
             self.worker_task = asyncio.create_task(self._worker_loop())
 
     async def _worker_loop(self):
+        """
+        Internal worker loop that processes tasks from the queue sequentially.
+        """
         while True:
             # Wait for a task from the queue
             task_id, payload_func = await self.queue.get()
@@ -111,8 +138,17 @@ class TTSQueueManager:
             finally:
                 self.queue.task_done()
 
-    def submit_task(self, payload_func) -> str:
-        """Submit a new generation task. Returns the task_id."""
+    def submit_task(self, payload_func: AsyncGenerator) -> str:
+        """
+        Submits a new generation task to the queue.
+
+        Args:
+            payload_func (AsyncGenerator): An async generator function that performs 
+                the task and yields progress updates.
+
+        Returns:
+            str: The unique task ID.
+        """
         task_id = str(uuid.uuid4())
         self.tasks[task_id] = {
             "id": task_id,
@@ -127,9 +163,28 @@ class TTSQueueManager:
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves the current state of a task.
+
+        Args:
+            task_id (str): The unique identifier of the task.
+
+        Returns:
+            Optional[Dict[str, Any]]: The task state dictionary, or None if not found.
+        """
         return self.tasks.get(task_id)
 
     def update_task(self, task_id: str, status: str = None, progress: int = None, message: str = None, audio_b64: str = None):
+        """
+        Updates the status and progress of an existing task.
+
+        Args:
+            task_id (str): The unique identifier of the task.
+            status (str, optional): The new status. Defaults to None.
+            progress (int, optional): The new progress percentage. Defaults to None.
+            message (str, optional): A log message to add. Defaults to None.
+            audio_b64 (str, optional): Base64 encoded audio string for completed tasks. Defaults to None.
+        """
         if task_id in self.tasks:
             if status:
                 self.tasks[task_id]["status"] = status
@@ -141,6 +196,14 @@ class TTSQueueManager:
                 self.tasks[task_id]["audio_b64"] = audio_b64
 
     def add_log(self, task_id: str, message: str, progress: int = None):
+        """
+        Adds a timestamped log message to a task.
+
+        Args:
+            task_id (str): The unique identifier of the task.
+            message (str): The log message content.
+            progress (int, optional): The updated progress percentage. Defaults to None.
+        """
         if task_id in self.tasks:
             timestamp = time.strftime("%H:%M:%S")
             self.tasks[task_id]["logs"].append(f"[{timestamp}] {message}")
@@ -148,6 +211,17 @@ class TTSQueueManager:
                 self.tasks[task_id]["progress"] = progress
 
     def cancel_task(self, task_id: str, finalize: bool = False) -> bool:
+        """
+        Attempts to cancel a task.
+
+        Args:
+            task_id (str): The unique identifier of the task.
+            finalize (bool, optional): Whether to attempt to finalize partial work 
+                before stopping. Defaults to False.
+
+        Returns:
+            bool: True if the task was successfully marked for cancellation, False otherwise.
+        """
         if task_id in self.tasks:
             current_status = self.tasks[task_id]["status"]
             if current_status in [TaskStatus.QUEUED, TaskStatus.PROCESSING]:

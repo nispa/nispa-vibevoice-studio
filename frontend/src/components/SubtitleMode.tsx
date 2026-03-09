@@ -14,6 +14,16 @@ import { SubtitleActionButtons } from '../features/subtitle/components/SubtitleA
 import { TranslationControls } from '../features/subtitle/components/TranslationControls';
 import { GenerationControls } from '../features/subtitle/components/GenerationControls';
 
+/**
+ * Internal content component for Subtitle Mode.
+ * 
+ * Orchestrates the 3-step workflow:
+ * 1. Input (Upload or Load from Archive)
+ * 2. Refining (Grouping, Editing, Translation)
+ * 3. Synthesis (Voice selection and audio generation)
+ * 
+ * @returns {JSX.Element} The rendered subtitle mode UI.
+ */
 const SubtitleModeContent: FC = () => {
     const {
         subtitleFile,
@@ -150,6 +160,10 @@ const SubtitleModeContent: FC = () => {
     );
 };
 
+/**
+ * Subtitle Mode entry point.
+ * Wraps the content with specialized providers for subtitle and translation state.
+ */
 export default function SubtitleMode() {
     return (
         <SubtitleProvider>

@@ -3,10 +3,19 @@ import type { ReactNode } from 'react';
 import { useSystemInfo } from '../hooks/useSystemInfo';
 import type { SystemInfoData } from '../hooks/useSystemInfo';
 
+/**
+ * Available modes for the application.
+ */
 export type AppMode = 'subtitle' | 'script';
 
+/**
+ * Status of the connection to the backend API.
+ */
 export type ConnectionStatus = 'connecting' | 'connected' | 'error';
 
+/**
+ * Metadata for a TTS voice.
+ */
 export interface Voice {
     id: string;
     filename: string;
@@ -16,6 +25,9 @@ export interface Voice {
     gender: string;
 }
 
+/**
+ * Properties provided by the GlobalContext.
+ */
 interface GlobalContextProps {
     appMode: AppMode;
     setAppMode: (mode: AppMode) => void;
@@ -38,6 +50,15 @@ interface GlobalContextProps {
 
 const GlobalContext = createContext<GlobalContextProps | undefined>(undefined);
 
+/**
+ * Global Context Provider that manages shared application state.
+ * 
+ * Handles the application mode, processing state, audio URLs, system information,
+ * and global TTS data (voices and models).
+ * 
+ * @param {object} props - Component props.
+ * @param {ReactNode} props.children - Child components to be wrapped.
+ */
 export function GlobalProvider({ children }: { children: ReactNode }) {
     const [appMode, setAppMode] = useState<AppMode>('subtitle');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -52,6 +73,9 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
 
     const connectionStatus: ConnectionStatus = isLoading ? 'connecting' : error ? 'error' : 'connected';
 
+    /**
+     * Fetches available voices from the backend.
+     */
     const fetchVoices = async () => {
         try {
             const res = await fetch('http://localhost:8000/api/voices');
@@ -62,6 +86,9 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    /**
+     * Fetches available TTS models from the backend.
+     */
     const fetchModels = async () => {
         try {
             const res = await fetch('http://localhost:8000/api/models');
@@ -72,6 +99,9 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    /**
+     * Refreshes both voices and models data.
+     */
     const refreshTtsData = async () => {
         setIsLoadingTtsData(true);
         await Promise.all([fetchVoices(), fetchModels()]);
@@ -109,6 +139,12 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     );
 }
 
+/**
+ * Hook to access the global context.
+ * 
+ * @returns {GlobalContextProps} The global context values.
+ * @throws {Error} If used outside of a GlobalProvider.
+ */
 export function useGlobalContext() {
     const context = useContext(GlobalContext);
     if (context === undefined) {

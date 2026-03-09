@@ -3,6 +3,15 @@ import { Globe, Loader2, Info, RefreshCw } from 'lucide-react';
 import { useSubtitleContext, TARGET_LANGUAGES } from '../context/SubtitleContext';
 import { useTranslationContext } from '../context/TranslationContext';
 
+/**
+ * Component that provides controls for AI-powered translation of subtitles.
+ * 
+ * Allows selecting a local LLM model (Ollama), a target language, and 
+ * starting/pausing the translation process. Provides recommendations 
+ * for optimal results (e.g., using grouping).
+ * 
+ * @returns {JSX.Element | null} The rendered translation control panel or null if no file is uploaded.
+ */
 export const TranslationControls: React.FC = () => {
     const {
         subtitleFile,
@@ -27,6 +36,10 @@ export const TranslationControls: React.FC = () => {
         isLoadingModels
     } = useTranslationContext();
 
+    /**
+     * Prepares subtitles for translation and opens the translation configuration modal.
+     * Parses the file if segments aren't already loaded.
+     */
     const handleStartTranslation = async () => {
         if (!subtitleFile || isTranslating) return;
 
@@ -59,6 +72,9 @@ export const TranslationControls: React.FC = () => {
         setHasStartedTranslation(false);
     };
 
+    /**
+     * Pauses the ongoing translation process.
+     */
     const handlePauseTranslation = () => {
         isPausedRef.current = true;
         setIsPausing(true);

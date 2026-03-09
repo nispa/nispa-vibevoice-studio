@@ -9,7 +9,10 @@ router = APIRouter(prefix="/api")
 @router.get("/models")
 def list_models():
     """
-    Returns a list of available models from the data/model directory.
+    Lists all available TTS models in the models directory.
+
+    Returns:
+        dict: A dictionary containing a list of model names.
     """
     models = []
     if MODELS_DIR.exists():
@@ -21,9 +24,13 @@ def list_models():
 @router.get("/voices")
 def list_voices():
     """
-    Returns a list of available voices from data/voices/ directory.
-    Each voice is a pre-recorded WAV file with format: {lang}-{name}_{gender}.wav
-    Example: it-davide_man.wav -> {id: "it-davide_man", lang: "it", name: "davide", gender: "man"}
+    Lists all available voices in the voices directory.
+
+    Parses voice filenames following the convention: {lang}-{name}_{gender}.wav
+    or {lang}-{accent}-{name}_{gender}.wav.
+
+    Returns:
+        dict: A dictionary containing a list of voice metadata objects.
     """
     voices = []
     
@@ -66,8 +73,20 @@ async def upload_voice(
     voice_id: str = Form(...)
 ):
     """
-    Upload a voice file (MP3 or WAV) and convert it to WAV format compatible with the voices directory.
-    The voice will be saved as {voice_id}.wav in data/voices/
+    Uploads and processes a new voice reference file.
+
+    Converts the uploaded file (MP3 or WAV) to a standard WAV format 
+    compatible with the TTS engine and saves it to the voices directory.
+
+    Args:
+        voice_file (UploadFile): The audio file to upload.
+        voice_id (str): The desired ID for the voice (must include language prefix).
+
+    Returns:
+        dict: Metadata about the saved voice file and its audio specifications.
+
+    Raises:
+        HTTPException: If the format is unsupported, the ID is invalid, or processing fails.
     """
     _, ext = os.path.splitext(voice_file.filename)
     if ext.lower() not in ['.mp3', '.wav']:

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Union
 import os
 import torch
 import torchaudio
@@ -9,26 +9,40 @@ import numpy as np
 class TTSProvider(ABC):
     """
     Abstract Base Class for Text-to-Speech engines.
-    This ensures that we can swap models (e.g., Qwen TTS 3) in the future
-    without touching the core controller logic.
+    
+    This interface ensures that different TTS models can be integrated 
+    without modifying the core application logic.
     """
 
     @abstractmethod
     def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None) -> bytes:
         """
-        Synthesize text into audio bytes.
-        If reference_audio is provided, perform zero-shot voice cloning.
+        Synthesizes text into audio bytes.
+
+        Args:
+            text (str): The text content to be converted to speech.
+            model_name (str): The name of the model to use for synthesis.
+            reference_audio_path (Optional[str], optional): Path to a reference audio file 
+                for voice cloning. Defaults to None.
+            voice_id (Optional[str], optional): ID of a predefined voice. Defaults to None.
+
         Returns:
-            bytes: The synthesized audio data (typically in WAV format).
+            bytes: The synthesized audio data in WAV format.
         """
         pass
 
 class VibeVoiceProvider(TTSProvider):
     """
-    Implementation of the TTSProvider that uses VibeVoice for real text-to-speech synthesis
-    with voice cloning from reference audio files in data/voices/
+    Implementation of TTSProvider using the VibeVoice model.
+    
+    Supports high-quality text-to-speech synthesis with zero-shot voice cloning 
+    capabilities using reference audio files.
     """
     def __init__(self):
+        """
+        Initializes the VibeVoiceProvider, detects available hardware (CUDA, MPS, or CPU), 
+        and sets up directory paths.
+        """
         # Paths
         self.base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "model"))
         self.voices_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "voices"))
@@ -60,7 +74,17 @@ class VibeVoiceProvider(TTSProvider):
         print(f"[TTS] Device: {self.device}, dtype: {self.dtype}")
 
     def _load_model(self, model_name: str):
-        """Load or cache the VibeVoice model"""
+        """
+        Loads the specified VibeVoice model into memory or retrieves it from cache.
+
+        Args:
+            model_name (str): The name of the model directory within data/model/.
+
+        Raises:
+            FileNotFoundError: If the model directory does not exist.
+            ImportError: If required VibeVoice libraries are missing.
+            RuntimeError: If there is an error during model initialization.
+        """
         if self.loaded_model_name == model_name and self.model is not None:
             print(f"[TTS] Using cached model: {model_name}")
             return
@@ -129,8 +153,16 @@ class VibeVoiceProvider(TTSProvider):
 
     def _load_voice_file(self, voice_id: str) -> str:
         """
-        Load a voice reference file and return its path.
-        voice_id format: "lang-name_gender" (e.g., "it-davide_man")
+        Locates the path for a voice reference file based on its ID.
+
+        Args:
+            voice_id (str): The ID of the voice (e.g., "it-davide_man").
+
+        Returns:
+            str: The absolute path to the .wav voice reference file.
+
+        Raises:
+            FileNotFoundError: If the voice file cannot be found in the voices directory.
         """
         # Sanitize voice_id to prevent path traversal
         safe_voice_id = os.path.basename(voice_id)
@@ -154,17 +186,20 @@ class VibeVoiceProvider(TTSProvider):
 
     def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None) -> bytes:
         """
-        Synthesize text using VibeVoice with voice cloning from a reference audio.
-        
+        Synthesizes text using VibeVoice with optional voice cloning.
+
         Args:
-            text: Text to synthesize
-            model_name: VibeVoice model name to use (e.g., "VibeVoice-1.5B")
-            reference_audio_path: Optional path to reference audio file (if not using voice_id)
-            voice_id: Pre-recorded voice ID from data/voices/ (e.g., "it-davide_man")
-                     Will use this voice as reference for voice cloning
-        
+            text (str): The text to synthesize.
+            model_name (str): The name of the VibeVoice model to use.
+            reference_audio_path (Optional[str], optional): Direct path to a reference WAV. Defaults to None.
+            voice_id (Optional[str], optional): ID of a pre-recorded voice in data/voices/. Defaults to None.
+
         Returns:
-            WAV bytes of the synthesized audio
+            bytes: WAV audio data as bytes.
+
+        Raises:
+            ValueError: If neither voice_id nor reference_audio_path is provided.
+            RuntimeError: If synthesis fails during model generation.
         """
         if not text or not text.strip():
             print(f"[TTS] Warning: Empty text provided")
@@ -173,8 +208,6 @@ class VibeVoiceProvider(TTSProvider):
             buf = io.BytesIO()
             silent_audio.export(buf, format="wav")
             return buf.getvalue()
-        
-        # print(f"[TTS] Synthesizing text ({len(text)} chars): '{text[:50]}...'")
         
         # Load model if not already cached
         self._load_model(model_name)
@@ -189,16 +222,12 @@ class VibeVoiceProvider(TTSProvider):
             )
         
         try:
-            # print(f"[TTS] Using reference audio: {reference_audio_path}")
-            
             # Prepare inputs for VibeVoice
-            # The processor expects the text to be formatted as a script with "Speaker 0: " prefix
-            # Otherwise its internal parser will throw "No valid speaker lines found"
             formatted_text = f"Speaker 0: {text}"
             
             inputs = self.processor(
-                text=[formatted_text],  # Wrap in list for batch processing
-                voice_samples=[[reference_audio_path]],  # List of lists - batch of speakers with their voice files
+                text=[formatted_text],
+                voice_samples=[[reference_audio_path]],
                 padding=True,
                 return_tensors="pt",
                 return_attention_mask=True,
@@ -209,8 +238,6 @@ class VibeVoiceProvider(TTSProvider):
                 if torch.is_tensor(v):
                     inputs[k] = v.to(self.device)
             
-            # print(f"[TTS] Generating audio with cfg_scale=1.3...")
-            
             # Generate audio
             with torch.no_grad():
                 outputs = self.model.generate(
@@ -220,42 +247,36 @@ class VibeVoiceProvider(TTSProvider):
                     tokenizer=self.processor.tokenizer,
                     generation_config={'do_sample': False},
                     verbose=False,
-                    is_prefill=True,  # Enable voice cloning
+                    is_prefill=True,
                 )
             
             # Extract audio
             if outputs.speech_outputs and len(outputs.speech_outputs) > 0:
-                audio_data = outputs.speech_outputs[0]  # Get first (and only) batch item
+                audio_data = outputs.speech_outputs[0]
                 
-                # Save audio using processor
                 buf = io.BytesIO()
                 
-                # audio_data is likely a tensor, convert to numpy
                 if torch.is_tensor(audio_data):
                     audio_np = audio_data.cpu().numpy()
                 else:
                     audio_np = audio_data
                 
-                # Ensure audio is 1D
                 if len(audio_np.shape) > 1:
                     audio_np = audio_np.squeeze()
                 
-                # Get sample rate from processor
                 try:
                     sample_rate = self.processor.audio_processor.sampling_rate
                 except AttributeError:
                     sample_rate = 24000
                 
-                # Convert to torchaudio and save as WAV
                 audio_tensor = torch.from_numpy(audio_np).float()
                 if audio_tensor.dim() == 1:
-                    audio_tensor = audio_tensor.unsqueeze(0)  # Add channel dimension
+                    audio_tensor = audio_tensor.unsqueeze(0)
                 
                 torchaudio.save(buf, audio_tensor, sample_rate, format="wav")
                 buf.seek(0)
                 wav_bytes = buf.getvalue()
                 
-                # print(f"[TTS] Audio generated successfully ({len(wav_bytes)} bytes)")
                 return wav_bytes
             else:
                 raise RuntimeError("No audio output generated by the model")

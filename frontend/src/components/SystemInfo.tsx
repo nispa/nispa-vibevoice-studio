@@ -6,14 +6,35 @@ import { GpuStats } from './system/GpuStats';
 import { SystemDetails } from './system/SystemDetails';
 import { PerformanceStatus } from './system/PerformanceStatus';
 
+/**
+ * Props for the SystemInfo modal component.
+ */
 interface SystemInfoProps {
+    /**
+     * Whether the modal is currently visible.
+     */
     isOpen: boolean;
+    /**
+     * Callback function to close the modal.
+     */
     onClose: () => void;
 }
 
+/**
+ * Modal component that displays detailed system hardware and software information.
+ * 
+ * Automatically fetches system statistics when opened, including GPU availability,
+ * CPU usage, and library versions (PyTorch, etc.).
+ * 
+ * @param {SystemInfoProps} props - Component props.
+ * @returns {JSX.Element | null} The rendered modal or null if not open.
+ */
 export const SystemInfo = ({ isOpen, onClose }: SystemInfoProps) => {
     const { systemInfo, isLoading, error, fetchSystemInfo } = useSystemInfo();
 
+    /**
+     * Fetches fresh system info every time the modal is opened.
+     */
     useEffect(() => {
         if (isOpen) {
             fetchSystemInfo();

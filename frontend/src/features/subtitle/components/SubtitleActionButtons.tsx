@@ -2,6 +2,14 @@ import React from 'react';
 import { FileText, BookOpen, Trash2 } from 'lucide-react';
 import { useSubtitleContext } from '../context/SubtitleContext';
 
+/**
+ * Component that provides action buttons for subtitle management.
+ * 
+ * Includes buttons to open the subtitle editor, save the current state 
+ * as a draft in the archive, and clear the current session.
+ * 
+ * @returns {JSX.Element | null} The rendered buttons or null if no file is uploaded.
+ */
 export const SubtitleActionButtons: React.FC = () => {
     const {
         subtitleFile,
@@ -15,6 +23,10 @@ export const SubtitleActionButtons: React.FC = () => {
         groupByPunctuation
     } = useSubtitleContext();
 
+    /**
+     * Opens the subtitle editor modal. If segments are not already loaded in state,
+     * it first parses them from the uploaded file via the backend.
+     */
     const handleEditSubtitles = async () => {
         if (!subtitleFile) return;
 
@@ -53,6 +65,9 @@ export const SubtitleActionButtons: React.FC = () => {
         }
     };
 
+    /**
+     * Resets the current subtitle session after user confirmation.
+     */
     const handleClear = () => {
         if (confirm('Clear current subtitles and start new?')) {
             setSubtitleFile(null);

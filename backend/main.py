@@ -8,6 +8,7 @@ import db  # Initialize database
 
 app = FastAPI(title="TTS Audio Generation System")
 
+# Configure CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -16,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
+# Register API routers
 app.include_router(system.router)
 app.include_router(voices.router)
 app.include_router(generation.router)
@@ -24,8 +25,14 @@ app.include_router(jobs.router)
 
 @app.on_event("startup")
 async def startup_event():
-    # Start the queue worker in the background
+    """
+    Background worker initialization on application startup.
+    Starts the TTS queue manager worker loop.
+    """
     await queue_manager.start_worker()
 
 if __name__ == "__main__":
+    """
+    Main entry point for running the FastAPI server using Uvicorn.
+    """
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

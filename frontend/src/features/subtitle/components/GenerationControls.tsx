@@ -5,6 +5,14 @@ import ModelSelector from '../../../components/ui/ModelSelector';
 import { useSubtitleContext } from '../context/SubtitleContext';
 import { useGlobalContext } from '../../../context/GlobalContext';
 
+/**
+ * Component that provides controls for synthesizing audio from subtitles.
+ * 
+ * Includes voice selection, model selection, output format choice, and 
+ * the main action button to trigger the backend generation task.
+ * 
+ * @returns {JSX.Element} The rendered generation control panel.
+ */
 export const GenerationControls: React.FC = () => {
     const { 
         isProcessing, 
@@ -42,6 +50,9 @@ export const GenerationControls: React.FC = () => {
 
     const [outputFormat, setOutputFormat] = React.useState<'mp3' | 'wav'>('mp3');
 
+    /**
+     * Submits the generation task to the backend and sets up an SSE stream for progress.
+     */
     const handleGenerate = async () => {
         if (!subtitleFile) {
             setErrorMsg("Please upload a .srt or .vtt file first.");
@@ -67,6 +78,9 @@ export const GenerationControls: React.FC = () => {
         lastLogRef.current = '';
         setShowLogsModal(true);
 
+        /**
+         * Helper to add a timestamped log entry if it differs from the last one.
+         */
         const addLog = (message: string) => {
             if (message === lastLogRef.current) return;
             lastLogRef.current = message;
@@ -175,6 +189,9 @@ export const GenerationControls: React.FC = () => {
         }
     };
 
+    /**
+     * Handles user request to cancel the generation task, with optional partial download.
+     */
     const handleCancel = async () => {
         const choice = window.confirm(
             "Vuoi scaricare l'audio generato finora prima di interrompere?\n\n" +

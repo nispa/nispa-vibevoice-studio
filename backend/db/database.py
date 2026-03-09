@@ -2,13 +2,15 @@ import sqlite3
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from db.models import JobCreate, JobUpdate, JobResponse, SubtitleSegmentData
 
 DB_PATH = Path(__file__).parent.parent / "jobs.db"
 
 def init_db():
-    """Initialize the database with required tables"""
+    """
+    Initializes the SQLite database and creates the necessary tables if they don't exist.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -34,7 +36,15 @@ def init_db():
     conn.close()
 
 def create_job(job_data: JobCreate) -> JobResponse:
-    """Create a new job"""
+    """
+    Creates a new voiceover job entry in the database.
+
+    Args:
+        job_data (JobCreate): The job configuration and subtitle segments.
+
+    Returns:
+        JobResponse: The newly created job as a Pydantic model.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -67,7 +77,15 @@ def create_job(job_data: JobCreate) -> JobResponse:
     return get_job(job_id)
 
 def get_job(job_id: int) -> Optional[JobResponse]:
-    """Get a job by ID"""
+    """
+    Retrieves a single job by its ID.
+
+    Args:
+        job_id (int): The unique ID of the job.
+
+    Returns:
+        Optional[JobResponse]: The job data if found, otherwise None.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -80,8 +98,17 @@ def get_job(job_id: int) -> Optional[JobResponse]:
     
     return _row_to_job(row)
 
-def get_all_jobs(limit: int = 50, offset: int = 0) -> tuple:
-    """Get all jobs with pagination"""
+def get_all_jobs(limit: int = 50, offset: int = 0) -> Tuple[List[JobResponse], int]:
+    """
+    Retrieves a paginated list of all jobs.
+
+    Args:
+        limit (int, optional): Maximum number of jobs to return. Defaults to 50.
+        offset (int, optional): Number of jobs to skip. Defaults to 0.
+
+    Returns:
+        Tuple[List[JobResponse], int]: A tuple containing the list of jobs and the total count.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -100,7 +127,16 @@ def get_all_jobs(limit: int = 50, offset: int = 0) -> tuple:
     return jobs, total
 
 def update_job(job_id: int, update_data: JobUpdate) -> JobResponse:
-    """Update a job"""
+    """
+    Updates an existing job's segments or notes.
+
+    Args:
+        job_id (int): The ID of the job to update.
+        update_data (JobUpdate): The new data for the job.
+
+    Returns:
+        JobResponse: The updated job data.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -129,7 +165,17 @@ def update_job(job_id: int, update_data: JobUpdate) -> JobResponse:
     return get_job(job_id)
 
 def update_job_status(job_id: int, status: str, audio_url: Optional[str] = None) -> JobResponse:
-    """Update job status and optionally audio URL"""
+    """
+    Updates the status and optionally the audio URL of a job.
+
+    Args:
+        job_id (int): The ID of the job.
+        status (str): The new status string.
+        audio_url (Optional[str], optional): The URL of the generated audio file. Defaults to None.
+
+    Returns:
+        JobResponse: The updated job data.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -153,7 +199,15 @@ def update_job_status(job_id: int, status: str, audio_url: Optional[str] = None)
     return get_job(job_id)
 
 def delete_job(job_id: int) -> bool:
-    """Delete a job"""
+    """
+    Deletes a job from the database.
+
+    Args:
+        job_id (int): The unique ID of the job to delete.
+
+    Returns:
+        bool: True if the job was successfully deleted, otherwise False.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -164,8 +218,16 @@ def delete_job(job_id: int) -> bool:
     
     return success
 
-def _row_to_job(row) -> JobResponse:
-    """Convert database row to JobResponse"""
+def _row_to_job(row: tuple) -> JobResponse:
+    """
+    Helper function to convert a raw SQLite row into a JobResponse model.
+
+    Args:
+        row (tuple): The raw database row.
+
+    Returns:
+        JobResponse: The parsed Pydantic model.
+    """
     return JobResponse(
         id=row[0],
         original_filename=row[1],

@@ -1,6 +1,9 @@
 import { createContext, useContext, useState, useRef, useEffect } from 'react';
 import type { ReactNode, MutableRefObject, Dispatch, SetStateAction, FC } from 'react';
 
+/**
+ * Properties provided by the TranslationContext.
+ */
 export interface TranslationContextProps {
     // Configuration
     targetLanguage: string;
@@ -41,6 +44,15 @@ export interface TranslationContextProps {
 
 const TranslationContext = createContext<TranslationContextProps | undefined>(undefined);
 
+/**
+ * Context Provider for managing the LLM-based translation process.
+ * 
+ * Tracks target language, available Ollama models, translation progress, 
+ * logs, and real-time text being processed.
+ * 
+ * @param {object} props - Component props.
+ * @param {ReactNode} props.children - Child components to be wrapped.
+ */
 export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) => {
     // 1. Configuration
     const [targetLanguage, setTargetLanguage] = useState<string>('English');
@@ -62,6 +74,9 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
     const [isPausing, setIsPausing] = useState(false);
     const [hasStartedTranslation, setHasStartedTranslation] = useState(false);
 
+    /**
+     * Fetches the list of available LLM models from the local Ollama instance.
+     */
     const refreshOllamaModels = async () => {
         setIsLoadingModels(true);
         try {
@@ -90,7 +105,9 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
         }
     };
 
-    // Load Ollama models for translation
+    /**
+     * Initial model load on mount.
+     */
     useEffect(() => {
         refreshOllamaModels();
     }, []);
@@ -118,6 +135,12 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
     );
 };
 
+/**
+ * Hook to access the translation context.
+ * 
+ * @returns {TranslationContextProps} The translation context values.
+ * @throws {Error} If used outside of a TranslationProvider.
+ */
 export const useTranslationContext = () => {
     const context = useContext(TranslationContext);
     if (context === undefined) {

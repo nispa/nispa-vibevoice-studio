@@ -5,9 +5,19 @@ from .parser import SubtitleSegment, ScriptLine
 
 def align_subtitles_audio(segments_with_audio: List[Tuple[SubtitleSegment, bytes]], output_format: str = "mp3") -> bytes:
     """
-    Takes a list of SubtitleSegments paired with their corresponding synthesized raw WAV bytes.
-    Implements SHIFTING logic: if synthesized audio is longer than the available slot,
-    the next segment is pushed forward to avoid overlap.
+    Aligns synthesized audio segments with their subtitle timestamps using shifting logic.
+
+    If a synthesized audio segment is longer than the original subtitle duration, 
+    subsequent segments are shifted forward to prevent overlaps. 
+    Silence gaps are added where necessary to maintain the original timing.
+
+    Args:
+        segments_with_audio (List[Tuple[SubtitleSegment, bytes]]): A list of tuples, each containing 
+            a SubtitleSegment and its corresponding synthesized audio in WAV format (bytes).
+        output_format (str, optional): The desired output audio format ("mp3" or "wav"). Defaults to "mp3".
+
+    Returns:
+        bytes: The combined and aligned audio as bytes in the requested format.
     """
     if not segments_with_audio:
         return b""
@@ -40,7 +50,15 @@ def align_subtitles_audio(segments_with_audio: List[Tuple[SubtitleSegment, bytes
 
 def align_script_audio(lines_with_audio: List[bytes], gap_ms: int = 300, output_format: str = "mp3") -> bytes:
     """
-    Concatenates untimed script audio bytes back-to-back with a small configurable gap.
+    Concatenates synthesized audio for script lines with a configurable silent gap between them.
+
+    Args:
+        lines_with_audio (List[bytes]): A list of synthesized audio bytes in WAV format.
+        gap_ms (int, optional): The duration of the silent gap between lines in milliseconds. Defaults to 300.
+        output_format (str, optional): The desired output audio format ("mp3" or "wav"). Defaults to "mp3".
+
+    Returns:
+        bytes: The concatenated audio as bytes in the requested format.
     """
     if not lines_with_audio:
         return b""

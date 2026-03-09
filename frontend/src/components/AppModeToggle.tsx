@@ -1,12 +1,29 @@
-
 import { FileAudio, FileText } from 'lucide-react';
 import type { AppMode } from '../context/GlobalContext';
 
+/**
+ * Props for the AppModeToggle component.
+ */
 interface AppModeToggleProps {
+    /**
+     * The currently active application mode.
+     */
     mode: AppMode;
+    /**
+     * Callback function to switch the application mode.
+     * @param {AppMode} mode - The new mode to set.
+     */
     setMode: (mode: AppMode) => void;
 }
 
+/**
+ * Toggle component to switch between Subtitle and Script generation modes.
+ * 
+ * Provides a segmented control UI to allow the user to select the preferred workflow.
+ * 
+ * @param {AppModeToggleProps} props - Component props.
+ * @returns {JSX.Element} The rendered toggle bar.
+ */
 export default function AppModeToggle({ mode, setMode }: AppModeToggleProps) {
     return (
         <div className="flex bg-slate-800/50 p-1.5 rounded-lg w-full max-w-md mx-auto mb-8 relative z-10 border border-slate-700/50">

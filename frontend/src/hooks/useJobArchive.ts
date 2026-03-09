@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react';
 
+/**
+ * Represents a single subtitle segment in a job.
+ */
 export interface Segment {
     index: number;
     start_ms: number;
@@ -7,6 +10,9 @@ export interface Segment {
     text: string;
 }
 
+/**
+ * Represents a voiceover job record from the archive.
+ */
 export interface Job {
     id: number;
     original_filename: string;
@@ -23,10 +29,20 @@ export interface Job {
     status: string;
 }
 
+/**
+ * Custom hook to manage the lifecycle of voiceover jobs in the archive.
+ * 
+ * Provides functionality to load, delete, save drafts, and export jobs to SRT.
+ * 
+ * @returns {object} State and handlers for managing the job archive.
+ */
 export function useJobArchive() {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(false);
 
+    /**
+     * Fetches the list of all jobs from the backend.
+     */
     const loadJobs = useCallback(async () => {
         setLoading(true);
         try {
@@ -42,6 +58,11 @@ export function useJobArchive() {
         }
     }, []);
 
+    /**
+     * Deletes a specific job by ID after user confirmation.
+     * 
+     * @param {number} jobId - The ID of the job to delete.
+     */
     const deleteJob = useCallback(async (jobId: number) => {
         if (confirm('Are you sure you want to delete this job?')) {
             try {
@@ -57,12 +78,20 @@ export function useJobArchive() {
         }
     }, [loadJobs]);
 
+    /**
+     * Generates and triggers a download for an SRT file based on a job's segments.
+     * 
+     * @param {Job} job - The job object containing segments to export.
+     */
     const downloadSrt = useCallback((job: Job) => {
         if (!job.modified_segments || job.modified_segments.length === 0) {
             alert("No segments to download.");
             return;
         }
 
+        /**
+         * Helper to format milliseconds into SRT timestamp format (HH:MM:SS,mmm).
+         */
         const formatTimeSrt = (ms: number): string => {
             const totalSeconds = Math.floor(ms / 1000);
             const hours = Math.floor(totalSeconds / 3600);
@@ -91,6 +120,13 @@ export function useJobArchive() {
         URL.revokeObjectURL(url);
     }, []);
 
+    /**
+     * Saves a job configuration as a draft in the backend.
+     * 
+     * @param {any} jobData - The job configuration data to save.
+     * @param {boolean} silent - If true, suppresses the success alert. Defaults to false.
+     * @returns {Promise<Job | null>} The saved job record or null if failed.
+     */
     const saveJobDraft = useCallback(async (jobData: any, silent = false) => {
         try {
             const res = await fetch('http://localhost:8000/api/jobs/create', {

@@ -1,6 +1,14 @@
 import { useSubtitleContext } from '../context/SubtitleContext';
 import { useTranslationContext } from '../context/TranslationContext';
 
+/**
+ * Custom hook that implements the main translation loop for subtitle segments.
+ * 
+ * Manages the sequential translation of segments using a local LLM (Ollama),
+ * updating global state, logging progress, and providing time estimations.
+ * 
+ * @returns {object} Functions to start and stop the translation loop.
+ */
 export const useTranslationLoop = () => {
     const {
         subtitleSegments,
@@ -26,11 +34,22 @@ export const useTranslationLoop = () => {
         setCurrentTranslatedText
     } = useTranslationContext();
 
+    /**
+     * Signals the translation loop to stop after the current segment finishes.
+     */
     const stopTranslation = () => {
         setIsPausing(true);
         isPausedRef.current = true;
     };
 
+    /**
+     * Executes the translation loop over all untranslated subtitle segments.
+     * 
+     * Iterates through segments, calls the backend translation API, updates progress,
+     * and handles auto-saving to the job archive.
+     * 
+     * @param {string} customPrompt - The user-defined prompt template for translation.
+     */
     const runTranslationLoop = async (customPrompt: string) => {
         let currentSegments = [...subtitleSegments];
 
@@ -42,6 +61,9 @@ export const useTranslationLoop = () => {
         setTranslationLogs([]);
         setEstimatedTimeRemaining(null);
 
+        /**
+         * Helper to append a timestamped message to the translation logs.
+         */
         const addTransLog = (msg: string) => {
             const time = new Date().toLocaleTimeString();
             setTranslationLogs(prev => [...prev, `[${time}] ${msg}`]);

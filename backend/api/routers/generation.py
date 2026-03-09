@@ -18,6 +18,9 @@ router = APIRouter(prefix="/api")
 async def get_ollama_models():
     """
     Fetches available models from the local Ollama instance.
+
+    Returns:
+        dict: A dictionary containing a list of available model names.
     """
     try:
         async with aiohttp.ClientSession() as session:
@@ -40,6 +43,18 @@ async def translate_segment(
 ):
     """
     Translates a single text segment using local Ollama.
+
+    Args:
+        text (str): The text to translate.
+        target_language (str, optional): The language to translate into. Defaults to "English".
+        model_name (str, optional): The Ollama model to use. Defaults to "llama3".
+        prompt (Optional[str], optional): Custom prompt for translation. Defaults to None.
+
+    Returns:
+        dict: A dictionary containing the translated text.
+
+    Raises:
+        HTTPException: If translation fails or Ollama is unreachable.
     """
     try:
         async with aiohttp.ClientSession() as session:
@@ -75,9 +90,16 @@ async def preview_subtitles(
 ):
     """
     Preview subtitle segments with optional grouping by punctuation.
-    Helps users see how subtitles will be processed before generation.
-    
-    group_by_punctuation: If True, groups segments separated mid-sentence back together
+
+    Args:
+        subtitle_file (UploadFile): The .srt or .vtt file to preview.
+        group_by_punctuation (bool, optional): Whether to group segments by sentence. Defaults to False.
+
+    Returns:
+        dict: A summary and list of processed subtitle segments.
+
+    Raises:
+        HTTPException: If the file format is invalid or parsing fails.
     """
     if not subtitle_file.filename.endswith((".srt", ".vtt")):
         raise HTTPException(status_code=400, detail="Invalid subtitle format. Use .srt or .vtt")
@@ -118,8 +140,18 @@ async def translate_subtitles(
     model_name: str = Form("llama3")
 ):
     """
-    Translates subtitle segments into the target language using local Ollama.
-    Returns the JSON representation of the translated segments.
+    Translates all segments of a subtitle file into the target language.
+
+    Args:
+        subtitle_file (UploadFile): The .srt or .vtt file to translate.
+        target_language (str, optional): The destination language. Defaults to "English".
+        model_name (str, optional): The Ollama model to use. Defaults to "llama3".
+
+    Returns:
+        dict: A dictionary containing the translated segments.
+
+    Raises:
+        HTTPException: If the file format is invalid, parsing fails, or translation errors occur.
     """
     if not subtitle_file.filename.endswith((".srt", ".vtt")):
         raise HTTPException(status_code=400, detail="Invalid subtitle format. Use .srt or .vtt")
@@ -186,8 +218,20 @@ async def generate_audio(
     subtitle_segments: Optional[str] = Form(None)
 ):
     """
-    Timed Subtitles Workflow: Parses .srt/.vtt and aligns synthesized audio to timestamps.
-    If subtitle_segments is provided as JSON, it uses those instead of parsing the file.
+    Synchronously generates and aligns audio for subtitle segments.
+
+    Args:
+        subtitle_file (Optional[UploadFile], optional): Subtitle file. Defaults to None.
+        voice_id (str): Reference voice ID for synthesis.
+        model_name (str, optional): TTS model to use. Defaults to "VibeVoice-1.5B".
+        group_by_punctuation (bool, optional): Group segments by sentence. Defaults to False.
+        subtitle_segments (Optional[str], optional): JSON string of segments. Defaults to None.
+
+    Returns:
+        StreamingResponse: The combined audio file (MP3).
+
+    Raises:
+        HTTPException: If inputs are missing or invalid, or if synthesis fails.
     """
     segments = []
 
@@ -254,7 +298,19 @@ async def generate_script(
     model_name: str = Form("VibeVoice-1.5B")
 ):
     """
-    Untimed Script Workflow: Synchronous generation.
+    Synchronously generates audio for an untimed script.
+
+    Args:
+        script_file (Optional[UploadFile], optional): Script file (.txt, .md). Defaults to None.
+        script_text (Optional[str], optional): Raw script text. Defaults to None.
+        speaker_voice_map (str, optional): JSON mapping of speakers to voice IDs. Defaults to "{}".
+        model_name (str, optional): TTS model to use. Defaults to "VibeVoice-1.5B".
+
+    Returns:
+        StreamingResponse: The combined audio file (MP3).
+
+    Raises:
+        HTTPException: If inputs are invalid or voice mappings are missing.
     """
     content_str = None
     if script_file:
@@ -309,8 +365,18 @@ async def create_subtitle_task(
     output_format: str = Form("mp3")
 ):
     """
-    Creates a new background task for timed subtitle generation.
-    Returns the task_id.
+    Creates a background task for timed subtitle voiceover generation.
+
+    Args:
+        subtitle_file (Optional[UploadFile], optional): Subtitle file. Defaults to None.
+        voice_id (str): Reference voice ID.
+        model_name (str, optional): TTS model. Defaults to "VibeVoice-1.5B".
+        group_by_punctuation (bool, optional): Group segments. Defaults to False.
+        subtitle_segments (Optional[str], optional): JSON segments. Defaults to None.
+        output_format (str, optional): Output format ("mp3" or "wav"). Defaults to "mp3".
+
+    Returns:
+        dict: success status and task_id.
     """
     segments = []
 
@@ -408,8 +474,16 @@ async def create_generation_task(
     model_name: str = Form("VibeVoice-1.5B")
 ):
     """
-    Creates a new background task for untimed script generation.
-    Returns the task_id.
+    Creates a background task for untimed script voiceover generation.
+
+    Args:
+        script_file (Optional[UploadFile], optional): Script file. Defaults to None.
+        script_text (Optional[str], optional): Raw script text. Defaults to None.
+        speaker_voice_map (str, optional): JSON speaker-voice mapping. Defaults to "{}".
+        model_name (str, optional): TTS model. Defaults to "VibeVoice-1.5B".
+
+    Returns:
+        dict: success status and task_id.
     """
     content_str = None
     if script_file:
@@ -484,6 +558,18 @@ async def create_generation_task(
 
 @router.get("/tasks/{task_id}/stream")
 async def stream_task_progress(task_id: str):
+    """
+    SSE endpoint to stream progress updates for a background task.
+
+    Args:
+        task_id (str): The ID of the task to track.
+
+    Returns:
+        StreamingResponse: Event stream of task updates.
+
+    Raises:
+        HTTPException: If the task ID is not found.
+    """
     task = queue_manager.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -551,6 +637,19 @@ async def stream_task_progress(task_id: str):
 
 @router.post("/tasks/{task_id}/cancel")
 async def cancel_task(task_id: str, finalize: bool = Query(False)):
+    """
+    Cancels a running background task.
+
+    Args:
+        task_id (str): ID of the task to cancel.
+        finalize (bool, optional): Whether to finalize partial results. Defaults to False.
+
+    Returns:
+        dict: success status.
+
+    Raises:
+        HTTPException: If task is not found or already completed.
+    """
     cancelled = queue_manager.cancel_task(task_id, finalize=finalize)
     if not cancelled:
         raise HTTPException(status_code=400, detail="Task not found or already finished")

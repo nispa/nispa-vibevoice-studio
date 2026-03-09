@@ -5,6 +5,9 @@ import { useJobArchive } from '../../../hooks/useJobArchive';
 
 // --- Interfaces ---
 
+/**
+ * Represents a single subtitle segment with its timing and content.
+ */
 export interface SubtitleSegment {
     index: number;
     start_ms: number;
@@ -14,10 +17,16 @@ export interface SubtitleSegment {
     original_text?: string;
 }
 
+/**
+ * Supported target languages for translation.
+ */
 export const TARGET_LANGUAGES = ['English', 'Italian', 'German', 'Spanish', 'French'];
 
 // --- Context Definition ---
 
+/**
+ * Properties provided by the SubtitleContext.
+ */
 interface SubtitleContextProps {
     // 1. Core State (File, Parent App Props)
     subtitleFile: File | null;
@@ -74,6 +83,15 @@ const SubtitleContext = createContext<SubtitleContextProps | undefined>(undefine
 
 // --- Provider Component ---
 
+/**
+ * Context Provider for managing the subtitle-to-audio generation workflow.
+ * 
+ * Tracks the subtitle file, processing state, grouping options, 
+ * audio logs, and provides handlers for task management and draft saving.
+ * 
+ * @param {object} props - Component props.
+ * @param {ReactNode} props.children - Child components to be wrapped.
+ */
 export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const { voices, models } = useGlobalContext();
     const { saveJobDraft: saveJobAction } = useJobArchive();
@@ -107,13 +125,18 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     // Task Management
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
 
-    // Initialize selection when voices/models load
+    /**
+     * Initializes default voice selection when voices data becomes available.
+     */
     useEffect(() => {
         if (voices.length > 0 && !selectedVoiceId) {
             setSelectedVoiceId(voices[0].id);
         }
     }, [voices, selectedVoiceId]);
 
+    /**
+     * Ensures selected model remains valid when available models change.
+     */
     useEffect(() => {
         if (models.length > 0 && !models.includes(selectedModel)) {
             setSelectedModel(models[0]);
@@ -122,6 +145,11 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     // --- Complex Callbacks ---
 
+    /**
+     * Cancels the current background task via the backend API.
+     * 
+     * @param {boolean} finalize - Whether to request the backend to finalize partial results.
+     */
     const cancelGeneration = async (finalize: boolean = false) => {
         if (!currentTaskId) return;
 
@@ -147,6 +175,13 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
     };
 
+    /**
+     * Saves the current subtitle configuration and segments as a draft job.
+     * 
+     * @param {string} customNote - Optional note for the draft.
+     * @param {SubtitleSegment[]} customSegments - Optional segments override.
+     * @param {string} customFilename - Optional filename override.
+     */
     const saveJobDraft = async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => {
         const segmentsToSave = customSegments || subtitleSegments;
         const fileToSave = customFilename || (subtitleFile ? subtitleFile.name : 'Unknown');
@@ -170,6 +205,11 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         await saveJobAction(jobData, !!customNote);
     };
 
+    /**
+     * Loads a specific job from the archive into the current context.
+     * 
+     * @param {any} job - The job object from the database.
+     */
     const loadJobSegments = (job: any) => {
         setSubtitleSegments(job.modified_segments);
         setSelectedVoiceId(job.voice_id);
@@ -209,6 +249,12 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     );
 };
 
+/**
+ * Hook to access the subtitle context.
+ * 
+ * @returns {SubtitleContextProps} The subtitle context values.
+ * @throws {Error} If used outside of a SubtitleProvider.
+ */
 export const useSubtitleContext = () => {
     const context = useContext(SubtitleContext);
     if (context === undefined) {

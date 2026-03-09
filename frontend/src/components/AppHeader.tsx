@@ -1,10 +1,24 @@
-
 import { Settings, Headphones } from 'lucide-react';
 
+/**
+ * Props for the AppHeader component.
+ */
 interface AppHeaderProps {
+    /**
+     * Callback triggered when the system information settings button is clicked.
+     */
     onShowSystemInfo: () => void;
 }
 
+/**
+ * Main application header component.
+ * 
+ * Displays the application title, a brief description, and a button
+ * to access system information and settings.
+ * 
+ * @param {AppHeaderProps} props - Component props.
+ * @returns {JSX.Element} The rendered header.
+ */
 export default function AppHeader({ onShowSystemInfo }: AppHeaderProps) {
     return (
         <div className="w-full max-w-4xl text-center mb-10 space-y-4 relative">

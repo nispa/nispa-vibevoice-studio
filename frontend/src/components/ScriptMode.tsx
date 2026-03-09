@@ -7,6 +7,16 @@ import { useScriptGeneration } from '../hooks/useScriptGeneration';
 import ScriptInputArea from './script/ScriptInputArea';
 import { useGlobalContext } from '../context/GlobalContext';
 
+/**
+ * Internal component for Script Mode.
+ * 
+ * Manages the workflow for untimed script generation:
+ * 1. Script Input (Paste or Upload)
+ * 2. Speaker Mapping (Assigning voices to detected speakers)
+ * 3. Generation (Model selection and synthesis)
+ * 
+ * @returns {JSX.Element} The rendered script mode UI.
+ */
 function ScriptModeInner() {
     const { isProcessing, models } = useGlobalContext();
     const {
@@ -106,6 +116,10 @@ function ScriptModeInner() {
     );
 }
 
+/**
+ * Script Mode entry point.
+ * Wraps the script workflow with the ScriptProvider context.
+ */
 export default function ScriptMode() {
     return (
         <ScriptProvider>

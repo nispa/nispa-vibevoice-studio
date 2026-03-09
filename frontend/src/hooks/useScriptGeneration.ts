@@ -2,6 +2,14 @@ import { useState, useRef } from 'react';
 import { useScriptContext } from '../features/script/context/ScriptContext';
 import { useGlobalContext } from '../context/GlobalContext';
 
+/**
+ * Custom hook to manage the script-based audio generation workflow.
+ * 
+ * Handles state for the progress modal, SSE stream consumption for real-time updates,
+ * and communication with the backend for generation and cancellation.
+ * 
+ * @returns {object} An object containing state and handlers for script generation.
+ */
 export const useScriptGeneration = () => {
     const { scriptFile, scriptText, speakers, selectedModel, setErrorMsg } = useScriptContext();
     const { setIsProcessing, setAudioUrl } = useGlobalContext();
@@ -12,6 +20,11 @@ export const useScriptGeneration = () => {
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
 
+    /**
+     * Internal handler to process individual messages from the SSE stream.
+     * 
+     * @param {any} message - The parsed message from the SSE stream.
+     */
     const handleProgressMessage = (message: any) => {
         const timestamp = new Date().toLocaleTimeString();
 
@@ -48,6 +61,10 @@ export const useScriptGeneration = () => {
         }
     };
 
+    /**
+     * Initiates the script generation process by sending a request to the backend.
+     * Validates script content and speaker mappings before starting.
+     */
     const handleGenerate = async () => {
         const scriptContent = scriptFile || scriptText.trim();
 
@@ -162,6 +179,9 @@ export const useScriptGeneration = () => {
         }
     };
 
+    /**
+     * Aborts the current generation process both locally and on the backend.
+     */
     const handleCancelGeneration = async () => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();

@@ -12,8 +12,18 @@ router = APIRouter(prefix="/api/jobs")
 @router.post("/create", response_model=JobResponse)
 async def create_new_job(job_data: JobCreate):
     """
-    Create a new subtitle job (draft).
-    Stores original and modified subtitle segments.
+    Creates a new voiceover job draft in the database.
+
+    Stores original and modified subtitle segments for later processing.
+
+    Args:
+        job_data (JobCreate): The initial data for the new job.
+
+    Returns:
+        JobResponse: The created job record.
+
+    Raises:
+        HTTPException: If the job creation fails.
     """
     try:
         job = create_job(job_data)
@@ -23,7 +33,18 @@ async def create_new_job(job_data: JobCreate):
 
 @router.get("/{job_id}", response_model=JobResponse)
 async def get_job_by_id(job_id: int):
-    """Get a specific job by ID"""
+    """
+    Retrieves a specific job by its unique ID.
+
+    Args:
+        job_id (int): The ID of the job to retrieve.
+
+    Returns:
+        JobResponse: The job record.
+
+    Raises:
+        HTTPException: If the job is not found.
+    """
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -31,13 +52,34 @@ async def get_job_by_id(job_id: int):
 
 @router.get("", response_model=JobListResponse)
 async def list_jobs(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
-    """Get all jobs with pagination"""
+    """
+    Lists all voiceover jobs with pagination support.
+
+    Args:
+        limit (int, optional): Maximum number of jobs to return. Defaults to 50.
+        offset (int, optional): Number of jobs to skip. Defaults to 0.
+
+    Returns:
+        JobListResponse: A list of jobs and the total count.
+    """
     jobs, total = get_all_jobs(limit=limit, offset=offset)
     return JobListResponse(jobs=jobs, total=total)
 
 @router.put("/{job_id}", response_model=JobResponse)
 async def update_job_by_id(job_id: int, update_data: JobUpdate):
-    """Update a job (usually modified segments)"""
+    """
+    Updates the content or segments of an existing job.
+
+    Args:
+        job_id (int): The ID of the job to update.
+        update_data (JobUpdate): The updated job data.
+
+    Returns:
+        JobResponse: The updated job record.
+
+    Raises:
+        HTTPException: If the job is not found or update fails.
+    """
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -50,7 +92,20 @@ async def update_job_by_id(job_id: int, update_data: JobUpdate):
 
 @router.patch("/{job_id}/status")
 async def update_job_status_endpoint(job_id: int, status: str = Query(...), audio_url: str = Query(None)):
-    """Update job status (draft, processing, completed, failed)"""
+    """
+    Updates the execution status and optionally the audio URL of a job.
+
+    Args:
+        job_id (int): The ID of the job.
+        status (str): The new status ('draft', 'processing', 'completed', 'failed').
+        audio_url (str, optional): The URL to the generated audio file. Defaults to None.
+
+    Returns:
+        JobResponse: The updated job record.
+
+    Raises:
+        HTTPException: If the job is not found or the status is invalid.
+    """
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -67,7 +122,18 @@ async def update_job_status_endpoint(job_id: int, status: str = Query(...), audi
 
 @router.delete("/{job_id}")
 async def delete_job_by_id(job_id: int):
-    """Delete a job"""
+    """
+    Permanently deletes a job from the database.
+
+    Args:
+        job_id (int): The ID of the job to delete.
+
+    Returns:
+        dict: A confirmation message.
+
+    Raises:
+        HTTPException: If the job is not found or deletion fails.
+    """
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")

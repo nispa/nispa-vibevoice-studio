@@ -2,6 +2,15 @@ import React from 'react';
 import { Eye } from 'lucide-react';
 import { useSubtitleContext } from '../context/SubtitleContext';
 
+/**
+ * Component that provides a toggle for intelligent subtitle grouping and a preview button.
+ * 
+ * Grouping combines segments that are split mid-sentence to ensure more natural
+ * speech synthesis. The preview button allows users to see the result of 
+ * the grouping before proceeding to generation or translation.
+ * 
+ * @returns {JSX.Element | null} The rendered grouping controls or null if no file is uploaded.
+ */
 export const SubtitleGroupingControls: React.FC = () => {
     const {
         subtitleFile,
@@ -14,6 +23,10 @@ export const SubtitleGroupingControls: React.FC = () => {
         setSubtitleSegments,
     } = useSubtitleContext();
 
+    /**
+     * Fetches a preview of the subtitles from the backend, 
+     * optionally applying the grouping logic.
+     */
     const loadPreview = async () => {
         if (!subtitleFile) return;
 
