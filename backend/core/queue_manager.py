@@ -81,12 +81,25 @@ class TTSQueueManager:
                 with OutputRedirector(self, task_id):
                     async for update in payload_func(task_id):
                         # Check if cancelled during generation
-                        if self.tasks.get(task_id, {}).get("status") == TaskStatus.CANCELLED:
-                            break
+                        task_state = self.tasks.get(task_id, {})
+                        if task_state.get("status") == TaskStatus.CANCELLED:
+                            # If finalize_on_cancel is FALSE, we break immediately.
+                            # If TRUE, the generator (payload_func) itself is responsible 
+                            # for checking this and yielding the final audio.
+                            if not task_state.get("finalize_on_cancel"):
+                                break
+                            # If finalizing, we let the generator continue its next yield 
+                            # (which should be the completion)
                             
                         progress = update.get("progress", self.tasks[task_id]["progress"])
                         message = update.get("message", "")
                         audio_b64 = update.get("audio_b64", None)
+                        
+                        # Store additional metadata if provided (e.g. for progress bar)
+                        if "current_item" in update:
+                            self.tasks[task_id]["current_item"] = update["current_item"]
+                        if "total_items" in update:
+                            self.tasks[task_id]["total_items"] = update["total_items"]
                         
                         if audio_b64:
                             self.update_task(task_id, status=TaskStatus.COMPLETED, progress=100, message=message, audio_b64=audio_b64)
@@ -134,12 +147,13 @@ class TTSQueueManager:
             if progress is not None:
                 self.tasks[task_id]["progress"] = progress
 
-    def cancel_task(self, task_id: str) -> bool:
+    def cancel_task(self, task_id: str, finalize: bool = False) -> bool:
         if task_id in self.tasks:
             current_status = self.tasks[task_id]["status"]
             if current_status in [TaskStatus.QUEUED, TaskStatus.PROCESSING]:
                 self.tasks[task_id]["status"] = TaskStatus.CANCELLED
-                self.add_log(task_id, "✗ Generation cancelled by user.")
+                self.tasks[task_id]["finalize_on_cancel"] = finalize
+                self.add_log(task_id, f"✗ Generation cancelled by user.{' Finalizing partial audio...' if finalize else ''}")
                 return True
         return False
 

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-09
+
+### Added
+- **Intelligent Grouping Validation**: Added automated tests (`GroupingWorkflow.test.tsx`) to verify the grouping logic and state transitions.
+- **Ollama Models Refresh**: Added a dedicated refresh button next to the AI model selector to re-fetch available Ollama models without a page reload.
+- **Enhanced Task Cancellation**:
+    - **Partial Audio Finalization**: When cancelling a generation, the user can now choose to download the audio synthesized so far instead of just discarding it.
+    - **Dual UI Access**: Cancellation buttons added to both `GenerationControls` and `ActivityLogsModal` for easier access.
+- **Improved UX for Operations**:
+    - Renamed the "Logs" button to **"Dettagli Operazione"** (or **"In corso..."** during processing) for better clarity.
+    - Added a pulsing animation and visual highlighting to the operation button when a task is active.
+
+### Fixed
+- **Intelligent Grouping Persistence**: Fixed a bug where subtitle grouping was not correctly saved in the job draft when "Use as Input" was clicked.
+- **Progress Bar Accuracy**: Restored the progress bar logic to consistently use `current_item` and `total_items` from the backend, ensuring accurate segment-by-segment updates.
+- **Backend Infinite Loop**: Fixed a redundant nested loop in the subtitle generation worker that could cause processing to hang.
+- **Hardcoded Grouping Parameters**: Fixed several frontend components that were hardcoding `group_by_punctuation=false`, ignoring user preferences.
+
+### Changed
+- **Protected Progress Logic**: Added critical code comments in both frontend and backend to protect the progress calculation logic from accidental removal.
+
 ## [0.2.1] - 2026-03-08
 
 ### Added

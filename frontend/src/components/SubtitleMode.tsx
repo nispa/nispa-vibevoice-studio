@@ -27,6 +27,7 @@ const SubtitleModeContent: FC = () => {
         showPreview, setShowPreview, previewData,
         showEditor, setShowEditor, subtitleSegments, setSubtitleSegments,
         loadJobSegments, generationProgress,
+        cancelGeneration
     } = useSubtitleContext();
 
     const {
@@ -112,6 +113,7 @@ const SubtitleModeContent: FC = () => {
                 onClear={() => setActivityLogs([])}
                 audioUrl={currentAudioUrl}
                 progress={generationProgress}
+                onCancel={cancelGeneration}
             />
 
             <SubtitlePreviewModal

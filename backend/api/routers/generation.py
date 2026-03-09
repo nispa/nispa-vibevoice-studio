@@ -348,26 +348,34 @@ async def create_subtitle_task(
         segments_with_audio = []
         
         for idx, seg in enumerate(job_segments):
-            for idx, seg in enumerate(job_segments):
-                if queue_manager.get_task(task_id).get("status") == TaskStatus.CANCELLED:
-                    return
+            task_state = queue_manager.get_task(task_id)
+            if task_state.get("status") == TaskStatus.CANCELLED:
+                if task_state.get("finalize_on_cancel"):
+                    break # Allow finalization
+                return
 
-                # Progress based purely on completed items
-                current_progress = int((idx / total_items) * 100)
-                yield {
-                    "progress": current_progress, 
-                    "total_items": total_items,
-                    "current_item": idx + 1,
-                    "message": f"[TTS] Synthesizing text #{seg.index} ({len(seg.text)} chars): '{seg.text}'"
-                }
+            # CRITICAL: Progress must be based on segment counts (current_item/total_items)
+            # as required for accurate UI progress tracking.
+            current_progress = int((idx / total_items) * 100)
+            yield {
+                "progress": current_progress, 
+                "total_items": total_items,
+                "current_item": idx + 1,
+                "message": f"[TTS] Synthesizing text #{seg.index} ({len(seg.text)} chars): '{seg.text}'"
+            }
 
-                wav_bytes = await asyncio.to_thread(
-                    tts_engine.synthesize, seg.text, model_name, None, voice_id
-                )
-                segments_with_audio.append((seg, wav_bytes))
+            wav_bytes = await asyncio.to_thread(
+                tts_engine.synthesize, seg.text, model_name, None, voice_id
+            )
+            segments_with_audio.append((seg, wav_bytes))
 
-            # Final jump after all items are done
-            yield {"progress": 100, "total_items": total_items, "current_item": total_items, "message": f"Finalizing audio file..."}
+        # Final jump after all items are done
+        yield {
+            "progress": 100, 
+            "total_items": total_items, 
+            "current_item": total_items, 
+            "message": "Finalizing audio file..."
+        }
         final_audio_bytes = await asyncio.to_thread(align_subtitles_audio, segments_with_audio, output_format)
         
         # PERSISTENCE
@@ -432,7 +440,10 @@ async def create_generation_task(
         lines_with_audio = []
         
         for idx, line in enumerate(script_lines):
-            if queue_manager.get_task(task_id).get("status") == TaskStatus.CANCELLED:
+            task_state = queue_manager.get_task(task_id)
+            if task_state.get("status") == TaskStatus.CANCELLED:
+                if task_state.get("finalize_on_cancel"):
+                    break # Allow finalization
                 return
                 
             voice_id = speaker_voice_map_dict.get(line.speaker)
@@ -491,20 +502,38 @@ async def stream_task_progress(task_id: str):
             progress = current_task["progress"]
             logs = current_task["logs"]
             
+            # Extract additional metadata from the task if available
+            # This is critical for accurate progress tracking in the UI
+            current_item = current_task.get("current_item")
+            total_items = current_task.get("total_items")
+            
             if progress != last_progress_val or len(logs) > last_log_count:
                 status_msg = logs[-1] if len(logs) > 0 else "Initializing..."
                 
+                # CRITICAL: Always include current_item and total_items in SSE payload
+                # to allow precise frontend progress calculation based on segment count.
+                payload = {
+                    "status": status_msg,
+                    "progress": progress,
+                    "current_item": current_item,
+                    "total_items": total_items
+                }
+                
                 if status == TaskStatus.COMPLETED and current_task["audio_b64"]:
-                    yield f"data: {json.dumps({'type': 'complete', 'audioBase64': current_task['audio_b64'], 'status': status_msg, 'progress': 100})}\n\n"
+                    payload.update({"type": "complete", "audioBase64": current_task["audio_b64"]})
+                    yield f"data: {json.dumps(payload)}\n\n"
                     break
                 elif status == TaskStatus.FAILED:
-                    yield f"data: {json.dumps({'type': 'error', 'message': status_msg})}\n\n"
+                    payload.update({"type": "error", "message": status_msg})
+                    yield f"data: {json.dumps(payload)}\n\n"
                     break
                 elif status == TaskStatus.CANCELLED:
-                    yield f"data: {json.dumps({'type': 'error', 'message': 'Task was cancelled'})}\n\n"
+                    payload.update({"type": "error", "message": "Task was cancelled"})
+                    yield f"data: {json.dumps(payload)}\n\n"
                     break
                 else: 
-                    yield f"data: {json.dumps({'type': 'progress', 'status': status_msg, 'progress': progress})}\n\n"
+                    payload.update({"type": "progress"})
+                    yield f"data: {json.dumps(payload)}\n\n"
                 
                 last_progress_val = progress
                 last_log_count = len(logs)
@@ -521,8 +550,8 @@ async def stream_task_progress(task_id: str):
     )
 
 @router.post("/tasks/{task_id}/cancel")
-async def cancel_task(task_id: str):
-    cancelled = queue_manager.cancel_task(task_id)
+async def cancel_task(task_id: str, finalize: bool = Query(False)):
+    cancelled = queue_manager.cancel_task(task_id, finalize=finalize)
     if not cancelled:
         raise HTTPException(status_code=400, detail="Task not found or already finished")
     return {"status": "success"}

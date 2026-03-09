@@ -60,6 +60,11 @@ interface SubtitleContextProps {
     generationProgress: number;
     setGenerationProgress: (p: number) => void;
 
+    // Task Management
+    currentTaskId: string | null;
+    setCurrentTaskId: (id: string | null) => void;
+    cancelGeneration: (finalize?: boolean) => Promise<void>;
+
     // Callbacks
     loadJobSegments: (job: any) => void;
     saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => Promise<void>;
@@ -99,6 +104,9 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [showArchive, setShowArchive] = useState(false);
     const [generationProgress, setGenerationProgress] = useState(0);
 
+    // Task Management
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+
     // Initialize selection when voices/models load
     useEffect(() => {
         if (voices.length > 0 && !selectedVoiceId) {
@@ -113,6 +121,31 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }, [models, selectedModel]);
 
     // --- Complex Callbacks ---
+
+    const cancelGeneration = async (finalize: boolean = false) => {
+        if (!currentTaskId) return;
+
+        try {
+            const res = await fetch(`http://localhost:8000/api/tasks/${currentTaskId}/cancel?finalize=${finalize}`, {
+                method: 'POST'
+            });
+            if (res.ok) {
+                const timestamp = new Date().toLocaleTimeString();
+                const logMsg = finalize 
+                    ? `[${timestamp}] ✗ Generation interrupted. Finalizing what was generated...`
+                    : `[${timestamp}] ✗ Generation cancelled and discarded.`;
+                
+                setActivityLogs(prev => [...prev, logMsg]);
+                // We don't null currentTaskId immediately if finalizing, 
+                // because we want to wait for the final SSE 'complete' message.
+                if (!finalize) {
+                    setCurrentTaskId(null);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to cancel task:", err);
+        }
+    };
 
     const saveJobDraft = async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => {
         const segmentsToSave = customSegments || subtitleSegments;
@@ -167,6 +200,8 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             showEditor, setShowEditor,
             showArchive, setShowArchive,
             generationProgress, setGenerationProgress,
+            currentTaskId, setCurrentTaskId,
+            cancelGeneration,
             loadJobSegments, saveJobDraft
         }}>
             {children}

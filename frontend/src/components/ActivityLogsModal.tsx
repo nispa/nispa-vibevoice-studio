@@ -9,6 +9,7 @@ interface ActivityLogsModalProps {
     onClear?: () => void;
     audioUrl?: string | null;
     progress?: number;
+    onCancel?: () => void;
 }
 
 export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
@@ -19,6 +20,7 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
     onClear,
     audioUrl,
     progress = 0,
+    onCancel,
 }) => {
     const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -145,16 +147,26 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
                 )}
 
                 {/* Footer */}
-                <div className="border-t border-slate-700/50 bg-slate-900/80 px-6 py-4 flex items-center justify-between">
+                <div className="border-t border-slate-700/50 bg-slate-900/80 px-6 py-4 flex items-center justify-between gap-4">
                     <p className="text-sm text-slate-400">
                         Showing {logs.length} log entries
                     </p>
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-600 rounded-lg transition font-medium"
-                    >
-                        Close
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {isProcessing && onCancel && (
+                            <button
+                                onClick={onCancel}
+                                className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg transition font-medium text-sm"
+                            >
+                                Cancel Generation
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-600 rounded-lg transition font-medium text-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

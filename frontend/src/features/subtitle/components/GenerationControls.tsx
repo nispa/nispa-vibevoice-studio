@@ -31,10 +31,14 @@ export const GenerationControls: React.FC = () => {
         subtitleSegments,
         saveJobDraft,
         generationProgress: progress,
-        setGenerationProgress: setProgress
+        setGenerationProgress: setProgress,
+        currentTaskId,
+        setCurrentTaskId,
+        cancelGeneration
     } = useSubtitleContext();
 
     const lastLogRef = React.useRef<string>('');
+    const eventSourceRef = React.useRef<EventSource | null>(null);
 
     const [outputFormat, setOutputFormat] = React.useState<'mp3' | 'wav'>('mp3');
 
@@ -95,10 +99,12 @@ export const GenerationControls: React.FC = () => {
             }
 
             const { task_id } = await res.json();
+            setCurrentTaskId(task_id);
             addLog(`Task created: ${task_id}. Waiting for progress...`);
 
             // Connect to EventSource for progress updates
             const eventSource = new EventSource(`http://localhost:8000/api/tasks/${task_id}/stream`);
+            eventSourceRef.current = eventSource;
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -106,7 +112,8 @@ export const GenerationControls: React.FC = () => {
                 if (data.type === 'progress' || data.type === 'complete') {
                     if (data.status) addLog(data.status);
                     
-                    // Independent Frontend Progress Calculation
+                    // CRITICAL: Progress calculation must be independent and based on 
+                    // current_item / total_items received from the backend.
                     if (data.current_item && data.total_items) {
                         const calcProgress = (data.current_item / data.total_items) * 100;
                         setProgress(calcProgress);
@@ -118,6 +125,8 @@ export const GenerationControls: React.FC = () => {
 
                 if (data.type === 'complete') {
                     eventSource.close();
+                    eventSourceRef.current = null;
+                    setCurrentTaskId(null);
                     setProgress(100);
                     
                     const byteCharacters = atob(data.audioBase64);
@@ -142,6 +151,8 @@ export const GenerationControls: React.FC = () => {
 
                 if (data.type === 'error') {
                     eventSource.close();
+                    eventSourceRef.current = null;
+                    setCurrentTaskId(null);
                     setErrorMsg(data.message);
                     addLog(`✗ Error: ${data.message}`);
                     setIsProcessing(false);
@@ -150,6 +161,8 @@ export const GenerationControls: React.FC = () => {
 
             eventSource.onerror = () => {
                 eventSource.close();
+                eventSourceRef.current = null;
+                setCurrentTaskId(null);
                 setErrorMsg("Lost connection to server while generating.");
                 setIsProcessing(false);
             };
@@ -158,6 +171,29 @@ export const GenerationControls: React.FC = () => {
             const errorMessage = err.message || 'An unexpected error occurred.';
             setErrorMsg(errorMessage);
             addLog(`✗ Submission failed: ${errorMessage}`);
+            setIsProcessing(false);
+        }
+    };
+
+    const handleCancel = async () => {
+        const choice = window.confirm(
+            "Vuoi scaricare l'audio generato finora prima di interrompere?\n\n" +
+            "OK = Scarica audio parziale e interrompi\n" +
+            "Annulla = Interrompi senza scaricare nulla"
+        );
+
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+
+        if (choice) {
+            // User chose to download partial audio
+            await cancelGeneration(true);
+            // The audio will be received via SSE and handled by the existing complete logic
+        } else {
+            // User chose to discard
+            await cancelGeneration(false);
             setIsProcessing(false);
         }
     };
@@ -204,19 +240,33 @@ export const GenerationControls: React.FC = () => {
             {/* Action */}
             <div className="pt-4 border-t border-slate-800 flex justify-end items-center gap-4">
                 {isProcessing && (
-                    <div className="flex items-center gap-2 text-blue-400 animate-pulse">
-                        <Loader2 size={20} className="animate-spin" />
-                        <span className="text-sm font-medium">Generating Audio... Connecting to local TTS engine</span>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-blue-400 animate-pulse">
+                            <Loader2 size={20} className="animate-spin" />
+                            <span className="text-sm font-medium text-slate-300">Generating Audio...</span>
+                        </div>
+                        <button
+                            onClick={handleCancel}
+                            className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium transition"
+                        >
+                            Cancel
+                        </button>
                     </div>
                 )}
                 {activityLogs.length > 0 && (
                     <button
                         onClick={() => setShowLogsModal(true)}
-                        title="View activity logs"
-                        className="btn-secondary px-4 py-2 flex items-center gap-2"
+                        title="Visualizza dettagli operazione"
+                        className={`px-4 py-2 flex items-center gap-2 rounded-lg border transition-all duration-300 ${
+                            isProcessing 
+                            ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300 animate-pulse shadow-[0_0_15px_rgba(99,102,241,0.2)]' 
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                        }`}
                     >
-                        <Activity size={18} />
-                        <span className="text-sm">Logs ({activityLogs.length})</span>
+                        <Activity size={18} className={isProcessing ? 'animate-pulse' : ''} />
+                        <span className="text-sm font-medium">
+                            {isProcessing ? 'In corso...' : 'Dettagli Operazione'}
+                        </span>
                     </button>
                 )}
                 <button
