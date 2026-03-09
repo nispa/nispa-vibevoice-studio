@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-03-09
+
+### Added
+- **Comprehensive Source Documentation**:
+    - **Backend**: Added standard Python docstrings to all core modules, API routers, and data models.
+    - **Frontend**: Implemented JSDoc comments for all custom hooks, context providers, and key UI components.
+- **Technical Documentation Suite**:
+    - Created `TECHNICAL_DOCUMENTATION.md` detailing system architecture, component interaction, and data flows.
+    - Created `API_REFERENCE.md` providing a complete guide to REST endpoints and the SSE (Server-Sent Events) communication protocol.
+- **Robust Backend Testing (Pytest)**:
+    - `test_aligner.py`: Verifies shifting logic and silence padding for precise audio synchronization.
+    - `test_queue.py`: Validates asynchronous task concurrency, cancellation mechanics, and error propagation.
+    - `test_api.py`: Ensures request validation and correct HTTP error signaling.
+- **Frontend Logic Testing (Vitest)**:
+    - `useTranslationLoop.test.ts`: Tests the progressive translation state machine and pause functionality.
+    - `useScriptGeneration.test.ts`: Verifies real-time SSE stream consumption and binary blob conversion.
+    - `SubtitleWorkflow.test.tsx`: Validates UI conditional rendering and workflow state transitions.
+
+### Changed
+- **Terminology Standardization**: Synchronized technical terms (Segments, Jobs, Voice IDs) across the entire codebase and documentation for better clarity.
+
 ## [0.3.0] - 2026-03-09
 
 ### Added
