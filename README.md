@@ -6,64 +6,71 @@
 
 ## Overview
 
-
 **nispa - VibeVoice Studio** is a powerful, locally-hosted Text-to-Speech (TTS) application designed to provide high-quality voice synthesis. It leverages the Microsoft VibeVoice model as its core engine, seamlessly integrating a fast Python FastAPI backend and a modern React/TypeScript frontend.
 
-
-
+---
 
 ## Key Features
 
 - **Offline Voice Generation:** Local, private and unlimited TTS synthesis using VibeVoice models, with support for voice cloning from reference audio.
 - **Dynamic Mode Support:** Seamlessly switch between **Subtitle Mode** (timed) and **Script Mode** (untimed) with shared voice/model configurations.
-- **Flexible Voice Management:** Easily select, filter, and configure voice profiles (language, accent, gender) for custom results.
-- **Refined User Interface:** Modern React/TypeScript UI with modular components, waveform audio player, and real-time processing feedback.
 - **Intelligent Job Archive:** Save, update, and manage synthesis jobs with draft support and state recovery.
-- **Subtitle & Script Tools:** Automatic grouping, manual segment editing, and real-time preview of processing steps.
+- **Asynchronous Processing:** Full migration to background tasks with Server-Sent Events (SSE) for real-time updates and progress tracking.
+- **Audio Persistence:** Automatically saves every generated audio to `data/outputs` with unique timestamps and choice between **WAV** and **MP3** formats.
+- **Advanced Subtitle Tools:** Automatic grouping, manual segment editing, precise timecode alignment (shifting), and real-time preview.
 - **Subtitle Translation:** Integration with local Ollama service for high-quality, offline multi-language translation.
+- **Task Control:** Enhanced cancellation with "Partial Audio Finalization" (downloading what was synthesized so far).
 - **System Monitoring:** Integrated hardware dashboard (GPU VRAM, CUDA, MPS, RAM) to monitor local resource usage.
-- **One-Click Setup & Launch:** Automated `.bat` scripts handle full installation (venv, dependencies, engine cloning) and startup.
+- **Comprehensive Documentation:** Full [API Reference](API_REFERENCE.md) and [Technical Documentation](TECHNICAL_DOCUMENTATION.md) included.
+- **Robust Testing:** Extensive test suite using Pytest (backend) and Vitest (frontend) for core logic and UI workflows.
 
 ---
-## Documentation & History
+
+## Documentation
 
 - [Full Changelog](CHANGELOG.md) - Track all project updates and version history.
-- [Model Zoo](#model-zoo) - Information on supported VibeVoice models.
+- [Technical Documentation](TECHNICAL_DOCUMENTATION.md) - Deep dive into architecture, data flows, and internal logic.
+- [API Reference](API_REFERENCE.md) - Complete guide to REST endpoints and SSE communication protocols.
 
 ---
 
 ## Prerequisites
 
-Before installing, ensure you have the following installed on your Windows machine:
-- **Python 3.11+** (Make sure it is added to your system PATH)
+Before installing, ensure you have the following installed on your machine:
+
+- **Python 3.11+**
 - **Node.js** (v18+ recommended)
 - **Git** (Required for cloning the repository and external dependencies)
-- **Ollama + huihui_ai/hy-mt1.5-abliterated:7B** (Optional) to enable `offline` subtitle-translation service.
+- **Ollama** (Optional, to enable `offline` subtitle-translation service)
 
 ---
 
 ## Quick Start
-
-We have engineered the setup process to be as frictionless as possible. You **do not** need to manually configure virtual environments or run distinct install commands.
 
 ### 1. Clone the repository 
 ```bash
 git clone https://github.com/nispa/nispa-vibevoice-studio.git
 cd nispa-vibevoice-studio
 ```
-Or download zip release (yet in beta v0.1)
+...or dowload the zip file from [GitHub](https://github.com/nispa/nispa-vibevoice-studio/releases)
 
 ### 2. Installation
-Simply double-click on `install.bat` (or run it via Command Prompt). This automated script will:
-- Create a Python virtual environment (`venv`).
-- Install all required Python backend dependencies.
-- Clone the commuinty VibeVoice repository into `data/vibevoice` and install it.
-- Set up necessary data directories (`data/model` and `data/voices`).
-- Install all NPM dependencies for the React frontend.
 
-## Model Zoo
+We provide automated scripts to handle the full setup (venv, dependencies, engine cloning).
 
-You can download VibeVoice models from Hugging Face and place them in the `data/model` directory. Choose the model that best fits your needs:
+#### Windows:
+Double-click on `install.bat` (or run it via Command Prompt).
+
+#### Linux / macOS:
+Open a terminal and run:
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+### 3. Model Zoo
+
+You can download VibeVoice models from Hugging Face and place them in the `data/model` directory:
 
 | Model | Context Length | Generation Length | Speakers | Download Link |
 |-------|----------------|------------------|----------|---------------|
@@ -71,30 +78,31 @@ You can download VibeVoice models from Hugging Face and place them in the `data/
 | VibeVoice-1.5B | 64K | ~90 min | Up to 4 | [HF link](https://huggingface.co/vibevoice/VibeVoice-1.5B) |
 | VibeVoice-Large (7B) | 32K | ~45 min | Up to 4 | [HF link](https://huggingface.co/vibevoice/VibeVoice-7B) |
 
+> **VibeVoice Engine:** For voice cloning, place clear reference audio (WAV format, min 10s) in `data/voices` following the naming convention (e.g., `en-john_man.wav`).
 
-**VibeVoice Engine:**
-VibeVoice is the underlying TTS engine powering this application. For standard synthesis, it uses pre-trained models located in the `data/model` directory. For voice cloning, you must provide at least 10 seconds of clear reference audio (WAV format) for each custom voice. Place these files in the `data/voices` directory, following the naming convention (e.g., `en-john_man.wav`). The engine will use these samples to clone the voice and generate speech in your desired language and style.
+### 4. Running the Application
 
+#### Windows:
+Double-click on `start.bat`.
 
-### 3. Running the Application
-Double-click on `start.bat`. This launch script will:
-- Boot up the Python API backend (FastAPI/Uvicorn).
-- Start the React frontend development server (Vite).
-- Automatically open your default web browser to `http://localhost:5173/`.
+#### Linux / macOS:
+Open a terminal and run:
+```bash
+chmod +x start.sh
+./start.sh
+```
 
-> **Note:** The backend and frontend servers run in separate PowerShell windows. To safely shut down the application, simply close those terminal windows.
+> **Note:** On Windows, the backend and frontend run in separate PowerShell windows. On Linux/macOS, they run as background processes managed by the script (press `Ctrl+C` to stop both).
 
 ---
 
 ## Usage Guide
 
-Once the studio is running in your browser:
-1. **Scripting:** Enter or paste the text you want to synthesize into the main text editor.
-2. **Translation:** Choose to edit the script and translate line-by-line or choose to translate everything at once using the translation service.
-   > **Note on Translation:** To use the translation features, you must have [OLLAMA](https://ollama.com/) installed and running on your machine. OLLAMA runs a local service (typically on port `11434`) that the application queries to perform high-quality, offline translations into your requested language.
-3. **Voice Selection:** Use the right-hand panel to open the **Voice Settings** and select a speaker profile (filtered by accent, language, or gender).
-4. **Synthesis:** Click the **Generate** button. The local backend will process the text and return the generated audio.
-5. **Playback:** Use the embedded waveform audio player to scrub through your audio, listen to the result and download result.
+1. **Input:** Paste your text in **Script Mode** or upload a subtitle file (.srt, .vtt) in **Subtitle Mode**.
+2. **Translation:** (Optional) Use the local Ollama service to translate your text into multiple languages.
+3. **Voice Settings:** Use the side panel to select a speaker profile or configure a custom reference voice.
+4. **Synthesis:** Click **Generate**. You can monitor progress in real-time and view logs in the **Dettagli Operazione** modal.
+5. **Playback & Export:** Use the waveform player to review results. Audio is automatically saved to `data/outputs`.
 
 ---
 
@@ -103,20 +111,25 @@ Once the studio is running in your browser:
 ```text
 nispa-voiceover/
 ├── backend/          # Python API server (FastAPI)
-│   ├── core/         # TTS provider logic & model integrations
-│   └── main.py       # Application entry point
+│   ├── api/          # Routers and SSE logic
+│   ├── core/         # TTS engine integration & audio aligner
+│   ├── db/           # Job models and persistence
+│   └── tests/        # Pytest test suite
 ├── frontend/         # React/TypeScript User Interface
-│   ├── src/          # Interactive components, state management
+│   ├── src/          # Components, hooks, and global state
 │   └── package.json  # Node dependencies and Vite config
-├── data/             # Application state and models
-│   ├── model/        # Pre-trained VibeVoice model files
-│   ├── vibevoice/    # The underlying TTS engine core
-│   └── voices/       # Available voice samples and mapping
-├── install.bat       # One-click installation script
-└── start.bat         # One-click launch script
+├── data/             # Persistent data
+│   ├── model/        # VibeVoice pre-trained models
+│   ├── voices/       # Voice reference samples
+│   └── outputs/      # Automatically saved audio generations
+├── API_REFERENCE.md  # Endpoint documentation
+├── TECHNICAL_DOCUMENTATION.md # Architectural overview
+├── install.sh / .bat # Installation scripts
+└── start.sh / .bat   # Execution scripts
 ```
 
 ---
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.

@@ -92,3 +92,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voice cloning from local WAV references.
 - Offline translation service via Ollama.
 - Automated installation and startup scripts for Windows.
+
