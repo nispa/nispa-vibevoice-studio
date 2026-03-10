@@ -63,10 +63,20 @@ This mode is ideal for creating voiceovers synchronized with existing video.
 
 ## 4. Workflow: Script Mode (Free Text)
 
-Ideal for audiobooks, podcasts, or simple narrations.
+Ideal for audiobooks, podcasts, or simple narrations with multiple characters.
 
 1. **Input**: Type or paste your text into the main area.
-2. **Configuration**: Choose the model and voice from the side panel.
+   - **Multi-Speaker Syntax**: To use different voices, start each line with a speaker label followed by a colon.
+   - **Example**:
+     ```text
+     Speaker1: Hello, how are you today?
+     Speaker2: I am doing great, thank you for asking!
+     Speaker1: That is wonderful to hear.
+     ```
+2. **Configuration**: 
+   - Choose the **VibeVoice-1.5B** or **VibeVoice-Large** model (these support up to **4 speakers**).
+   - *Note*: The **VibeVoice-0.5B** (Streaming) model only supports **1 speaker**.
+   - In the **Speaker Voice Mapping** panel, assign a different voice for each speaker detected in your script (Speaker1, Speaker2, etc.).
 3. **Generation**: Click **Generate**. You will see the real-time log informing you which part of the text is being synthesized.
 
 ---

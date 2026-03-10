@@ -63,10 +63,20 @@ Questa modalità è ideale per creare voiceover sincronizzati con un video esist
 
 ## 4. Flusso di Lavoro: Script Mode (Testo Libero)
 
-Ideale per audiolibri, podcast o narrazioni semplici.
+Ideale per audiolibri, podcast o narrazioni complesse con più personaggi.
 
 1. **Inserimento**: Digita o incolla il tuo testo nell'area principale.
-2. **Configurazione**: Scegli il modello e la voce dal pannello laterale.
+   - **Sintassi Multi-Speaker**: Per usare voci diverse, inizia ogni riga con l'etichetta dello speaker seguita dai due punti.
+   - **Esempio**:
+     ```text
+     Speaker1: Ciao, come stai oggi?
+     Speaker2: Sto benissimo, grazie per averlo chiesto!
+     Speaker1: Mi fa molto piacere sentirlo.
+     ```
+2. **Configurazione**: 
+   - Scegli il modello **VibeVoice-1.5B** o **VibeVoice-Large** (questi supportano fino a un massimo di **4 speaker** contemporaneamente).
+   - *Nota*: Il modello **VibeVoice-0.5B** (Streaming) supporta solo **1 speaker**.
+   - Nel pannello **Speaker Voice Mapping**, assegna una voce diversa a ogni speaker rilevato nel tuo script (Speaker1, Speaker2, ecc.).
 3. **Generazione**: Clicca su **Genera**. Vedrai il log in tempo reale che ti informa su quale parte del testo è in fase di sintesi.
 
 ---

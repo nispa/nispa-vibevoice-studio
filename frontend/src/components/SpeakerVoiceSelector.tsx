@@ -43,12 +43,12 @@ export default function SpeakerVoiceSelector({ speakers, setSpeakers }: Props) {
                 </h4>
                 <button
                     onClick={addSpeaker}
-                    disabled={speakers.length >= 5}
-                    className={`text-sm flex items-center gap-1 font-medium transition-colors ${speakers.length >= 5
+                    disabled={speakers.length >= 4}
+                    className={`text-sm flex items-center gap-1 font-medium transition-colors ${speakers.length >= 4
                         ? 'text-slate-500 cursor-not-allowed'
                         : 'text-indigo-400 hover:text-indigo-300'
                         }`}
-                    title={speakers.length >= 5 ? 'Maximum 5 speakers allowed' : ''}
+                    title={speakers.length >= 4 ? 'Maximum 4 speakers allowed' : ''}
                 >
                     <Plus size={16} /> Add Speaker
                 </button>

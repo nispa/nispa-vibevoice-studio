@@ -18,6 +18,7 @@ export default function ScriptInputArea() {
 
             if (speakerName && dialogue && speakerName.length < 30 && speakerName.length > 0) {
                 uniqueSpeakers.add(speakerName);
+                if (uniqueSpeakers.size >= 4) break; // Maximum 4 speakers
             }
         }
 
@@ -71,7 +72,7 @@ export default function ScriptInputArea() {
                 <textarea
                     value={scriptText}
                     onChange={(e) => handleScriptTextChange(e.target.value)}
-                    placeholder="Paste your script here. Format: Speaker1: Dialogue or [Speaker1] Dialogue&#10;&#10;Example:&#10;Speaker1: Hello, how are you?&#10;Speaker2: I'm doing great!&#10;Speaker1: That's wonderful!"
+                    placeholder="Format: Speaker1: Dialogue. Max 4 speakers for 1.5B/Large models.&#10;&#10;Example:&#10;Speaker1: Hello, how are you?&#10;Speaker2: I'm doing great!&#10;Speaker1: That's wonderful!"
                     className="input-style w-full h-32 resize-none bg-slate-900/50"
                 />
             </div>

@@ -501,15 +501,22 @@ async def create_generation_task(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid speaker_voice_map JSON")
 
+    script_lines = parse_script(content_str)
+    if not script_lines:
+        raise HTTPException(status_code=400, detail="No valid speaker lines found in script")
+
+    # Enforce speaker limits
+    unique_speakers = list(set(l.speaker for l in script_lines))
+    if model_name == "VibeVoice-Streaming-0.5B" and len(unique_speakers) > 1:
+        raise HTTPException(status_code=400, detail="VibeVoice-0.5B model supports only 1 speaker.")
+    if len(unique_speakers) > 4:
+        raise HTTPException(status_code=400, detail=f"Maximum 4 speakers allowed for {model_name}. Detected: {len(unique_speakers)}")
+
     async def generation_job(task_id: str):
         import base64
         import os
         from datetime import datetime
         
-        script_lines = parse_script(content_str)
-        if not script_lines:
-            raise Exception("No valid speaker lines found in script")
-            
         total_items = len(script_lines)
         lines_with_audio = []
         
@@ -527,6 +534,8 @@ async def create_generation_task(
             current_progress = int((idx / total_items) * 100)
             yield {
                 "progress": current_progress, 
+                "total_items": total_items,
+                "current_item": idx + 1,
                 "message": f"[TTS] Synthesizing text #{idx + 1} ({len(line.text)} chars): '{line.text}'"
             }
             
