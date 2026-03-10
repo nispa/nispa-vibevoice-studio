@@ -28,6 +28,8 @@
 
 ## Documentation
 
+- [**User Guide (English)**](USER_GUIDE.md) - **Start here!** A step-by-step guide for new users.
+- [**Guida Utente (Italiano)**](GUIDA_UTENTE.md) - Guida passo-passo in italiano.
 - [Full Changelog](CHANGELOG.md) - Track all project updates and version history.
 - [Technical Documentation](TECHNICAL_DOCUMENTATION.md) - Deep dive into architecture, data flows, and internal logic.
 - [API Reference](API_REFERENCE.md) - Complete guide to REST endpoints and SSE communication protocols.
@@ -41,7 +43,11 @@ Before installing, ensure you have the following installed on your machine:
 - **Python 3.11+**
 - **Node.js** (v18+ recommended)
 - **Git** (Required for cloning the repository and external dependencies)
-- **Ollama** (Optional, to enable `offline` subtitle-translation service)
+- **Ollama** ([ollama.com](https://ollama.com/)) + **huihui_ai/hy-mt1.5-abliterated:7B** (Essential for high-quality offline translation)
+
+---
+
+> **Workflow Tip:** If you are moving from an existing transcription to a translation, using the **Grouping** feature is essential to achieve fluid and natural speech, avoiding forced pauses between subtitle segments.
 
 ---
 
