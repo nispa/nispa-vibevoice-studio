@@ -1,109 +1,81 @@
-# Guida all'Uso - Nispa VibeVoice Studio
+# Guida all'Uso - Nispa VibeVoice Studio (v0.4.0)
 
-Benvenuto in **Nispa VibeVoice Studio**. Questa guida ti accompagnerà passo dopo passo nell'utilizzo di tutte le funzionalità del programma per generare voci sintetizzate di alta qualità.
+Benvenuto in **Nispa VibeVoice Studio**. Questa guida ti accompagnerà nell'utilizzo dell'architettura a doppio motore (**VibeVoice** e **Qwen3-TTS**) per generare voci sintetizzate di alta qualità.
 
 ---
 
 ## 1. Installazione e Avvio Rapido
 
-### Installazione
-Assicurati di avere installato **Python 3.11+**, **Node.js** e **Git**.
-- **Windows**: Esegui `install.bat` con un doppio clic.
-- **Linux/Mac**: Apri il terminale e digita `chmod +x install.sh && ./install.sh`.
+### Installazione Interattiva
+L'installer ora ti permette di scegliere quali motori installare:
+- **Windows**: Esegui `install.bat`. Scegli l'opzione 3 (Both) per l'esperienza completa.
+- **Linux/Mac**: Esegui `chmod +x install.sh && ./install.sh`.
 
-### Avvio
-- **Windows**: Esegui `start.bat`.
-- **Linux/Mac**: Esegui `./start.sh`.
-Il programma aprirà automaticamente il tuo browser all'indirizzo `http://localhost:5173/`.
-
----
-
-## 2. Configurazione Iniziale (Modelli e Voci)
-
-### Scaricare i Modelli
-Prima di iniziare, devi scaricare un modello VibeVoice da Hugging Face (i link sono nel `README.md`) e inserirlo nella cartella `data/model/`. 
-*Esempio: `data/model/VibeVoice-1.5B/`.*
-
-### Aggiungere Voci Personalizzate (Clonazione)
-Se vuoi clonare una voce specifica:
-1. Prepara un file audio **WAV** di circa 10-20 secondi dove parla la persona desiderata (pulito e senza musica di sottofondo).
-2. Copia il file nella cartella `data/voices/`.
-3. Rinominalo seguendo lo standard: `lingua-nome_genere.wav` (es: `it-marco_uomo.wav`).
-
-### Installazione Servizio Traduzione (Ollama)
-Per abilitare la traduzione offline, segui questi passaggi:
-1. Installa **Ollama** dal sito ufficiale ([ollama.com](https://ollama.com/)).
-2. Apri il tuo terminale e scarica il modello consigliato per la traduzione:
-   ```bash
-   ollama run huihui_ai/hy-mt1.5-abliterated:7B
-   ```
-3. Assicurati che Ollama sia in esecuzione mentre usi lo Studio.
+### Ottimizzazione (Solo NVIDIA RTX 30+)
+L'installer tenterà di installare **Flash Attention 2** per velocizzare Qwen3. Lo script rileva automaticamente la tua versione di Python e CUDA per scaricare il componente corretto. Se l'installazione fallisce, il programma funzionerà comunque in modalità standard.
+Se vuoi usare la clonazione voce di Qwen3 su Windows:
+1. Installa SoX da [sox.sourceforge.net](http://sox.sourceforge.net/).
+2. Esegui `setup_sox_path.bat` come **Amministratore** per configurare automaticamente il sistema.
 
 ---
 
-## 3. Flusso di Lavoro: Subtitle Mode (Sottotitoli)
+## 2. Gestione Modelli e Pesi (Weights)
 
-> **💡 HINT IMPORTANTE: Dalla Trascrizione alla Traduzione**
-> Se stai lavorando su una trascrizione (file .srt originale) e desideri tradurla, il passaggio più critico è il **Grouping (Raggruppamento)**. 
-> I sottotitoli originali sono spesso spezzati in segmenti molto brevi per la lettura a schermo; se tradotti e sintetizzati così come sono, la voce risulterà robotica e frammentata. 
-> **È essenziale** usare la funzione "Raggruppa" dopo la traduzione per unire i segmenti in frasi complete: questo permette all'IA di generare un'intonazione fluida e naturale.
+### Weights Downloader (Consigliato)
+Non scaricare i file manualmente. Usa lo strumento integrato:
+- **Windows**: `venv\Scripts\python backend\scripts\download_model.py`
+- **Linux/Mac**: `./venv/bin/python backend\scripts\download_model.py`
+Lo script scaricherà automaticamente i pesi e il Tokenizer necessario nella cartella `data/model/`.
 
-Questa modalità è ideale per creare voiceover sincronizzati con un video esistente.
+### Quale modello scegliere?
 
-1. **Caricamento**: Trascina un file `.srt` o `.vtt` nell'area di caricamento.
-2. **Editing**: Puoi modificare il testo di ogni segmento direttamente nella tabella.
-3. **Traduzione (Opzionale)**:
-   - Se hai **Ollama** attivo, clicca su "Traduci".
-   - Scegli la lingua di destinazione e il modello AI (es: `hy-mt1.5-abliterated`).
-   - Il sistema tradurrà i segmenti riga per riga mantenendo i tempi originali.
-4. **Raggruppamento (Grouping)**: Usa la funzione "Raggruppa" per unire segmenti brevi in frasi più naturali, evitando pause robotiche tra i sottotitoli.
-5. **Generazione**: Clicca su **Genera Audio**. Il sistema processerà ogni segmento e lo allineerà temporalmente per evitare sovrapposizioni.
-
----
-
-## 4. Flusso di Lavoro: Script Mode (Testo Libero)
-
-Ideale per audiolibri, podcast o narrazioni complesse con più personaggi.
-
-1. **Inserimento**: Digita o incolla il tuo testo nell'area principale.
-   - **Sintassi Multi-Speaker**: Per usare voci diverse, inizia ogni riga con l'etichetta dello speaker seguita dai due punti.
-   - **Esempio**:
-     ```text
-     Speaker1: Ciao, come stai oggi?
-     Speaker2: Sto benissimo, grazie per averlo chiesto!
-     Speaker1: Mi fa molto piacere sentirlo.
-     ```
-2. **Configurazione**: 
-   - Scegli il modello **VibeVoice-1.5B** o **VibeVoice-Large** (questi supportano fino a un massimo di **4 speaker** contemporaneamente).
-   - *Nota*: Il modello **VibeVoice-0.5B** (Streaming) supporta solo **1 speaker**.
-   - Nel pannello **Speaker Voice Mapping**, assegna una voce diversa a ogni speaker rilevato nel tuo script (Speaker1, Speaker2, ecc.).
-3. **Generazione**: Clicca su **Genera**. Vedrai il log in tempo reale che ti informa su quale parte del testo è in fase di sintesi.
+| Modello | Punti di Forza | Requisiti VRAM |
+|---------|----------------|----------------|
+| **VibeVoice 1.5B** | Stabile, ottimo per testi lunghi, fino a 4 speaker. | ~4GB |
+| **VibeVoice Large (7B)** | Massima qualità VibeVoice, molto naturale. | ~14GB |
+| **Qwen3 0.6B (Base/Custom)** | Velatissimo, 3s voice cloning, leggero. | ~2GB |
+| **Qwen3 1.7B (Base/Custom)** | Alta fedeltà, cloning superiore, voci integrate premium. | ~6GB |
+| **Qwen3 1.7B (VoiceDesign)** | Supporta la creazione di voci da descrizione testuale. | ~6GB |
 
 ---
 
-## 5. Selezione della Voce e Impostazioni
+## 3. Gestione della Libreria Voci (Voice Library)
 
-Nel pannello laterale (Voice Settings):
-- **Speaker Profile**: Scegli tra le voci predefinite o quelle caricate da te in `data/voices/`.
-- **Filtri**: Puoi filtrare le voci per lingua, genere o accento.
-- **Formato Audio**: Scegli tra **WAV** (massima qualità) o **MP3** (file più leggeri).
-
----
-
-## 6. Monitoraggio e Gestione
-
-### Dettagli Operazione
-Durante la generazione, clicca sul pulsante **"In corso..."** o **"Dettagli Operazione"** per aprire un modal con i log tecnici. Se necessario, puoi annullare l'operazione e scegliere di scaricare solo la parte di audio generata fino a quel momento.
-
-### Archivio Lavori (Job Archive)
-Tutti i tuoi progetti vengono salvati automaticamente:
-- Clicca sull'icona dell'archivio per recuperare una sessione precedente.
-- Puoi salvare "Bozze" (Drafts) per riprendere il lavoro in un secondo momento con tutti i testi e le impostazioni salvate.
-
-### Dashboard Hardware
-In basso a destra puoi monitorare l'uso della tua **GPU (VRAM)** e della **RAM**. Questo è utile per capire se il modello scelto è troppo pesante per il tuo computer.
+Clicca sull'icona del **microfono** nell'intestazione per aprire il gestore voci:
+- **Upload**: Trascina un file WAV o MP3 (10-20s consigliati).
+- **Preview**: Ascolta il campione audio prima di usarlo.
+- **Process (Noise Reduction)**: Se il tuo campione ha del rumore di fondo, usa il pulsante "Process" per pulirlo automaticamente con un filtro passa-banda.
+- **Delete**: Rimuovi le voci che non ti servono più.
 
 ---
 
-## 7. Risultati Finali
-Tutti i file audio generati vengono salvati automaticamente nella cartella `data/outputs/` con un nome file che include la data e l'ora, così non perderai mai il tuo lavoro.
+## 4. Flusso di Lavoro: Subtitle Mode (Sottotitoli)
+
+1. **Caricamento**: Trascina un file `.srt` o `.vtt`.
+2. **Traduzione & Raggruppamento**:
+   - Traduci con Ollama (modello `hy-mt1.5-abliterated:7B`).
+   - **IMPORTANTE**: Dopo la traduzione, usa sempre la funzione **"Raggruppa"** per unire i segmenti brevi in frasi naturali.
+3. **Generazione**: Scegli il modello e la voce. Se usi un modello Qwen "VoiceDesign", apparirà un campo per descrivere la voce desiderata.
+
+---
+
+## 5. Flusso di Lavoro: Script Mode (Testo Libero)
+
+1. **Sintassi Multi-Speaker**: Inizia ogni riga con `Speaker1:`, `Speaker2:`, ecc.
+2. **Voice Mapping**: Nel pannello laterale, assegna una voce diversa a ogni speaker rilevato.
+   - *Nota*: I modelli 1.5B/Large supportano fino a 4 speaker. Il modello 0.5B solo 1.
+3. **Voice Design (Qwen3)**: Se non hai un file audio per il cloning, descrivi la voce a parole (es: "una voce maschile profonda, calma e autoritaria").
+
+---
+
+## 6. Risoluzione Problemi (Troubleshooting)
+
+### Errore "SoX could not be found"
+- Assicurati di aver installato SoX e di aver eseguito `setup_sox_path.bat` come amministratore. Riavvia il terminale dopo l'operazione.
+
+### Errore "Out of Memory" (VRAM)
+- Se la tua GPU ha meno di 8GB, evita i modelli "Large" o "1.7B". Usa **VibeVoice 1.5B** o **Qwen3 0.6B**.
+- Chiudi browser o altri programmi che occupano la scheda video.
+
+### Test Diagnostico
+- Vai nel pannello **System Info** (icona GPU in basso a destra) e clicca su **"Test Qwen3 Integration"** per verificare se i modelli sono caricati correttamente.

@@ -2,6 +2,7 @@ import React from 'react';
 import { Settings, Loader2, Activity } from 'lucide-react';
 import VoiceSelector from '../../../components/ui/VoiceSelector';
 import ModelSelector from '../../../components/ui/ModelSelector';
+import LanguageSelector from '../../../components/ui/LanguageSelector';
 import { useSubtitleContext } from '../context/SubtitleContext';
 import { useGlobalContext } from '../../../context/GlobalContext';
 
@@ -30,6 +31,8 @@ export const GenerationControls: React.FC = () => {
         setSelectedVoiceId,
         selectedModel,
         setSelectedModel,
+        selectedLanguage,
+        setSelectedLanguage,
         activityLogs,
         setActivityLogs,
         showLogsModal,
@@ -51,6 +54,10 @@ export const GenerationControls: React.FC = () => {
     const eventSourceRef = React.useRef<EventSource | null>(null);
 
     const [outputFormat, setOutputFormat] = React.useState<'mp3' | 'wav'>('mp3');
+    const [voiceDescription, setVoiceDescription] = React.useState<string>('');
+
+    const selectedModelData = models.find(m => m.id === selectedModel);
+    const supportsVoiceDesign = selectedModelData?.supports_voice_design || false;
 
     /**
      * Submits the generation task to the backend and sets up an SSE stream for progress.
@@ -101,6 +108,10 @@ export const GenerationControls: React.FC = () => {
         formData.append('model_name', selectedModel);
         formData.append('group_by_punctuation', groupByPunctuation.toString());
         formData.append('output_format', outputFormat);
+        formData.append('language', selectedLanguage);
+        if (supportsVoiceDesign && voiceDescription) {
+            formData.append('voice_description', voiceDescription);
+        }
 
         try {
             addLog(`Submitting generation task (${outputFormat.toUpperCase()}) to server...`);
@@ -235,6 +246,29 @@ export const GenerationControls: React.FC = () => {
                 selectedModel={selectedModel}
                 onModelSelect={setSelectedModel}
             />
+
+            {/* 6. Language Selection */}
+            <LanguageSelector 
+                selectedLanguage={selectedLanguage}
+                onLanguageSelect={setSelectedLanguage}
+            />
+
+            {/* Voice Design (Conditional) */}
+            {supportsVoiceDesign && (
+                <div className="bg-indigo-500/5 rounded-lg p-5 border border-indigo-500/20 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <Activity size={18} className="text-indigo-400" />
+                        <h4 className="font-medium text-slate-200">Voice Design</h4>
+                    </div>
+                    <p className="text-xs text-slate-400">Describe the voice you want (e.g., "a deep, warm male voice with a calm tone").</p>
+                    <textarea
+                        value={voiceDescription}
+                        onChange={(e) => setVoiceDescription(e.target.value)}
+                        placeholder="Enter voice description..."
+                        className="input-style w-full h-20 resize-none bg-slate-900/50 text-sm"
+                    />
+                </div>
+            )}
 
             {/* 6. Output Format */}
             <div className="space-y-3">

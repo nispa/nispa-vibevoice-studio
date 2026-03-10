@@ -26,6 +26,16 @@ export interface Voice {
 }
 
 /**
+ * Metadata for a TTS model.
+ */
+export interface Model {
+    id: string;
+    name: string;
+    engine: 'vibevoice' | 'qwen';
+    supports_voice_design: boolean;
+}
+
+/**
  * Properties provided by the GlobalContext.
  */
 interface GlobalContextProps {
@@ -43,7 +53,7 @@ interface GlobalContextProps {
     
     // Shared TTS Data
     voices: Voice[];
-    models: string[];
+    models: Model[];
     isLoadingTtsData: boolean;
     refreshTtsData: () => Promise<void>;
 }
@@ -66,7 +76,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     
     // Shared TTS Data
     const [voices, setVoices] = useState<Voice[]>([]);
-    const [models, setModels] = useState<string[]>([]);
+    const [models, setModels] = useState<Model[]>([]);
     const [isLoadingTtsData, setIsLoadingTtsData] = useState(false);
 
     const { systemInfo, isLoading, error, fetchSystemInfo } = useSystemInfo();
@@ -78,7 +88,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
      */
     const fetchVoices = async () => {
         try {
-            const res = await fetch('http://localhost:8000/api/voices');
+            const res = await fetch('http://127.0.0.1:8000/api/voices');
             const data = await res.json();
             if (data.voices) setVoices(data.voices);
         } catch (err) {
@@ -91,7 +101,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
      */
     const fetchModels = async () => {
         try {
-            const res = await fetch('http://localhost:8000/api/models');
+            const res = await fetch('http://127.0.0.1:8000/api/models');
             const data = await res.json();
             if (data.models) setModels(data.models);
         } catch (err) {

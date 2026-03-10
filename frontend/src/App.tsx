@@ -6,19 +6,27 @@ import SystemFooter from './components/SystemFooter';
 import AppHeader from './components/AppHeader';
 import AppModeToggle from './components/AppModeToggle';
 import AppAudioResult from './components/AppAudioResult';
+import { VoicesManagementModal } from './components/VoicesManagementModal';
 import { useGlobalContext } from './context/GlobalContext';
 
 function App() {
   const { appMode, setAppMode, systemInfo, isProcessing, audioUrl } = useGlobalContext();
   const [showSystemInfo, setShowSystemInfo] = useState(false);
+  const [showVoicesModal, setShowVoicesModal] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-50 flex flex-col items-center py-12 px-4 selection:bg-blue-500/30">
       {/* System Info Modal */}
       <SystemInfo isOpen={showSystemInfo} onClose={() => setShowSystemInfo(false)} />
 
+      {/* Voices Manager Modal */}
+      <VoicesManagementModal isOpen={showVoicesModal} onClose={() => setShowVoicesModal(false)} />
+
       {/* Header Container */}
-      <AppHeader onShowSystemInfo={() => setShowSystemInfo(true)} />
+      <AppHeader 
+        onShowSystemInfo={() => setShowSystemInfo(true)} 
+        onShowVoiceLibrary={() => setShowVoicesModal(true)}
+      />
 
       {/* Main Glass Panel Card */}
       <div className="glass-panel w-full max-w-4xl rounded-2xl p-6 md:p-8 relative overflow-hidden">

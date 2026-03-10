@@ -2,6 +2,7 @@ import { Settings, FileText, UserCheck, AudioWaveform } from 'lucide-react';
 import SpeakerVoiceSelector from './SpeakerVoiceSelector';
 import GenerationProgressModal from './GenerationProgressModal';
 import ModelSelector from './ui/ModelSelector';
+import LanguageSelector from './ui/LanguageSelector';
 import { ScriptProvider, useScriptContext } from '../features/script/context/ScriptContext';
 import { useScriptGeneration } from '../hooks/useScriptGeneration';
 import ScriptInputArea from './script/ScriptInputArea';
@@ -21,7 +22,10 @@ function ScriptModeInner() {
     const { isProcessing, models } = useGlobalContext();
     const {
         scriptFile, scriptText, speakers, setSpeakers,
-        selectedModel, setSelectedModel, errorMsg
+        selectedModel, setSelectedModel, 
+        selectedLanguage, setSelectedLanguage,
+        voiceDescription, setVoiceDescription,
+        errorMsg
     } = useScriptContext();
 
     const {
@@ -94,6 +98,28 @@ function ScriptModeInner() {
                             selectedModel={selectedModel}
                             onModelSelect={setSelectedModel}
                         />
+
+                        <LanguageSelector 
+                            selectedLanguage={selectedLanguage}
+                            onLanguageSelect={setSelectedLanguage}
+                        />
+
+                        {/* Voice Design (Conditional) */}
+                        {models.find(m => m.id === selectedModel)?.supports_voice_design && (
+                            <div className="bg-indigo-500/5 rounded-lg p-5 border border-indigo-500/20 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <AudioWaveform size={18} className="text-indigo-400" />
+                                    <h4 className="font-medium text-slate-200">Voice Design</h4>
+                                </div>
+                                <p className="text-xs text-slate-400">Describe the voice you want (e.g., "a deep, warm male voice with a calm tone").</p>
+                                <textarea
+                                    value={voiceDescription}
+                                    onChange={(e) => setVoiceDescription(e.target.value)}
+                                    placeholder="Enter voice description..."
+                                    className="input-style w-full h-20 resize-none bg-slate-900/50 text-sm"
+                                />
+                            </div>
+                        )}
 
                         <div className="flex justify-end pt-4 border-t border-slate-700/30">
                             <button

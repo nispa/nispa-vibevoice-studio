@@ -1,6 +1,7 @@
 import React from 'react';
 import { Download, Copy, Trash2 } from 'lucide-react';
 import type { Job } from '../../hooks/useJobArchive';
+import { AudioWaveformPlayer } from '../ui/AudioWaveformPlayer';
 
 interface JobTableRowProps {
     job: Job;
@@ -166,10 +167,11 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
                     {job.audio_url && (
                         <div>
                             <p className="text-xs text-slate-500 mb-2">Preview Audio</p>
-                            <audio
-                                controls
-                                src={job.audio_url}
-                                className="w-full h-8 rounded bg-slate-900"
+                            <AudioWaveformPlayer 
+                                audioUrl={job.audio_url}
+                                showDownload={true}
+                                downloadFilename={`job_${job.id}`}
+                                barColor="#6366f1"
                             />
                         </div>
                     )}

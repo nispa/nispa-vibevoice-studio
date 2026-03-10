@@ -46,7 +46,7 @@ export function useJobArchive() {
     const loadJobs = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/jobs?limit=100');
+            const res = await fetch('http://127.0.0.1:8000/api/jobs?limit=100');
             if (res.ok) {
                 const data = await res.json();
                 setJobs(data.jobs);
@@ -66,7 +66,7 @@ export function useJobArchive() {
     const deleteJob = useCallback(async (jobId: number) => {
         if (confirm('Are you sure you want to delete this job?')) {
             try {
-                const res = await fetch(`http://localhost:8000/api/jobs/${jobId}`, {
+                const res = await fetch(`http://127.0.0.1:8000/api/jobs/${jobId}`, {
                     method: 'DELETE',
                 });
                 if (res.ok) {
@@ -129,7 +129,7 @@ export function useJobArchive() {
      */
     const saveJobDraft = useCallback(async (jobData: any, silent = false) => {
         try {
-            const res = await fetch('http://localhost:8000/api/jobs/create', {
+            const res = await fetch('http://127.0.0.1:8000/api/jobs/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(jobData),

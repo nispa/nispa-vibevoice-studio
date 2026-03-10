@@ -1,0 +1,4 @@
+# Qwen3-TTS specific requirements
+qwen-tts>=0.0.5
+sentencepiece
+einops

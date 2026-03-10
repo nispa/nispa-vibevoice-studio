@@ -24,6 +24,10 @@ interface ScriptContextProps {
     setDetectedSpeakers: (speakers: string[]) => void;
     selectedModel: string;
     setSelectedModel: (model: string) => void;
+    selectedLanguage: string;
+    setSelectedLanguage: (lang: string) => void;
+    voiceDescription: string;
+    setVoiceDescription: (desc: string) => void;
     errorMsg: string;
     setErrorMsg: (msg: string) => void;
 }
@@ -47,6 +51,8 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     ]);
     const [detectedSpeakers, setDetectedSpeakers] = useState<string[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>('VibeVoice-1.5B');
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('Italian');
+    const [voiceDescription, setVoiceDescription] = useState<string>('');
     const [errorMsg, setErrorMsg] = useState('');
 
     /**
@@ -71,6 +77,8 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             speakers, setSpeakers,
             detectedSpeakers, setDetectedSpeakers,
             selectedModel, setSelectedModel,
+            selectedLanguage, setSelectedLanguage,
+            voiceDescription, setVoiceDescription,
             errorMsg, setErrorMsg
         }}>
             {children}

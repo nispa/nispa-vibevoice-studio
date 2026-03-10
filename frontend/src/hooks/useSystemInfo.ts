@@ -63,7 +63,7 @@ export function useSystemInfo() {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch('http://localhost:8000/api/system-info');
+            const res = await fetch('http://127.0.0.1:8000/api/system-info');
             if (res.ok) {
                 const data: SystemInfoData = await res.json();
                 setSystemInfo(data);

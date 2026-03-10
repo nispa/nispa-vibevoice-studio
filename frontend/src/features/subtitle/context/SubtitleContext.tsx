@@ -40,6 +40,8 @@ interface SubtitleContextProps {
     setSelectedVoiceId: (id: string) => void;
     selectedModel: string;
     setSelectedModel: (m: string) => void;
+    selectedLanguage: string;
+    setSelectedLanguage: (l: string) => void;
 
     // 3. Audio Generation Logs 
     activityLogs: string[];
@@ -104,6 +106,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     // 2. TTS Voice & Model
     const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
     const [selectedModel, setSelectedModel] = useState<string>('VibeVoice-1.5B');
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('Italian');
 
     // 3. Audio Generation Logs
     const [activityLogs, setActivityLogs] = useState<string[]>([]);
@@ -154,7 +157,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (!currentTaskId) return;
 
         try {
-            const res = await fetch(`http://localhost:8000/api/tasks/${currentTaskId}/cancel?finalize=${finalize}`, {
+            const res = await fetch(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/cancel?finalize=${finalize}`, {
                 method: 'POST'
             });
             if (res.ok) {
@@ -215,6 +218,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setSelectedVoiceId(job.voice_id);
         setSelectedModel(job.model_name);
         setGroupByPunctuation(job.group_by_punctuation);
+        if (job.language) setSelectedLanguage(job.language);
 
         const pseudoFile = new File([], job.original_filename || 'recovered_job.srt');
         setSubtitleFile(pseudoFile as any);
@@ -229,6 +233,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             errorMsg, setErrorMsg,
             selectedVoiceId, setSelectedVoiceId,
             selectedModel, setSelectedModel,
+            selectedLanguage, setSelectedLanguage,
             activityLogs, setActivityLogs,
             showLogsModal, setShowLogsModal,
             currentAudioUrl, setCurrentAudioUrl,
