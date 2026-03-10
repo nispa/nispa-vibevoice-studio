@@ -19,7 +19,9 @@ export const GenerationControls: React.FC = () => {
         setIsProcessing, 
         setAudioUrl, 
         voices, 
-        models 
+        models,
+        refreshTtsData,
+        isLoadingTtsData
     } = useGlobalContext();
 
     const {
@@ -222,6 +224,8 @@ export const GenerationControls: React.FC = () => {
                 voices={voices}
                 selectedVoiceId={selectedVoiceId}
                 onVoiceSelect={setSelectedVoiceId}
+                onRefresh={refreshTtsData}
+                isLoading={isLoadingTtsData}
                 description="Choose which voice to use for this subtitle."
             />
 

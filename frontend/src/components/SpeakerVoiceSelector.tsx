@@ -1,4 +1,4 @@
-import { Plus, X, AudioLines } from 'lucide-react';
+import { Plus, X, AudioLines, RefreshCw } from 'lucide-react';
 import { useGlobalContext } from '../context/GlobalContext';
 
 interface Speaker {
@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function SpeakerVoiceSelector({ speakers, setSpeakers }: Props) {
-    const { voices } = useGlobalContext();
+    const { voices, refreshTtsData, isLoadingTtsData } = useGlobalContext();
 
     const addSpeaker = () => {
         const nextNum = speakers.length + 1;
@@ -41,17 +41,27 @@ export default function SpeakerVoiceSelector({ speakers, setSpeakers }: Props) {
                     <AudioLines size={18} className="text-indigo-400" />
                     Speaker Voice Mapping ({speakers.length} {speakers.length === 1 ? 'speaker' : 'speakers'})
                 </h4>
-                <button
-                    onClick={addSpeaker}
-                    disabled={speakers.length >= 4}
-                    className={`text-sm flex items-center gap-1 font-medium transition-colors ${speakers.length >= 4
-                        ? 'text-slate-500 cursor-not-allowed'
-                        : 'text-indigo-400 hover:text-indigo-300'
-                        }`}
-                    title={speakers.length >= 4 ? 'Maximum 4 speakers allowed' : ''}
-                >
-                    <Plus size={16} /> Add Speaker
-                </button>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={refreshTtsData}
+                        disabled={isLoadingTtsData}
+                        className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors disabled:opacity-30"
+                        title="Refresh voice list"
+                    >
+                        <RefreshCw size={16} className={isLoadingTtsData ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                        onClick={addSpeaker}
+                        disabled={speakers.length >= 4}
+                        className={`text-sm flex items-center gap-1 font-medium transition-colors ${speakers.length >= 4
+                            ? 'text-slate-500 cursor-not-allowed'
+                            : 'text-indigo-400 hover:text-indigo-300'
+                            }`}
+                        title={speakers.length >= 4 ? 'Maximum 4 speakers allowed' : ''}
+                    >
+                        <Plus size={16} /> Add Speaker
+                    </button>
+                </div>
             </div>
 
             {speakers.length === 0 ? (
@@ -96,9 +106,6 @@ export default function SpeakerVoiceSelector({ speakers, setSpeakers }: Props) {
                 </div>
             )}
 
-            <p className="text-xs text-slate-500 mt-3 italic">
-                Add or edit speakers. Names should match the labels in your script (e.g., "Alice", "Bob").
-            </p>
         </div>
     );
 }
