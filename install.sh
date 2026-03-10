@@ -95,7 +95,7 @@ if python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" &>/dev
         echo ""
         echo "[Optimization] Flash Attention 2 can speed up Qwen3 synthesis."
         read -p "Do you want to attempt installing Flash Attention? (y/n): " INSTALL_FLASH
-        if [[ $INSTALL_CHOICE =~ ^[Yy]$ ]]; then
+        if [[ $INSTALL_FLASH =~ ^[Yy]$ ]]; then
             pip install flash-attn --no-build-isolation
         fi
     fi

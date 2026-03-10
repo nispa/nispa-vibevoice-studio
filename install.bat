@@ -48,7 +48,7 @@ if %errorlevel% equ 0 (
     echo --- VibeVoice is already installed. Skipping. ---
 ) else (
     echo --- Installing VibeVoice ---
-    pip install -r backend\\requirements-vibevoice.txt
+    pip install -r backend\requirements-vibevoice.txt
 )
 exit /b
 
@@ -57,7 +57,7 @@ exit /b
 sox --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
-    echo [i] NOTE: SoX not detected. 
+    echo [i] NOTE: SoX not detected.
     echo     For Qwen3 Voice Cloning, please install SoX from:
     echo     http://sox.sourceforge.net/
     echo     (Nispa Studio handles the path automatically during startup)
@@ -71,16 +71,15 @@ if %errorlevel% equ 0 (
     echo Do you want to force a reinstall of Qwen3 components?
     choice /c yn /m "Choice"
     if %errorlevel% equ 1 (
-        pip install --upgrade --force-reinstall -r backend\\requirements-qwen.txt
+        pip install --upgrade --force-reinstall -r backend\requirements-qwen.txt
     ) else (
         echo Skipping Qwen installation.
     )
 ) else (
     echo --- Installing Qwen3-TTS ---
-    pip install -r backend\\requirements-qwen.txt
+    pip install -r backend\requirements-qwen.txt
 )
 exit /b
-
 :END_ENGINE
 :: Step 4: Final Directory Checks
 echo [3/4] Ensuring data directories exist...
