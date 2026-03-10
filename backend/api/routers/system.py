@@ -2,6 +2,10 @@ from fastapi import APIRouter
 import torch
 import platform
 import psutil
+import os
+import asyncio
+from core.tts_provider import tts_engine
+from core.config import MODELS_DIR
 
 router = APIRouter(prefix="/api")
 
@@ -14,6 +18,36 @@ def read_health():
         dict: A simple status message indicating the API is operational.
     """
     return {"status": "ok"}
+
+@router.post("/system/test-qwen")
+async def test_qwen_integration():
+    """
+    Performs a diagnostic test of the Qwen3-TTS engine and model weights.
+    """
+    results = []
+    qwen_models = ["Qwen3-TTS-0.6B-CustomVoice", "Qwen3-TTS-1.7B-VoiceDesign"]
+    
+    for model_name in qwen_models:
+        model_path = MODELS_DIR / model_name
+        if not model_path.exists():
+            results.append({"model": model_name, "status": "missing", "message": "Weights not found in data/model"})
+            continue
+            
+        try:
+            # Perform a very short synthesis test
+            test_text = "Test"
+            # Use asyncio.to_thread to not block the main loop
+            await asyncio.to_thread(
+                tts_engine.synthesize, 
+                text=test_text, 
+                model_name=model_name,
+                voice_description="A calm voice" if "VoiceDesign" in model_name else None
+            )
+            results.append({"model": model_name, "status": "success", "message": "Inference successful"})
+        except Exception as e:
+            results.append({"model": model_name, "status": "error", "message": str(e)})
+            
+    return {"results": results}
 
 @router.get("/system-info")
 def get_system_info():

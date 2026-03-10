@@ -11,8 +11,12 @@ import { useGlobalContext } from '../context/GlobalContext';
  * @returns {object} An object containing state and handlers for script generation.
  */
 export const useScriptGeneration = () => {
-    const { scriptFile, scriptText, speakers, selectedModel, setErrorMsg } = useScriptContext();
-    const { setIsProcessing, setAudioUrl } = useGlobalContext();
+    const { 
+        scriptFile, scriptText, speakers, 
+        selectedModel, selectedLanguage, 
+        voiceDescription, setErrorMsg 
+    } = useScriptContext();
+    const { setIsProcessing, setAudioUrl, models } = useGlobalContext();
 
     const [showProgressModal, setShowProgressModal] = useState(false);
     const [progressMessages, setProgressMessages] = useState<string[]>([]);
@@ -104,9 +108,16 @@ export const useScriptGeneration = () => {
         }
         formData.append('model_name', selectedModel);
         formData.append('speaker_voice_map', JSON.stringify(speakerVoiceMap));
+        formData.append('language', selectedLanguage);
+
+        // Voice Design support
+        const selectedModelData = models.find(m => m.id === selectedModel);
+        if (selectedModelData?.supports_voice_design && voiceDescription) {
+            formData.append('voice_description', voiceDescription);
+        }
 
         try {
-            const response = await fetch('http://localhost:8000/api/tasks/generate', {
+            const response = await fetch('http://127.0.0.1:8000/api/tasks/generate', {
                 method: 'POST',
                 body: formData,
             });
@@ -121,7 +132,7 @@ export const useScriptGeneration = () => {
             setCurrentTaskId(taskId);
 
             abortControllerRef.current = new AbortController();
-            const streamResponse = await fetch(`http://localhost:8000/api/tasks/${taskId}/stream`, {
+            const streamResponse = await fetch(`http://127.0.0.1:8000/api/tasks/${taskId}/stream`, {
                 signal: abortControllerRef.current.signal,
             });
 
@@ -190,7 +201,7 @@ export const useScriptGeneration = () => {
 
         if (currentTaskId) {
             try {
-                await fetch(`http://localhost:8000/api/tasks/${currentTaskId}/cancel`, {
+                await fetch(`http://127.0.0.1:8000/api/tasks/${currentTaskId}/cancel`, {
                     method: 'POST'
                 });
             } catch (e) {

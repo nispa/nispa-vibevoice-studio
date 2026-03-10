@@ -1,0 +1,19 @@
+# Base requirements for the API and common tools
+fastapi
+uvicorn
+python-multipart
+pydub
+srt
+webvtt-py
+# Establishing a common ground for both engines
+transformers>=4.57.3
+accelerate>=1.12.0
+safetensors
+phonemizer
+soundfile
+audio_utils
+huggingface_hub
+librosa
+numpy
+scipy
+psutil

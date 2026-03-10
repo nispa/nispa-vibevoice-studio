@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-10
+
+### Added
+- **Multi-Engine Architecture**: Support for both VibeVoice (Stable) and **Qwen3-TTS** (State-of-the-art).
+- **Qwen3 Integration**:
+  - Support for **0.6B** (Fast) and **1.7B** (High-Fidelity) models.
+  - **Voice Design**: Create voices from natural language descriptions (e.g., "a deep, warm voice").
+  - **3-Second Voice Cloning**: Zero-shot cloning with ultra-short reference samples.
+- **Voice Library Manager**:
+  - New UI modal to manage local voice samples.
+  - Features: Upload, Delete, Preview Audio, and **Noise Reduction** (using Scipy bandpass filter).
+- **Weights Downloader**: Interactive script to automatically fetch official weights from Hugging Face.
+- **Diagnostics**: Built-in Qwen3 engine test directly from the System panel.
+- **Windows Utility**: `setup_sox_path.bat` script to safely automate SoX environment configuration.
+
+### Changed
+- **Interactive Installer**: Now allows choosing between VibeVoice, Qwen3, or both.
+- **Dependency Management**: Resolved version conflicts between VibeVoice and Qwen3 by decoupling requirements.
+- **Documentation**: Comprehensive Italian and English step-by-step guides.
+
+### Fixed
+- Improved installer logic for force-reinstalling components on Windows.
+- Standardized audio sample rates and tensor handling across different models.
+- Fixed `Qwen3TTSModel` loading issues and deprecated parameters.
+
 ## [0.3.1] - 2026-03-09
 
 ### Added

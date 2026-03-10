@@ -215,7 +215,9 @@ async def generate_audio(
     voice_id: str = Form(...),
     model_name: str = Form("VibeVoice-1.5B"),
     group_by_punctuation: bool = Form(False),
-    subtitle_segments: Optional[str] = Form(None)
+    subtitle_segments: Optional[str] = Form(None),
+    voice_description: Optional[str] = Form(None),
+    language: Optional[str] = Form(None)
 ):
     """
     Synchronously generates and aligns audio for subtitle segments.
@@ -273,7 +275,7 @@ async def generate_audio(
         segments_with_audio = []
         for seg in segments:
             wav_bytes = await asyncio.to_thread(
-                tts_engine.synthesize, seg.text, model_name, None, voice_id
+                tts_engine.synthesize, seg.text, model_name, None, voice_id, voice_description, language
             )
             segments_with_audio.append((seg, wav_bytes))
             
@@ -289,13 +291,14 @@ async def generate_audio(
         media_type="audio/mpeg", 
         headers={"Content-Disposition": f"attachment; filename=generated_audio.mp3"}
     )
-
 @router.post("/generate-script")
 async def generate_script(
     script_file: Optional[UploadFile] = File(None),
     script_text: Optional[str] = Form(None),
     speaker_voice_map: str = Form("{}"),
-    model_name: str = Form("VibeVoice-1.5B")
+    model_name: str = Form("VibeVoice-1.5B"),
+    voice_description: Optional[str] = Form(None),
+    language: Optional[str] = Form(None)
 ):
     """
     Synchronously generates audio for an untimed script.
@@ -342,7 +345,7 @@ async def generate_script(
             )
         
         wav_bytes = await asyncio.to_thread(
-            tts_engine.synthesize, line.text, model_name, None, voice_id
+            tts_engine.synthesize, line.text, model_name, None, voice_id, voice_description, language
         )
         lines_with_audio.append(wav_bytes)
         
@@ -362,7 +365,9 @@ async def create_subtitle_task(
     model_name: str = Form("VibeVoice-1.5B"),
     group_by_punctuation: bool = Form(False),
     subtitle_segments: Optional[str] = Form(None),
-    output_format: str = Form("mp3")
+    output_format: str = Form("mp3"),
+    voice_description: Optional[str] = Form(None),
+    language: Optional[str] = Form(None)
 ):
     """
     Creates a background task for timed subtitle voiceover generation.
@@ -374,6 +379,7 @@ async def create_subtitle_task(
         group_by_punctuation (bool, optional): Group segments. Defaults to False.
         subtitle_segments (Optional[str], optional): JSON segments. Defaults to None.
         output_format (str, optional): Output format ("mp3" or "wav"). Defaults to "mp3".
+        voice_description (Optional[str], optional): Voice Design description. Defaults to None.
 
     Returns:
         dict: success status and task_id.
@@ -420,8 +426,8 @@ async def create_subtitle_task(
                     break # Allow finalization
                 return
 
-            # CRITICAL: Progress must be based on segment counts (current_item/total_items)
-            # as required for accurate UI progress tracking.
+            # Update progress BEFORE synthesis to show which item is active
+            # We use (idx / total) * 100
             current_progress = int((idx / total_items) * 100)
             yield {
                 "progress": current_progress, 
@@ -431,9 +437,16 @@ async def create_subtitle_task(
             }
 
             wav_bytes = await asyncio.to_thread(
-                tts_engine.synthesize, seg.text, model_name, None, voice_id
+                tts_engine.synthesize, seg.text, model_name, None, voice_id, voice_description, language
             )
             segments_with_audio.append((seg, wav_bytes))
+            
+            # Update progress AFTER synthesis to show completion of that item
+            # If it's the last item, we'll set 95% to leave room for finalization
+            after_progress = int(((idx + 1) / total_items) * 100)
+            if after_progress >= 100: after_progress = 99
+            
+            queue_manager.update_task(task_id, progress=after_progress)
 
         # Final jump after all items are done
         yield {
@@ -471,7 +484,9 @@ async def create_generation_task(
     script_file: Optional[UploadFile] = File(None),
     script_text: Optional[str] = Form(None),
     speaker_voice_map: str = Form("{}"),
-    model_name: str = Form("VibeVoice-1.5B")
+    model_name: str = Form("VibeVoice-1.5B"),
+    voice_description: Optional[str] = Form(None),
+    language: Optional[str] = Form(None)
 ):
     """
     Creates a background task for untimed script voiceover generation.
@@ -481,6 +496,7 @@ async def create_generation_task(
         script_text (Optional[str], optional): Raw script text. Defaults to None.
         speaker_voice_map (str, optional): JSON speaker-voice mapping. Defaults to "{}".
         model_name (str, optional): TTS model. Defaults to "VibeVoice-1.5B".
+        voice_description (Optional[str], optional): Voice Design description. Defaults to None.
 
     Returns:
         dict: success status and task_id.
@@ -531,6 +547,7 @@ async def create_generation_task(
             if not voice_id:
                 raise Exception(f"No voice found for {line.speaker}")
                 
+            # Report progress BEFORE synthesis
             current_progress = int((idx / total_items) * 100)
             yield {
                 "progress": current_progress, 
@@ -540,9 +557,15 @@ async def create_generation_task(
             }
             
             wav_bytes = await asyncio.to_thread(
-                tts_engine.synthesize, line.text, model_name, None, voice_id
+                tts_engine.synthesize, line.text, model_name, None, voice_id, voice_description, language
             )
+
             lines_with_audio.append(wav_bytes)
+
+            # Report progress AFTER synthesis
+            after_progress = int(((idx + 1) / total_items) * 100)
+            if after_progress >= 100: after_progress = 99
+            queue_manager.update_task(task_id, progress=after_progress)
 
         yield {"progress": 100, "message": "Finalizing audio file..."}
         final_audio_bytes = await asyncio.to_thread(align_script_audio, lines_with_audio)

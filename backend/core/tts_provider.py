@@ -14,8 +14,35 @@ class TTSProvider(ABC):
     without modifying the core application logic.
     """
 
+    def _get_best_gpu(self) -> str:
+        """
+        Detects the GPU with the most free VRAM.
+        Returns a string like 'cuda:0' or 'cuda:1'.
+        """
+        if not torch.cuda.is_available():
+            return "cpu"
+        
+        gpu_count = torch.cuda.device_count()
+        if gpu_count <= 1:
+            return "cuda:0"
+            
+        best_id = 0
+        max_free = 0
+        for i in range(gpu_count):
+            try:
+                # Get free memory for each device
+                free, total = torch.cuda.mem_get_info(i)
+                if free > max_free:
+                    max_free = free
+                    best_id = i
+            except Exception:
+                continue
+        
+        print(f"[TTS] Selecting best GPU: cuda:{best_id} ({max_free / 1024**3:.2f} GB free)")
+        return f"cuda:{best_id}"
+
     @abstractmethod
-    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None) -> bytes:
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
         """
         Synthesizes text into audio bytes.
 
@@ -25,6 +52,9 @@ class TTSProvider(ABC):
             reference_audio_path (Optional[str], optional): Path to a reference audio file 
                 for voice cloning. Defaults to None.
             voice_id (Optional[str], optional): ID of a predefined voice. Defaults to None.
+            voice_description (Optional[str], optional): Natural language description 
+                of the voice (Voice Design). Defaults to None.
+            language (Optional[str], optional): Target language. Defaults to None.
 
         Returns:
             bytes: The synthesized audio data in WAV format.
@@ -89,6 +119,15 @@ class VibeVoiceProvider(TTSProvider):
             print(f"[TTS] Using cached model: {model_name}")
             return
         
+        # Dependency Check
+        try:
+            from vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference
+        except ImportError:
+            raise ImportError(
+                "VibeVoice dependencies not found. Please run the installer again "
+                "and select option 1 or 3 to install VibeVoice support."
+            )
+
         model_dir = os.path.join(self.base_model_dir, model_name)
         if not os.path.exists(model_dir):
             raise FileNotFoundError(f"Model directory not found: {model_dir}")
@@ -103,6 +142,8 @@ class VibeVoiceProvider(TTSProvider):
             self.processor = VibeVoiceProcessor.from_pretrained(model_dir)
             
             # Load model with device-specific optimizations
+            target_device = self._get_best_gpu() if self.device == "cuda" else self.device
+            
             try:
                 if self.device == "mps":
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
@@ -116,9 +157,10 @@ class VibeVoiceProvider(TTSProvider):
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                         model_dir,
                         torch_dtype=self.dtype,
-                        device_map="cuda",
+                        device_map={"": target_device},
                         attn_implementation=self.attn_impl,
                     )
+                    self.model.to(target_device)
                 else:
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                         model_dir,
@@ -184,7 +226,7 @@ class VibeVoiceProvider(TTSProvider):
         print(f"[TTS] Found voice reference: {voice_id}")
         return voice_path
 
-    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None) -> bytes:
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
         """
         Synthesizes text using VibeVoice with optional voice cloning.
 
@@ -193,14 +235,15 @@ class VibeVoiceProvider(TTSProvider):
             model_name (str): The name of the VibeVoice model to use.
             reference_audio_path (Optional[str], optional): Direct path to a reference WAV. Defaults to None.
             voice_id (Optional[str], optional): ID of a pre-recorded voice in data/voices/. Defaults to None.
+            voice_description (Optional[str], optional): Not supported by VibeVoice.
+            language (Optional[str], optional): Not explicitly used by VibeVoice engine but accepted for interface compatibility.
 
         Returns:
             bytes: WAV audio data as bytes.
-
-        Raises:
-            ValueError: If neither voice_id nor reference_audio_path is provided.
-            RuntimeError: If synthesis fails during model generation.
         """
+        if voice_description:
+            print("[TTS] Warning: VibeVoice does not support voice_description (Voice Design). Ignoring.")
+
         if not text or not text.strip():
             print(f"[TTS] Warning: Empty text provided")
             from pydub import AudioSegment
@@ -285,5 +328,197 @@ class VibeVoiceProvider(TTSProvider):
             print(f"[TTS] Error during synthesis: {e}")
             raise RuntimeError(f"Error generating audio with VibeVoice: {e}")
 
-# Global provider instance
-tts_engine = VibeVoiceProvider()
+class Qwen3TTSProvider(TTSProvider):
+    """
+    Implementation of TTSProvider using the Qwen3-TTS model.
+    
+    Supports high-fidelity synthesis, 3-second voice cloning, 
+    and voice design via text descriptions.
+    """
+    def __init__(self):
+        self.base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "model"))
+        self.voices_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "voices"))
+        
+        self.loaded_model_name = None
+        self.model = None
+        self.processor = None
+        
+        # Device selection logic
+        if torch.cuda.is_available():
+            self.device = "cuda"
+            self.dtype = torch.bfloat16
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+            self.dtype = torch.float32
+        else:
+            self.device = "cpu"
+            self.dtype = torch.float32
+            
+        print(f"[Qwen-TTS] Device: {self.device}, dtype: {self.dtype}")
+
+    def _load_model(self, model_name: str):
+        if self.loaded_model_name == model_name and self.model is not None:
+            return
+        
+        # Dependency Check
+        try:
+            from qwen_tts import Qwen3TTSModel
+            import accelerate
+        except ImportError:
+            raise ImportError(
+                "Qwen3-TTS dependencies not found (qwen-tts missing). Please run the installer again "
+                "and select option 2 or 3 to install Qwen3-TTS support."
+            )
+
+        model_dir = os.path.join(self.base_model_dir, model_name)
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"Qwen3-TTS weights not found at: {model_dir}")
+
+        print(f"[Qwen-TTS] Loading model '{model_name}' from {model_dir}...")
+        try:
+            # Forcing a specific device (cuda:0) instead of auto to avoid cross-device cat errors
+            target_device = "cuda:0" if self.device == "cuda" else self.device
+            
+            self.model = Qwen3TTSModel.from_pretrained(
+                model_dir, 
+                dtype=self.dtype,
+                device_map={"": target_device} if self.device == "cuda" else None,
+                trust_remote_code=True
+            )
+
+            self.loaded_model_name = model_name
+            self.actual_device = target_device 
+ # Store for inference
+        except Exception as e:
+            print(f"[Qwen-TTS] Error loading model: {e}")
+            raise RuntimeError(f"Error loading Qwen3-TTS weights: {e}")
+
+    def _load_voice_file(self, voice_id: str) -> str:
+        safe_voice_id = os.path.basename(voice_id)
+        if not safe_voice_id.endswith(".wav"):
+            voice_file = safe_voice_id + ".wav"
+        else:
+            voice_file = safe_voice_id
+        
+        voice_path = os.path.join(self.voices_dir, voice_file)
+        if not os.path.exists(voice_path):
+            raise FileNotFoundError(f"Voice reference '{voice_id}' not found.")
+        return voice_path
+
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
+        if not text or not text.strip():
+            return self._get_silent_wav()
+
+        self._load_model(model_name)
+        
+        # Use passed language or fallback to detection
+        if not language:
+            language = "Italian" if any(char in text.lower() for char in "àèéìòù") else "English"
+        
+        print(f"[Qwen-TTS] Mode: Active [Language: {language}]")
+
+        ref_text = None
+        if voice_id:
+            try:
+                reference_audio_path = self._load_voice_file(voice_id)
+                # Check for matching transcription (.txt)
+                txt_path = reference_audio_path.replace(".wav", ".txt")
+                if os.path.exists(txt_path):
+                    with open(txt_path, "r", encoding="utf-8") as f:
+                        ref_text = f.read().strip()
+                        print(f"[Qwen-TTS] Found associated transcription for ICL mode ({len(ref_text)} chars)")
+            except Exception as e:
+                print(f"[Qwen-TTS] Warning: Voice reference not found: {e}")
+                reference_audio_path = None
+
+        try:
+            # Determine capabilities based on model name
+            is_design_model = "VoiceDesign" in model_name
+            is_custom_model = "CustomVoice" in model_name
+            is_base_model = "Base" in model_name
+
+            # 1. VOICE DESIGN MODE
+            if voice_description and (is_design_model or is_base_model):
+                print(f"[Qwen-TTS] Mode: Voice Design ({language})")
+                wavs, sr = self.model.generate_voice_design(
+                    text=text,
+                    description=voice_description,
+                    language=language
+                )
+            
+            # 2. VOICE CLONING MODE (Requires Base model)
+            elif reference_audio_path and is_base_model:
+                print(f"[Qwen-TTS] Mode: 3s Voice Clone [Transcription: {'Present' if ref_text else 'Missing'}] ({language})")
+                try:
+                    wavs, sr = self.model.generate_voice_clone(
+                        text=text,
+                        ref_audio=reference_audio_path,
+                        ref_text=ref_text, # Pass transcription if available
+                        language=language,
+                        x_vector_only_mode=False if ref_text else True # Enable ICL if text present
+                    )
+                except Exception as e:
+                    if "sox" in str(e).lower():
+                        print("[Qwen-TTS] ERROR: SoX is required for Voice Cloning.")
+                    raise e
+
+            # 3. CUSTOM/BUILT-IN VOICE MODE (Fallback or specific Custom model)
+            else:
+                if reference_audio_path and is_custom_model:
+                    print(f"[Qwen-TTS] Warning: {model_name} does not support cloning. Using a built-in voice instead.")
+                
+                # Check for built-in speaker names (Standard Qwen speakers)
+                speaker = "Vivian" # Default
+                if voice_id:
+                    potential = voice_id.split('-')[-1].capitalize()
+                    if potential in ["Vivian", "Ryan", "Daisy", "Bella"]:
+                        speaker = potential
+
+                print(f"[Qwen-TTS] Mode: Custom/Built-in [Speaker: {speaker}] ({language})")
+                wavs, sr = self.model.generate_custom_voice(
+                    text=text,
+                    language=language,
+                    speaker=speaker
+                )
+
+            # Convert resulting waveform to WAV bytes
+            import io
+            import torchaudio
+            buf = io.BytesIO()
+            
+            # wavs is usually a list of numpy arrays or tensors
+            audio_data = wavs[0]
+            if not torch.is_tensor(audio_data):
+                audio_tensor = torch.from_numpy(audio_data).float()
+            else:
+                audio_tensor = audio_data.detach().cpu().float()
+
+            if audio_tensor.dim() == 1:
+                audio_tensor = audio_tensor.unsqueeze(0)
+            
+            torchaudio.save(buf, audio_tensor, sr, format="wav")
+            return buf.getvalue()
+
+        except Exception as e:
+            print(f"[Qwen-TTS] ✗ Synthesis error: {e}")
+            import traceback
+            traceback.print_exc()
+            raise RuntimeError(f"Qwen3-TTS inference failed: {e}")
+
+class MultiModelProvider(TTSProvider):
+    """
+    Orchestrator that selects the correct provider based on model prefix.
+    """
+    def __init__(self):
+        self.vibe = VibeVoiceProvider()
+        self.qwen = Qwen3TTSProvider()
+
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
+        # Check if the model name contains "Qwen" to delegate to the Qwen provider
+        if "Qwen" in model_name:
+            return self.qwen.synthesize(text, model_name, reference_audio_path, voice_id, voice_description, language)
+        else:
+            return self.vibe.synthesize(text, model_name, reference_audio_path, voice_id, voice_description, language)
+
+# Global provider instance updated to MultiModel orchestrator
+tts_engine = MultiModelProvider()

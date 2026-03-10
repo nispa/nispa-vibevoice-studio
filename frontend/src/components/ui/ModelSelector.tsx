@@ -1,7 +1,8 @@
 import { Settings } from 'lucide-react';
+import type { Model } from '../../context/GlobalContext';
 
 interface ModelSelectorProps {
-    models: string[];
+    models: Model[];
     selectedModel: string;
     onModelSelect: (model: string) => void;
 }
@@ -29,7 +30,7 @@ export default function ModelSelector({ models, selectedModel, onModelSelect }: 
                     className="input-style w-full md:w-48 appearance-none bg-slate-700/50 cursor-pointer"
                 >
                     {models.map(m => (
-                        <option key={m} value={m}>{m}</option>
+                        <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
                 </select>
             </div>

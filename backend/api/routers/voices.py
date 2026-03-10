@@ -1,6 +1,8 @@
 import os
 import io
-from fastapi import APIRouter, File, UploadFile, Form, HTTPException
+from typing import Optional, List
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Body
+from fastapi.responses import FileResponse
 from pydub import AudioSegment
 from core.config import VOICES_DIR, MODELS_DIR
 
@@ -9,17 +11,22 @@ router = APIRouter(prefix="/api")
 @router.get("/models")
 def list_models():
     """
-    Lists all available TTS models in the models directory.
-
-    Returns:
-        dict: A dictionary containing a list of model names.
+    Lists all available TTS models with enhanced metadata.
     """
-    models = []
+    models_metadata = []
     if MODELS_DIR.exists():
         for entry in os.listdir(MODELS_DIR):
             if os.path.isdir(MODELS_DIR / entry):
-                models.append(entry)
-    return {"models": models}
+                is_qwen = "Qwen" in entry
+                supports_voice_design = "VoiceDesign" in entry
+                
+                models_metadata.append({
+                    "id": entry,
+                    "name": entry,
+                    "engine": "qwen" if is_qwen else "vibevoice",
+                    "supports_voice_design": supports_voice_design
+                })
+    return {"models": models_metadata}
 
 @router.get("/voices")
 def list_voices():
@@ -56,21 +63,61 @@ def list_voices():
                     else:
                         accent = ""
                         name = name_part
+                    
+                    # Check for associated transcription
+                    transcription = ""
+                    txt_path = VOICES_DIR / f"{voice_id}.txt"
+                    if txt_path.exists():
+                        with open(txt_path, "r", encoding="utf-8") as f:
+                            transcription = f.read()
+
                     voices.append({
                         "id": voice_id,
                         "filename": filename,
                         "language": lang,
                         "accent": accent,
                         "name": name,
-                        "gender": gender
+                        "gender": gender,
+                        "transcription": transcription
                     })
     
     return {"voices": voices}
 
+@router.delete("/voices/{voice_id}")
+def delete_voice(voice_id: str):
+    """
+    Deletes a voice reference file.
+    """
+    safe_voice_id = os.path.basename(voice_id)
+    voice_path = VOICES_DIR / f"{safe_voice_id}.wav"
+    
+    if not voice_path.exists():
+        raise HTTPException(status_code=404, detail="Voice not found")
+    
+    try:
+        os.remove(voice_path)
+        return {"status": "success", "message": f"Voice {voice_id} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete voice: {str(e)}")
+
+@router.get("/voices/{voice_id}/audio")
+def get_voice_audio(voice_id: str):
+    """
+    Serves the audio file for a voice reference.
+    """
+    safe_voice_id = os.path.basename(voice_id)
+    voice_path = VOICES_DIR / f"{safe_voice_id}.wav"
+    
+    if not voice_path.exists():
+        raise HTTPException(status_code=404, detail="Voice not found")
+    
+    return FileResponse(voice_path, media_type="audio/wav")
+
 @router.post("/upload-voice")
 async def upload_voice(
     voice_file: UploadFile = File(...),
-    voice_id: str = Form(...)
+    voice_id: str = Form(...),
+    transcription: Optional[str] = Form(None)
 ):
     """
     Uploads and processes a new voice reference file.
@@ -133,6 +180,12 @@ async def upload_voice(
         
         audio.export(output_path, format="wav")
         
+        # Save transcription if provided
+        if transcription and transcription.strip():
+            txt_path = VOICES_DIR / f"{safe_voice_id}.txt"
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(transcription.strip())
+        
         return {
             "status": "success",
             "voice_id": voice_id,
@@ -147,3 +200,79 @@ async def upload_voice(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing voice file: {str(e)}")
+
+@router.post("/voices/{voice_id}/transcription")
+def update_voice_transcription(voice_id: str, transcription: str = Body(..., embed=True)):
+    """
+    Updates the transcription text for an existing voice reference.
+    """
+    safe_voice_id = os.path.basename(voice_id)
+    txt_path = VOICES_DIR / f"{safe_voice_id}.txt"
+    
+    try:
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(transcription.strip())
+        return {"status": "success", "message": "Transcription updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update transcription: {str(e)}")
+
+@router.post("/voices/{voice_id}/reprocess")
+async def reprocess_voice(voice_id: str):
+    """
+    Applies noise reduction and normalization to a voice reference file, 
+    saving it as a new 'processed' version.
+    """
+    safe_voice_id = os.path.basename(voice_id)
+    voice_path = VOICES_DIR / f"{safe_voice_id}.wav"
+    
+    if not voice_path.exists():
+        raise HTTPException(status_code=404, detail="Voice not found")
+    
+    try:
+        # Load audio
+        audio = AudioSegment.from_wav(voice_path)
+        
+        # Basic Noise Reduction logic
+        import numpy as np
+        from scipy.signal import butter, lfilter
+        
+        samples = np.array(audio.get_array_of_samples()).astype(np.float32)
+        
+        def butter_bandpass(lowcut, highcut, fs, order=5):
+            nyq = 0.5 * fs
+            low = lowcut / nyq
+            high = highcut / nyq
+            b, a = butter(order, [low, high], btype='band')
+            return b, a
+
+        fs = audio.frame_rate
+        b, a = butter_bandpass(80, min(8000, fs/2 - 1), fs, order=5)
+        processed_samples = lfilter(b, a, samples)
+        
+        max_val = np.max(np.abs(processed_samples))
+        if max_val > 0:
+            processed_samples = processed_samples / max_val * 32767.0
+            
+        processed_audio = audio._spawn(processed_samples.astype(np.int16).tobytes())
+        
+        # New filename logic
+        new_voice_id = f"{safe_voice_id}_processed"
+        new_path = VOICES_DIR / f"{new_voice_id}.wav"
+        
+        # Save new WAV
+        processed_audio.export(new_path, format="wav")
+        
+        # Copy transcription if exists
+        old_txt = VOICES_DIR / f"{safe_voice_id}.txt"
+        if old_txt.exists():
+            import shutil
+            shutil.copy(old_txt, VOICES_DIR / f"{new_voice_id}.txt")
+        
+        return {
+            "status": "success", 
+            "message": f"New processed voice created: {new_voice_id}",
+            "new_voice_id": new_voice_id
+        }
+    except Exception as e:
+        print(f"Reprocess error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to reprocess voice: {str(e)}")
