@@ -83,6 +83,9 @@ interface SubtitleContextProps {
     generatedSegments: any[];
     setGeneratedSegments: Dispatch<SetStateAction<any[]>>;
 
+    showReviewModal: boolean;
+    setShowReviewModal: (b: boolean) => void;
+
     // Task Management
     currentTaskId: string | null;
     setCurrentTaskId: (id: string | null) => void;
@@ -139,6 +142,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [showArchive, setShowArchive] = useState(false);
     const [generationProgress, setGenerationProgress] = useState(0);
     const [generatedSegments, setGeneratedSegments] = useState<any[]>([]);
+    const [showReviewModal, setShowReviewModal] = useState(false);
 
     // Task Management
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -323,6 +327,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             showArchive, setShowArchive,
             generationProgress, setGenerationProgress,
             generatedSegments, setGeneratedSegments,
+            showReviewModal, setShowReviewModal,
             currentTaskId, setCurrentTaskId,
             cancelGeneration,
             loadJobSegments, saveJobDraft,

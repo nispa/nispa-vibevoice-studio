@@ -7,6 +7,7 @@ import { SubtitlePreviewModal } from './components/SubtitlePreviewModal';
 import { SubtitleEditorModal } from './components/SubtitleEditorModal';
 import { JobArchivePanel } from '../../components/JobArchivePanel';
 import { TranslationProgressModal } from './components/TranslationProgressModal';
+import { JobReviewModal } from './components/JobReviewModal';
 
 import { SubtitleProvider, useSubtitleContext } from './context/SubtitleContext';
 import { TranslationProvider, useTranslationContext } from './context/TranslationContext';
@@ -34,7 +35,8 @@ const SubtitleModeContent: FC = () => {
         showEditor, setShowEditor, subtitleSegments, setSubtitleSegments,
         loadJobSegments, generationProgress,
         cancelGeneration,
-        generatedSegments
+        generatedSegments,
+        showReviewModal, setShowReviewModal
     } = useSubtitleContext();
 
     const {
@@ -213,6 +215,14 @@ const SubtitleModeContent: FC = () => {
             <TranslationProgressModal
                 isOpen={showTranslationModal}
                 onClose={() => setShowTranslationModal(false)}
+            />
+
+            <JobReviewModal
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                jobId={loadedJobId}
+                jobName={subtitleFile?.name || 'Voiceover Job'}
+                segments={subtitleSegments}
             />
 
         </div>

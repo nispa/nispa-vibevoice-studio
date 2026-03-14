@@ -515,15 +515,50 @@ async def create_subtitle_task(
         import os
         from datetime import datetime
         
-        # Apply grouping if requested
-        job_segments = segments
-        if group_by_punctuation:
-            job_segments = group_subtitles_by_punctuation(segments)
+        # We need to re-parse potential audioUrls from subtitle_segments JSON
+        job_segments = []
+        if subtitle_segments:
+            try:
+                segments_data = json.loads(subtitle_segments)
+                for seg in segments_data:
+                    audio_url = seg.get("audioUrl")
+                    audio_bytes = None
+                    if audio_url and audio_url.startswith("data:audio/"):
+                        try:
+                            # Extract base64 part
+                            b64_part = audio_url.split(",")[1]
+                            audio_bytes = base64.b64decode(b64_part)
+                        except:
+                            pass
+                    
+                    job_segments.append({
+                        "segment": SubtitleSegment(
+                            index=seg.get("index", 0),
+                            start_time_ms=seg.get("start_ms", 0),
+                            end_time_ms=seg.get("end_ms", 0),
+                            text=seg.get("text", "")
+                        ),
+                        "audio_bytes": audio_bytes
+                    })
+            except:
+                # Fallback to segments list created above if JSON parsing fails here
+                job_segments = [{"segment": s, "audio_bytes": None} for s in segments]
+        else:
+            job_segments = [{"segment": s, "audio_bytes": None} for s in segments]
+
+        # Apply grouping ONLY if we started from a raw file (not segments from UI)
+        if group_by_punctuation and not subtitle_segments:
+            parsed_only = [s["segment"] for s in job_segments]
+            grouped = group_subtitles_by_punctuation(parsed_only)
+            job_segments = [{"segment": s, "audio_bytes": None} for s in grouped]
         
         total_items = len(job_segments)
         segments_with_audio = []
         
-        for idx, seg in enumerate(job_segments):
+        for idx, item in enumerate(job_segments):
+            seg = item["segment"]
+            existing_audio = item["audio_bytes"]
+
             task_state = queue_manager.get_task(task_id)
             if task_state.get("status") == TaskStatus.CANCELLED:
                 if task_state.get("finalize_on_cancel"):
@@ -531,16 +566,27 @@ async def create_subtitle_task(
                 return
 
             current_progress = int((idx / total_items) * 100)
-            yield {
-                "progress": current_progress, 
-                "total_items": total_items,
-                "current_item": idx + 1,
-                "message": f"[TTS] Synthesizing text #{seg.index} ({len(seg.text)} chars): '{seg.text}'"
-            }
+            
+            if existing_audio:
+                yield {
+                    "progress": current_progress, 
+                    "total_items": total_items,
+                    "current_item": idx + 1,
+                    "message": f"[SKIP] Segment #{seg.index} already has audio."
+                }
+                wav_bytes = existing_audio
+            else:
+                yield {
+                    "progress": current_progress, 
+                    "total_items": total_items,
+                    "current_item": idx + 1,
+                    "message": f"[TTS] Synthesizing text #{seg.index} ({len(seg.text)} chars): '{seg.text}'"
+                }
 
-            wav_bytes = await asyncio.to_thread(
-                tts_engine.synthesize, seg.text, model_name, None, voice_id, voice_description, language
-            )
+                wav_bytes = await asyncio.to_thread(
+                    tts_engine.synthesize, seg.text, model_name, None, voice_id, voice_description, language
+                )
+            
             segments_with_audio.append((seg, wav_bytes))
             
             # Encode individual segment for preview

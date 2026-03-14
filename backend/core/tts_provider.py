@@ -386,7 +386,11 @@ class Qwen3TTSProvider(TTSProvider):
         # Cleanup if we are switching engines or models to save VRAM
         if self.model is not None:
             print(f"[Qwen-TTS] Unloading previous model {self.loaded_model_name} to free VRAM")
-            self.model.to("cpu")
+            try:
+                if hasattr(self.model, "to"):
+                    self.model.to("cpu")
+            except:
+                pass
             self.model = None
             self.processor = None
             gc.collect()

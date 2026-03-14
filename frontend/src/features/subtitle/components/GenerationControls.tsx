@@ -108,6 +108,7 @@ export const GenerationControls: React.FC = () => {
         };
 
         const formData = new FormData();
+        // ALWAYS send current segments if they exist to allow RESUMING (sending partial audioUrls)
         if (subtitleSegments && subtitleSegments.length > 0) {
             formData.append('subtitle_segments', JSON.stringify(subtitleSegments));
         } else if (subtitleFile) {
@@ -149,7 +150,7 @@ export const GenerationControls: React.FC = () => {
                 if (data.type === 'progress' || data.type === 'complete') {
                     if (data.status) addLog(data.status);
                     
-                    // Handle new segments for preview
+                    // Handle new segments for preview and UPDATE CONTEXT
                     if (data.new_segments && data.new_segments.length > 0) {
                         const newPreviewSegments = data.new_segments.map((seg: any) => {
                             const binaryString = atob(seg.audio_b64);
@@ -158,13 +159,33 @@ export const GenerationControls: React.FC = () => {
                                 bytes[i] = binaryString.charCodeAt(i);
                             }
                             const blob = new Blob([bytes], { type: 'audio/wav' });
+                            const audioUrl = URL.createObjectURL(blob);
+                            
                             return {
                                 index: seg.index,
                                 text: seg.text,
-                                audioUrl: URL.createObjectURL(blob)
+                                audioUrl: audioUrl
                             };
                         });
+                        
                         setGeneratedSegments(prev => [...prev, ...newPreviewSegments]);
+                        
+                        // CRITICAL: Update the main subtitleSegments so that they can be saved/resumed
+                        // We find each segment by index and attach its audioUrl
+                        // @ts-ignore
+                        const { setSubtitleSegments, subtitleSegments: currentSegments } = useSubtitleContext.getState ? {setSubtitleSegments: () => {}, subtitleSegments: []} : {setSubtitleSegments, subtitleSegments}; 
+                        
+                        // Note: Using functional update to avoid closure staleness
+                        setSubtitleSegments((prev: any[]) => {
+                            const updated = [...prev];
+                            newPreviewSegments.forEach((newSeg: any) => {
+                                const idx = updated.findIndex(s => s.index === newSeg.index);
+                                if (idx !== -1) {
+                                    updated[idx] = { ...updated[idx], audioUrl: newSeg.audioUrl };
+                                }
+                            });
+                            return updated;
+                        });
                     }
 
                     // CRITICAL: Progress calculation must be independent and based on 
@@ -202,6 +223,11 @@ export const GenerationControls: React.FC = () => {
                     if (subtitleSegments.length > 0) {
                         saveJobDraft('Completed generation', subtitleSegments, subtitleFile.name);
                     }
+                    
+                    // OPEN REVIEW MODAL
+                    setTimeout(() => {
+                        setShowReviewModal(true);
+                    }, 500);
                 }
 
                 if (data.type === 'error') {
@@ -323,17 +349,11 @@ export const GenerationControls: React.FC = () => {
             {/* Action */}
             <div className="pt-4 border-t border-slate-800 flex justify-end items-center gap-4">
                 {isProcessing && (
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 text-blue-400 animate-pulse">
-                            <Loader2 size={20} className="animate-spin" />
-                            <span className="text-sm font-medium text-slate-300">Generating Audio...</span>
+                    <div className="flex items-center gap-4 animate-fade-in">
+                        <div className="flex items-center gap-2 text-indigo-400">
+                            <Loader2 size={18} className="animate-spin" />
+                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Synthesis in progress</span>
                         </div>
-                        <button
-                            onClick={handleCancel}
-                            className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium transition"
-                        >
-                            Cancel
-                        </button>
                     </div>
                 )}
                 {activityLogs.length > 0 && (

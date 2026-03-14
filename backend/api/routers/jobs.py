@@ -1,12 +1,17 @@
 from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi.responses import StreamingResponse
 from typing import List
 import io
+import base64
+import asyncio
 
 from db.models import JobCreate, JobUpdate, JobResponse, JobListResponse
 from db.database import (
     create_job, get_job, get_all_jobs, update_job, 
     delete_job, update_job_status
 )
+from core.parser import SubtitleSegment
+from core.aligner import align_subtitles_audio
 
 router = APIRouter(prefix="/api/jobs")
 
@@ -19,6 +24,73 @@ def format_ms_to_srt_time(ms: int) -> str:
     hours = minutes // 60
     minutes = minutes % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
+@router.post("/{job_id}/finalize")
+async def finalize_job_audio(job_id: int, output_format: str = Query("mp3")):
+    """
+    Retrieves all segments for a job from the database, extracts their 
+    embedded audio (Base64), and joins them into a single file.
+    """
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    # We use modified_segments if they exist, otherwise subtitle_segments
+    segments = job.modified_segments if job.modified_segments else job.subtitle_segments
+    
+    if not segments:
+        raise HTTPException(status_code=400, detail="No segments found for this job")
+        
+    segments_with_audio = []
+    
+    for seg in segments:
+        audio_url = getattr(seg, "audioUrl", None) or seg.get("audioUrl") if isinstance(seg, dict) else seg.audioUrl
+        
+        if not audio_url or not audio_url.startswith("data:audio/"):
+            # If a segment is missing audio, we can't finalize properly
+            continue
+            
+        try:
+            # Extract base64 data
+            b64_data = audio_url.split(",")[1]
+            wav_bytes = base64.b64decode(b64_data)
+            
+            # Map database model to SubtitleSegment expected by aligner
+            segments_with_audio.append((
+                SubtitleSegment(
+                    index=getattr(seg, "index", 0),
+                    start_time_ms=getattr(seg, "start_ms", 0),
+                    end_time_ms=getattr(seg, "end_ms", 0),
+                    text=getattr(seg, "text", "")
+                ),
+                wav_bytes
+            ))
+        except Exception as e:
+            print(f"Error decoding audio for segment {getattr(seg, 'index', 'unknown')}: {e}")
+            continue
+            
+    if not segments_with_audio:
+        raise HTTPException(
+            status_code=400, 
+            detail="No segments with valid audio found. Please generate audio for segments first."
+        )
+        
+    try:
+        # Join audio segments
+        final_audio_bytes = await asyncio.to_thread(
+            align_subtitles_audio, segments_with_audio, output_format
+        )
+        
+        filename = f"job_{job_id}_final.{output_format.lower()}"
+        media_type = "audio/mpeg" if output_format.lower() == "mp3" else "audio/wav"
+        
+        return StreamingResponse(
+            io.BytesIO(final_audio_bytes),
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Finalization failed: {str(e)}")
 
 @router.get("/{job_id}/export-srt")
 async def export_job_srt(job_id: int):

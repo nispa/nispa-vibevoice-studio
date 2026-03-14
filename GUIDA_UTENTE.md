@@ -20,7 +20,7 @@ Al primo avvio, o tramite lo script di download, assicurati di scaricare:
 
 ---
 
-## 2. Traduzione Offline (Addio Ollama)
+## 2. Traduzione Offline 
 
 Nispa Studio integra ora il modello **NLLB-200 Distilled** di Facebook.
 - **Vantaggi**: Traduzione istantanea, 100% privata, supporto per 200 lingue.

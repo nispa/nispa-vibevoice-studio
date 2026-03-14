@@ -12,7 +12,7 @@ Synthesize high-quality voices, clone any voice in 3 seconds, and translate subt
   - **Qwen3-TTS**: State-of-the-art engine with **3-second zero-shot cloning** and **Voice Design** (text-to-voice).
 - **Internal Offline Translation**: Powered by **Facebook's NLLB-200**. 
   - Supports 200+ languages (including Sicilian, Friulian, Sardinian, and more).
-  - 100% private and local—no external API or Ollama required.
+  - 100% private and local—no external API or installed Ollama instance required.
 - **Advanced Audio Editing**:
   - **Audio Trimmer**: Edit generated segments on the fly to remove hallucinations or silence.
   - **Mark-In/Mark-Out**: Precise control with visual sliders and live preview.

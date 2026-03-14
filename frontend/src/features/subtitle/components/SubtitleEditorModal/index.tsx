@@ -151,15 +151,6 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
                         <div className="h-8 w-px bg-slate-700 mx-1 hidden sm:block" />
 
                         <button
-                            onClick={handleFinalizeAudio}
-                            disabled={approvedCount === 0 || isFinalizing}
-                            className={`px-6 py-2 rounded-lg font-bold transition flex items-center gap-2 text-sm ${approvedCount === segments.length ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/20' : 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'}`}
-                        >
-                            {isFinalizing ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            {approvedCount < segments.length ? `JOIN APPROVED (${approvedCount})` : 'FINALIZE & JOIN ALL'}
-                        </button>
-
-                        <button
                             onClick={handleExportSegments}
                             disabled={segments.filter(s => s.audioUrl).length === 0}
                             className="px-4 py-2 bg-slate-700/60 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-600/50 transition inline-flex items-center gap-2 text-sm disabled:opacity-50"
