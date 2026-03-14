@@ -13,6 +13,8 @@ class SubtitleSegmentData(BaseModel):
         text (str): Subtitle text.
         is_translated (Optional[bool]): Whether the segment has been translated. Defaults to False.
         original_text (Optional[str]): The source text if translated. Defaults to None.
+        audioUrl (Optional[str]): Base64 encoded audio data or URL.
+        isApproved (Optional[bool]): Whether the user has verified this segment.
     """
     index: int
     start_ms: int
@@ -20,6 +22,8 @@ class SubtitleSegmentData(BaseModel):
     text: str
     is_translated: Optional[bool] = False
     original_text: Optional[str] = None
+    audioUrl: Optional[str] = None
+    isApproved: Optional[bool] = False
 
 class JobCreate(BaseModel):
     """

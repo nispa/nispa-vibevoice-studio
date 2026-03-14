@@ -11,10 +11,17 @@ interface JobArchivePanelProps {
 export const JobArchivePanel: React.FC<JobArchivePanelProps> = ({ onLoadJob }) => {
     const { jobs, loading, loadJobs, deleteJob, downloadSrt } = useJobArchive();
     const [searchTerm, setSearchTerm] = useState('');
+    const [expandedJobs, setExpandedJobs] = useState<number[]>([]);
 
     useEffect(() => {
         loadJobs();
     }, [loadJobs]);
+
+    const toggleExpand = (id: number) => {
+        setExpandedJobs(prev => 
+            prev.includes(id) ? prev.filter(jobId => jobId !== id) : [...prev, id]
+        );
+    };
 
     const filteredJobs = jobs.filter(job => 
         job.original_filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -23,7 +30,7 @@ export const JobArchivePanel: React.FC<JobArchivePanelProps> = ({ onLoadJob }) =
 
     return (
         <div className="bg-slate-800/20 border border-slate-700/50 rounded-xl overflow-hidden flex flex-col h-full min-h-[400px]">
-            {/* Header */}
+            {/* ... header and search ... */}
             <div className="p-4 border-b border-slate-700/50 bg-slate-800/40 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <History size={18} className="text-amber-400" />
@@ -38,7 +45,6 @@ export const JobArchivePanel: React.FC<JobArchivePanelProps> = ({ onLoadJob }) =
                 </button>
             </div>
 
-            {/* Search */}
             <div className="p-3 border-b border-slate-700/50 bg-slate-900/20">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
@@ -68,8 +74,8 @@ export const JobArchivePanel: React.FC<JobArchivePanelProps> = ({ onLoadJob }) =
                         <JobTableRow 
                             key={job.id}
                             job={job}
-                            isExpanded={false}
-                            onToggleExpand={() => {}} // In the panel we might keep it simple or expand
+                            isExpanded={expandedJobs.includes(job.id)}
+                            onToggleExpand={() => toggleExpand(job.id)}
                             onDelete={deleteJob}
                             onLoad={onLoadJob}
                             onDownloadSrt={downloadSrt}

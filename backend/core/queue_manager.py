@@ -122,12 +122,23 @@ class TTSQueueManager:
                         message = update.get("message", "")
                         audio_b64 = update.get("audio_b64", None)
                         
-                        # Store additional metadata if provided (e.g. for progress bar)
+                        # Store additional metadata if provided (e.g. for progress bar or previews)
                         if "current_item" in update:
                             self.tasks[task_id]["current_item"] = update["current_item"]
                         if "total_items" in update:
                             self.tasks[task_id]["total_items"] = update["total_items"]
                         
+                        # Handle individual segment previews
+                        if "segment_audio_b64" in update:
+                            if "segments" not in self.tasks[task_id]:
+                                self.tasks[task_id]["segments"] = []
+                            
+                            self.tasks[task_id]["segments"].append({
+                                "index": update.get("segment_index"),
+                                "text": update.get("segment_text"),
+                                "audio_b64": update["segment_audio_b64"]
+                            })
+
                         if audio_b64:
                             self.update_task(task_id, status=TaskStatus.COMPLETED, progress=100, message=message, audio_b64=audio_b64)
                         else:

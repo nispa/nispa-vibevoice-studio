@@ -45,6 +45,8 @@ export const GenerationControls: React.FC = () => {
         saveJobDraft,
         generationProgress: progress,
         setGenerationProgress: setProgress,
+        generatedSegments,
+        setGeneratedSegments,
         currentTaskId,
         setCurrentTaskId,
         cancelGeneration
@@ -84,8 +86,16 @@ export const GenerationControls: React.FC = () => {
         setAudioUrl(null);
         setActivityLogs([]); 
         setProgress(0);
+        setGeneratedSegments([]); // Clear previous previews
         lastLogRef.current = '';
         setShowLogsModal(true);
+
+        // AUTO-SAVE BEFORE GENERATION
+        try {
+            await saveJobDraft('Initial save before generation', undefined, undefined, true);
+        } catch (err) {
+            console.warn("Failed to perform initial save:", err);
+        }
 
         /**
          * Helper to add a timestamped log entry if it differs from the last one.
@@ -139,6 +149,24 @@ export const GenerationControls: React.FC = () => {
                 if (data.type === 'progress' || data.type === 'complete') {
                     if (data.status) addLog(data.status);
                     
+                    // Handle new segments for preview
+                    if (data.new_segments && data.new_segments.length > 0) {
+                        const newPreviewSegments = data.new_segments.map((seg: any) => {
+                            const binaryString = atob(seg.audio_b64);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const blob = new Blob([bytes], { type: 'audio/wav' });
+                            return {
+                                index: seg.index,
+                                text: seg.text,
+                                audioUrl: URL.createObjectURL(blob)
+                            };
+                        });
+                        setGeneratedSegments(prev => [...prev, ...newPreviewSegments]);
+                    }
+
                     // CRITICAL: Progress calculation must be independent and based on 
                     // current_item / total_items received from the backend.
                     if (data.current_item && data.total_items) {
@@ -330,7 +358,7 @@ export const GenerationControls: React.FC = () => {
                     className="btn-primary w-full md:w-auto px-8"
                 >
                     <Settings size={18} />
-                    Synchronize Audio
+                    Generate Voice-over
                 </button>
             </div>
         </>

@@ -48,6 +48,10 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
     onLoad,
     onDownloadSrt
 }) => {
+    const isTranslated = job.modified_segments.some(s => s.is_translated) || 
+                         job.subtitle_segments.some(s => s.is_translated) ||
+                         job.notes?.toLowerCase().includes('translation');
+
     return (
         <div className="bg-slate-800/40 border border-slate-700/30 rounded-lg overflow-hidden">
             {/* Job Header */}
@@ -60,7 +64,7 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
                         <span className={`inline-block px-2 py-1 text-xs font-bold rounded border ${getStatusColor(job.status)}`}>
                             {job.status.toUpperCase()}
                         </span>
-                        {job.notes?.toLowerCase().includes('translation') && (
+                        {isTranslated && (
                              <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 text-xs font-bold rounded">
                                 TRANSLATED
                              </span>
@@ -103,7 +107,7 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
                             e.stopPropagation();
                             onDownloadSrt(job);
                         }}
-                        title="Download SRT"
+                        title={isTranslated ? "Download Translated SRT" : "Download SRT"}
                         className="p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/20 rounded-lg transition"
                     >
                         <Download size={18} />

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from typing import List
+import io
 
 from db.models import JobCreate, JobUpdate, JobResponse, JobListResponse
 from db.database import (
@@ -8,6 +9,57 @@ from db.database import (
 )
 
 router = APIRouter(prefix="/api/jobs")
+
+def format_ms_to_srt_time(ms: int) -> str:
+    """Helper to format milliseconds to SRT time string HH:MM:SS,mmm"""
+    seconds = ms // 1000
+    milliseconds = ms % 1000
+    minutes = seconds // 60
+    seconds = seconds % 60
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
+@router.get("/{job_id}/export-srt")
+async def export_job_srt(job_id: int):
+    """
+    Exports the modified (translated) segments of a job as an SRT file.
+    """
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # We use modified_segments if they exist, otherwise subtitle_segments
+    segments = job.modified_segments if job.modified_segments else job.subtitle_segments
+    
+    if not segments:
+        raise HTTPException(status_code=400, detail="No subtitle segments found for this job")
+
+    srt_content = ""
+    for i, seg in enumerate(segments):
+        idx = seg.index if hasattr(seg, "index") else i + 1
+        start = seg.start_ms if hasattr(seg, "start_ms") else 0
+        end = seg.end_ms if hasattr(seg, "end_ms") else 0
+        text = seg.text if hasattr(seg, "text") else ""
+            
+        start_time = format_ms_to_srt_time(start)
+        end_time = format_ms_to_srt_time(end)
+        srt_content += f"{idx}\n{start_time} --> {end_time}\n{text}\n\n"
+
+    # Ensure filename is clean
+    base_name = job.original_filename if job.original_filename else "subtitles.srt"
+    if base_name.endswith(".srt"):
+        filename = f"translated_{base_name}"
+    else:
+        filename = f"translated_{base_name}.srt"
+
+    return Response(
+        content=srt_content,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
 
 @router.post("/create", response_model=JobResponse)
 async def create_new_job(job_data: JobCreate):

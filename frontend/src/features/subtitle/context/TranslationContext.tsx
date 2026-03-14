@@ -6,6 +6,8 @@ import type { ReactNode, MutableRefObject, Dispatch, SetStateAction, FC } from '
  */
 export interface TranslationContextProps {
     // Configuration
+    sourceLanguage: string;
+    setSourceLanguage: (l: string) => void;
     targetLanguage: string;
     setTargetLanguage: (l: string) => void;
     ollamaModels: string[];
@@ -55,7 +57,8 @@ const TranslationContext = createContext<TranslationContextProps | undefined>(un
  */
 export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) => {
     // 1. Configuration
-    const [targetLanguage, setTargetLanguage] = useState<string>('English');
+    const [sourceLanguage, setSourceLanguage] = useState<string>('English');
+    const [targetLanguage, setTargetLanguage] = useState<string>('Italian');
     const [ollamaModels, setOllamaModels] = useState<string[]>([]);
     const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>('');
     const [isLoadingModels, setIsLoadingModels] = useState(false);
@@ -75,45 +78,33 @@ export const TranslationProvider: FC<{ children: ReactNode }> = ({ children }) =
     const [hasStartedTranslation, setHasStartedTranslation] = useState(false);
 
     /**
-     * Fetches the list of available LLM models from the local Ollama instance.
+     * Fetches available translation models from the backend.
      */
     const refreshOllamaModels = async () => {
         setIsLoadingModels(true);
         try {
-            const res = await fetch('http://localhost:8000/api/ollama/models');
-            const data = await res.json();
-            if (data.models && data.models.length > 0) {
-                setOllamaModels(data.models);
-                
-                // Only auto-select if nothing is currently selected or current selection is gone
-                if (!selectedOllamaModel || !data.models.includes(selectedOllamaModel)) {
-                    if (data.models.includes('huihui_ai/hy-mt1.5')) {
-                        setSelectedOllamaModel('huihui_ai/hy-mt1.5');
-                    } else if (data.models.includes('llama3')) {
-                        setSelectedOllamaModel('llama3');
-                    } else {
-                        setSelectedOllamaModel(data.models[0]);
-                    }
+            const res = await fetch('http://127.0.0.1:8000/api/ollama/models');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.models && data.models.length > 0) {
+                    setOllamaModels(data.models);
+                    setSelectedOllamaModel(data.models[0]);
                 }
-            } else {
-                setOllamaModels([]);
             }
         } catch (err) {
-            console.error("Failed to fetch Ollama models:", err);
+            console.error('Failed to load translation models:', err);
         } finally {
             setIsLoadingModels(false);
         }
     };
 
-    /**
-     * Initial model load on mount.
-     */
     useEffect(() => {
         refreshOllamaModels();
     }, []);
 
     return (
         <TranslationContext.Provider value={{
+            sourceLanguage, setSourceLanguage,
             targetLanguage, setTargetLanguage,
             ollamaModels, selectedOllamaModel, setSelectedOllamaModel,
             isTranslating, setIsTranslating,

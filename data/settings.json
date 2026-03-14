@@ -1,0 +1,15 @@
+{
+    "paths": {
+        "sox": "sox",
+        "ffmpeg": "ffmpeg",
+        "ffprobe": "ffprobe"
+    },
+    "audio": {
+        "default_format": "mp3",
+        "sample_rate_asr": 16000,
+        "sample_rate_tts": 24000
+    },
+    "ui": {
+        "theme": "dark"
+    }
+}

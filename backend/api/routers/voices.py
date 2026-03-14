@@ -86,17 +86,20 @@ def list_voices():
 @router.delete("/voices/{voice_id}")
 def delete_voice(voice_id: str):
     """
-    Deletes a voice reference file.
+    Deletes a voice reference file and its associated transcription.
     """
     safe_voice_id = os.path.basename(voice_id)
     voice_path = VOICES_DIR / f"{safe_voice_id}.wav"
+    txt_path = VOICES_DIR / f"{safe_voice_id}.txt"
     
     if not voice_path.exists():
         raise HTTPException(status_code=404, detail="Voice not found")
     
     try:
         os.remove(voice_path)
-        return {"status": "success", "message": f"Voice {voice_id} deleted"}
+        if txt_path.exists():
+            os.remove(txt_path)
+        return {"status": "success", "message": f"Voice {voice_id} and its transcription deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete voice: {str(e)}")
 

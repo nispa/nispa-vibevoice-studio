@@ -1,20 +1,22 @@
---extra-index-url https://download.pytorch.org/whl/cu124
-torch==2.5.1+cu124
-torchaudio==2.5.1+cu124
+# Core backend
 fastapi
 uvicorn
 python-multipart
 pydub
 srt
 webvtt-py
-transformers
+psutil
+requests
+
+# Shared ML dependencies
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0+cu124
+torchaudio==2.6.0+cu124
+transformers>=4.48.0
+accelerate
 safetensors
+sentencepiece
+sacremoses
 phonemizer
 soundfile
 audio_utils
-librosa
-numpy
-scipy
-psutil
-git+https://github.com/vibevoice-community/VibeVoice.git
-

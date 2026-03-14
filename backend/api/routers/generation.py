@@ -1,87 +1,163 @@
 import io
 import json
 import asyncio
-import aiohttp
 import re
 from typing import Optional, List
+import requests
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Query, Body
 from fastapi.responses import StreamingResponse
 
 from core.parser import parse_subtitles, parse_script, group_subtitles_by_punctuation, SubtitleSegment
 from core.tts_provider import tts_engine
+from core.translator import translator
 from core.aligner import align_subtitles_audio, align_script_audio
 from core.queue_manager import queue_manager, TaskStatus
 
+from core.config import TRANSLATION_MODELS_DIR
+import os
+
 router = APIRouter(prefix="/api")
+
+# Global translator instance (lazy)
+_translator = None
+
+def get_translator():
+    global _translator
+    if _translator is None:
+        from core.translator import translator as trans_instance
+        _translator = trans_instance
+    return _translator
+
+OLLAMA_URL = "http://127.0.0.1:11434"
+
+def get_ollama_local_models():
+    """Helper to fetch models from local Ollama instance."""
+    try:
+        response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            return [m["name"] for m in data.get("models", [])]
+    except Exception:
+        pass
+    return []
 
 @router.get("/ollama/models")
 async def get_ollama_models():
     """
-    Fetches available models from the local Ollama instance.
-
-    Returns:
-        dict: A dictionary containing a list of available model names.
+    Scans TRANSLATION_MODELS_DIR for available NLLB models AND fetches local Ollama models.
     """
+    # 1. Get NLLB models
+    nllb_models = []
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:11434/api/tags") as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    models = [m.get("name") for m in data.get("models", [])]
-                    return {"models": models}
-                else:
-                    return {"models": []}
+        if os.path.exists(TRANSLATION_MODELS_DIR):
+            nllb_models = [f for f in os.listdir(TRANSLATION_MODELS_DIR) 
+                         if os.path.isdir(os.path.join(TRANSLATION_MODELS_DIR, f))]
+        
+        # Add default if missing and folder doesn't exist but we want to allow fallback
+        if not nllb_models:
+            nllb_models = ["NLLB-200-Distilled-600M"]
     except Exception:
-        return {"models": []}
+        nllb_models = ["NLLB-200-Distilled-600M"]
+
+    # 2. Get Ollama models
+    ollama_models = await asyncio.to_thread(get_ollama_local_models)
+    
+    # Merge and return
+    return {"models": nllb_models + ollama_models}
+
+async def translate_with_ollama(text: str, model_name: str, target_language: str, source_language: str, prompt: Optional[str] = None):
+    """Translates text using Ollama."""
+    if not prompt:
+        prompt = (f"Translate the following text from {source_language} to {target_language}. "
+                 f"Output ONLY the translated text, no explanation, no quotes.\n\nText: {text}")
+    else:
+        # Fill placeholders if present
+        prompt = prompt.replace("{target_language}", target_language)
+        prompt = prompt.replace("{source_language}", source_language)
+        prompt = prompt.replace("{text}", text)
+
+    try:
+        payload = {
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False
+        }
+        response = await asyncio.to_thread(requests.post, f"{OLLAMA_URL}/api/generate", json=payload, timeout=30)
+        if response.status_code == 200:
+            return response.json().get("response", "").strip()
+        else:
+            raise Exception(f"Ollama returned error {response.status_code}: {response.text}")
+    except Exception as e:
+        raise Exception(f"Ollama translation failed: {str(e)}")
 
 @router.post("/translate-segment")
 async def translate_segment(
     text: str = Form(...),
     target_language: str = Form("English"),
-    model_name: str = Form("llama3"),
+    source_language: str = Form("English"),
+    model_name: str = Form("NLLB-200-Distilled-600M"),
     prompt: Optional[str] = Form(None)
 ):
     """
-    Translates a single text segment using local Ollama.
-
-    Args:
-        text (str): The text to translate.
-        target_language (str, optional): The language to translate into. Defaults to "English".
-        model_name (str, optional): The Ollama model to use. Defaults to "llama3".
-        prompt (Optional[str], optional): Custom prompt for translation. Defaults to None.
-
-    Returns:
-        dict: A dictionary containing the translated text.
-
-    Raises:
-        HTTPException: If translation fails or Ollama is unreachable.
+    Translates a single text segment using either the internal NLLB-200 engine or Ollama.
     """
     try:
-        async with aiohttp.ClientSession() as session:
-            if prompt:
-                final_prompt = prompt.replace("{target_language}", target_language).replace("{text}", text)
-            else:
-                final_prompt = f"Translation prompt: Translate the following subtitle text to {target_language}. Keep the same tone. Return ONLY the translation, no extra text, no quotes, no explanations:\n{text}"
-                
-            payload = {
-                "model": model_name,
-                "prompt": final_prompt,
-                "stream": False
-            }
-            async with session.post("http://localhost:11434/api/generate", json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    translated_text = data.get("response", "").strip()
-                    translated_text = re.sub(r'<think>.*?</think>', '', translated_text, flags=re.DOTALL).strip()
-                    if translated_text.startswith('"') and translated_text.endswith('"'):
-                        translated_text = translated_text[1:-1].strip()
-                    return {"translated_text": translated_text}
-                else:
-                    raise HTTPException(status_code=502, detail=f"Ollama translation failed with status {resp.status}")
-    except aiohttp.ClientError:
-         raise HTTPException(status_code=503, detail="Could not connect to local Ollama on port 11434.")
+        # Check if it's an NLLB model (exists in TRANSLATION_MODELS_DIR or is the default)
+        is_nllb = model_name.startswith("NLLB") or os.path.exists(os.path.join(TRANSLATION_MODELS_DIR, model_name))
+        
+        if is_nllb:
+            # Internal NLLB translation
+            translated_text = await asyncio.to_thread(
+                get_translator().translate, text, target_language, source_language, model_name
+            )
+        else:
+            # External Ollama translation
+            translated_text = await translate_with_ollama(text, model_name, target_language, source_language, prompt)
+            
+        return {"translated_text": translated_text}
     except Exception as e:
          raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
+
+@router.post("/translate-batch")
+async def translate_batch(
+    segments_json: str = Form(...),
+    target_language: str = Form("English"),
+    source_language: str = Form("English"),
+    model_name: str = Form("NLLB-200-Distilled-600M"),
+    prompt: Optional[str] = Form(None)
+):
+    """
+    Translates multiple subtitle segments in a single batch.
+    """
+    try:
+        segments_data = json.loads(segments_json)
+        texts = [seg.get("text", "") for seg in segments_data]
+        
+        # Check if it's an NLLB model
+        is_nllb = model_name.startswith("NLLB") or os.path.exists(os.path.join(TRANSLATION_MODELS_DIR, model_name))
+        
+        if is_nllb:
+            # Internal NLLB translation
+            translated_texts = await asyncio.to_thread(
+                get_translator().translate_batch, texts, target_language, source_language, model_name
+            )
+        else:
+            # External Ollama translation (one by one for now since /api/generate doesn't batch naturally like NLLB)
+            # Alternatively, we could send a single prompt for all segments, but it's risky for large chunks.
+            translated_texts = []
+            for text in texts:
+                trans = await translate_with_ollama(text, model_name, target_language, source_language, prompt)
+                translated_texts.append(trans)
+        
+        # Reconstruct segments
+        for i, seg in enumerate(segments_data):
+            seg["original_text"] = seg.get("original_text") or seg.get("text")
+            seg["text"] = translated_texts[i]
+            seg["is_translated"] = True
+            
+        return {"segments": segments_data}
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=f"Batch translation error: {str(e)}")
 
 @router.post("/preview-subtitles")
 async def preview_subtitles(
@@ -90,16 +166,6 @@ async def preview_subtitles(
 ):
     """
     Preview subtitle segments with optional grouping by punctuation.
-
-    Args:
-        subtitle_file (UploadFile): The .srt or .vtt file to preview.
-        group_by_punctuation (bool, optional): Whether to group segments by sentence. Defaults to False.
-
-    Returns:
-        dict: A summary and list of processed subtitle segments.
-
-    Raises:
-        HTTPException: If the file format is invalid or parsing fails.
     """
     if not subtitle_file.filename.endswith((".srt", ".vtt")):
         raise HTTPException(status_code=400, detail="Invalid subtitle format. Use .srt or .vtt")
@@ -137,21 +203,11 @@ async def preview_subtitles(
 async def translate_subtitles(
     subtitle_file: UploadFile = File(...),
     target_language: str = Form("English"),
-    model_name: str = Form("llama3")
+    source_language: str = Form("English"),
+    model_name: str = Form("nllb-200")
 ):
     """
-    Translates all segments of a subtitle file into the target language.
-
-    Args:
-        subtitle_file (UploadFile): The .srt or .vtt file to translate.
-        target_language (str, optional): The destination language. Defaults to "English".
-        model_name (str, optional): The Ollama model to use. Defaults to "llama3".
-
-    Returns:
-        dict: A dictionary containing the translated segments.
-
-    Raises:
-        HTTPException: If the file format is invalid, parsing fails, or translation errors occur.
+    Translates all segments of a subtitle file using the internal NLLB-200 engine.
     """
     if not subtitle_file.filename.endswith((".srt", ".vtt")):
         raise HTTPException(status_code=400, detail="Invalid subtitle format. Use .srt or .vtt")
@@ -165,48 +221,32 @@ async def translate_subtitles(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error parsing subtitles: {str(e)}")
         
-    translated_segments = []
-    
-    # We will use a aiohttp ClientSession to perform async requests to Ollama
     try:
-        async with aiohttp.ClientSession() as session:
-            for seg in segments:
-                prompt = f"You are a professional subtitle translator. Translate the following subtitle text to {target_language}. Keep the same tone. Return ONLY the translation, no extra text, no quotes, no explanations and don't add any additional information, and don't think:\n{seg.text}"
-                
-                payload = {
-                    "model": model_name,
-                    "prompt": prompt,
-                    "stream": False
-                }
-                
-                async with session.post("http://localhost:11434/api/generate", json=payload) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        translated_text = data.get("response", "").strip()
-                        translated_text = re.sub(r'<think>.*?</think>', '', translated_text, flags=re.DOTALL).strip()
-                        # If ollama returned something wrapped in quotes, maybe strip them
-                        if translated_text.startswith('"') and translated_text.endswith('"'):
-                            translated_text = translated_text[1:-1].strip()
-                            
-                        translated_segments.append({
-                            "index": seg.index,
-                            "start_ms": seg.start_time_ms,
-                            "end_ms": seg.end_time_ms,
-                            "text": translated_text,
-                            "duration_sec": (seg.end_time_ms - seg.start_time_ms) / 1000
-                        })
-                    else:
-                        raise HTTPException(status_code=502, detail=f"Ollama translation failed with status {resp.status}")
-    except aiohttp.ClientError:
-         raise HTTPException(status_code=503, detail="Could not connect to local Ollama on port 11434.")
+        # Extract all texts for batch translation
+        texts = [seg.text for seg in segments]
+        
+        # Translate in batch (more efficient)
+        translated_texts = await asyncio.to_thread(
+            get_translator().translate_batch, texts, target_language, source_language
+        )
+        
+        translated_segments = []
+        for i, seg in enumerate(segments):
+            translated_segments.append({
+                "index": seg.index,
+                "start_ms": seg.start_time_ms,
+                "end_ms": seg.end_time_ms,
+                "text": translated_texts[i],
+                "duration_sec": (seg.end_time_ms - seg.start_time_ms) / 1000
+            })
+            
+        return {
+            "original_count": len(segments),
+            "final_count": len(translated_segments),
+            "segments": translated_segments
+        }
     except Exception as e:
-         raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
-
-    return {
-        "original_count": len(segments),
-        "final_count": len(translated_segments),
-        "segments": translated_segments
-    }
+         raise HTTPException(status_code=500, detail=f"Internal batch translation error: {str(e)}")
 
 
 @router.post("/generate-audio")
@@ -221,19 +261,6 @@ async def generate_audio(
 ):
     """
     Synchronously generates and aligns audio for subtitle segments.
-
-    Args:
-        subtitle_file (Optional[UploadFile], optional): Subtitle file. Defaults to None.
-        voice_id (str): Reference voice ID for synthesis.
-        model_name (str, optional): TTS model to use. Defaults to "VibeVoice-1.5B".
-        group_by_punctuation (bool, optional): Group segments by sentence. Defaults to False.
-        subtitle_segments (Optional[str], optional): JSON string of segments. Defaults to None.
-
-    Returns:
-        StreamingResponse: The combined audio file (MP3).
-
-    Raises:
-        HTTPException: If inputs are missing or invalid, or if synthesis fails.
     """
     segments = []
 
@@ -291,6 +318,7 @@ async def generate_audio(
         media_type="audio/mpeg", 
         headers={"Content-Disposition": f"attachment; filename=generated_audio.mp3"}
     )
+
 @router.post("/generate-script")
 async def generate_script(
     script_file: Optional[UploadFile] = File(None),
@@ -302,18 +330,6 @@ async def generate_script(
 ):
     """
     Synchronously generates audio for an untimed script.
-
-    Args:
-        script_file (Optional[UploadFile], optional): Script file (.txt, .md). Defaults to None.
-        script_text (Optional[str], optional): Raw script text. Defaults to None.
-        speaker_voice_map (str, optional): JSON mapping of speakers to voice IDs. Defaults to "{}".
-        model_name (str, optional): TTS model to use. Defaults to "VibeVoice-1.5B".
-
-    Returns:
-        StreamingResponse: The combined audio file (MP3).
-
-    Raises:
-        HTTPException: If inputs are invalid or voice mappings are missing.
     """
     content_str = None
     if script_file:
@@ -358,6 +374,108 @@ async def generate_script(
     )
 
 
+@router.post("/generate-segment")
+async def generate_single_segment(
+    text: str = Form(...),
+    voice_id: str = Form(...),
+    model_name: str = Form("VibeVoice-1.5B"),
+    voice_description: Optional[str] = Form(None),
+    language: Optional[str] = Form(None)
+):
+    """Generates audio for a single text segment."""
+    try:
+        import base64
+        wav_bytes = await asyncio.to_thread(
+            tts_engine.synthesize, text, model_name, None, voice_id, voice_description, language
+        )
+        audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+        return {"audio_base64": audio_b64}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
+
+@router.post("/finalize-audio")
+async def finalize_audio(
+    segments_json: str = Form(...),
+    output_format: str = Form("mp3")
+):
+    """Joins specifically provided segments with audio URLs into a single file."""
+    try:
+        import base64
+        segments_data = json.loads(segments_json)
+        segments_with_audio = []
+        
+        for seg in segments_data:
+            audio_url = seg.get("audioUrl", "")
+            if not audio_url or not audio_url.startswith("data:audio/"):
+                continue
+                
+            # Extract base64
+            b64_data = audio_url.split(",")[1]
+            wav_bytes = base64.b64decode(b64_data)
+            
+            segments_with_audio.append((
+                SubtitleSegment(
+                    index=seg.get("index", 0),
+                    start_time_ms=seg.get("start_ms", 0),
+                    end_time_ms=seg.get("end_ms", 0),
+                    text=seg.get("text", "")
+                ),
+                wav_bytes
+            ))
+            
+        if not segments_with_audio:
+            raise HTTPException(status_code=400, detail="No segments with audio found")
+            
+        final_audio_bytes = await asyncio.to_thread(align_subtitles_audio, segments_with_audio, output_format)
+        audio_b64 = base64.b64encode(final_audio_bytes).decode('utf-8')
+        
+        return {
+            "audio_base64": audio_b64,
+            "format": output_format.lower()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Finalization failed: {str(e)}")
+
+@router.post("/export-audio-segments")
+async def export_audio_segments(
+    segments_json: str = Form(...)
+):
+    """Creates a ZIP archive containing individual audio segments."""
+    import base64
+    import zipfile
+    from datetime import datetime
+    
+    try:
+        segments_data = json.loads(segments_json)
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, seg in enumerate(segments_data):
+                audio_url = seg.get("audioUrl", "")
+                if not audio_url or not audio_url.startswith("data:audio/"):
+                    continue
+                
+                # Extract base64
+                b64_data = audio_url.split(",")[1]
+                audio_bytes = base64.b64decode(b64_data)
+                
+                # Format: 001_text_snippet.wav
+                safe_text = re.sub(r'[^\w\s-]', '', seg.get("text", "segment")[:20]).strip().replace(" ", "_")
+                filename = f"{str(idx+1).zfill(3)}_{safe_text}.wav"
+                
+                zip_file.writestr(filename, audio_bytes)
+        
+        zip_buffer.seek(0)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/x-zip-compressed",
+            headers={"Content-Disposition": f"attachment; filename=audio_segments_{timestamp}.zip"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
 @router.post("/tasks/generate-subtitles")
 async def create_subtitle_task(
     subtitle_file: Optional[UploadFile] = File(None),
@@ -369,21 +487,7 @@ async def create_subtitle_task(
     voice_description: Optional[str] = Form(None),
     language: Optional[str] = Form(None)
 ):
-    """
-    Creates a background task for timed subtitle voiceover generation.
-
-    Args:
-        subtitle_file (Optional[UploadFile], optional): Subtitle file. Defaults to None.
-        voice_id (str): Reference voice ID.
-        model_name (str, optional): TTS model. Defaults to "VibeVoice-1.5B".
-        group_by_punctuation (bool, optional): Group segments. Defaults to False.
-        subtitle_segments (Optional[str], optional): JSON segments. Defaults to None.
-        output_format (str, optional): Output format ("mp3" or "wav"). Defaults to "mp3".
-        voice_description (Optional[str], optional): Voice Design description. Defaults to None.
-
-    Returns:
-        dict: success status and task_id.
-    """
+    """Creates a background task for timed subtitle voiceover generation."""
     segments = []
 
     if subtitle_segments:
@@ -426,8 +530,6 @@ async def create_subtitle_task(
                     break # Allow finalization
                 return
 
-            # Update progress BEFORE synthesis to show which item is active
-            # We use (idx / total) * 100
             current_progress = int((idx / total_items) * 100)
             yield {
                 "progress": current_progress, 
@@ -441,14 +543,24 @@ async def create_subtitle_task(
             )
             segments_with_audio.append((seg, wav_bytes))
             
-            # Update progress AFTER synthesis to show completion of that item
-            # If it's the last item, we'll set 95% to leave room for finalization
+            # Encode individual segment for preview
+            seg_audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+
             after_progress = int(((idx + 1) / total_items) * 100)
             if after_progress >= 100: after_progress = 99
             
             queue_manager.update_task(task_id, progress=after_progress)
+            
+            yield {
+                "progress": after_progress, 
+                "total_items": total_items,
+                "current_item": idx + 1,
+                "segment_index": seg.index,
+                "segment_text": seg.text,
+                "segment_audio_b64": seg_audio_b64,
+                "message": f"✓ Segment #{seg.index} completed."
+            }
 
-        # Final jump after all items are done
         yield {
             "progress": 100, 
             "total_items": total_items, 
@@ -488,19 +600,7 @@ async def create_generation_task(
     voice_description: Optional[str] = Form(None),
     language: Optional[str] = Form(None)
 ):
-    """
-    Creates a background task for untimed script voiceover generation.
-
-    Args:
-        script_file (Optional[UploadFile], optional): Script file. Defaults to None.
-        script_text (Optional[str], optional): Raw script text. Defaults to None.
-        speaker_voice_map (str, optional): JSON speaker-voice mapping. Defaults to "{}".
-        model_name (str, optional): TTS model. Defaults to "VibeVoice-1.5B".
-        voice_description (Optional[str], optional): Voice Design description. Defaults to None.
-
-    Returns:
-        dict: success status and task_id.
-    """
+    """Creates a background task for untimed script voiceover generation."""
     content_str = None
     if script_file:
         if not script_file.filename.endswith((".txt", ".md", ".srt", ".vtt")):
@@ -547,7 +647,6 @@ async def create_generation_task(
             if not voice_id:
                 raise Exception(f"No voice found for {line.speaker}")
                 
-            # Report progress BEFORE synthesis
             current_progress = int((idx / total_items) * 100)
             yield {
                 "progress": current_progress, 
@@ -562,7 +661,6 @@ async def create_generation_task(
 
             lines_with_audio.append(wav_bytes)
 
-            # Report progress AFTER synthesis
             after_progress = int(((idx + 1) / total_items) * 100)
             if after_progress >= 100: after_progress = 99
             queue_manager.update_task(task_id, progress=after_progress)
@@ -590,18 +688,7 @@ async def create_generation_task(
 
 @router.get("/tasks/{task_id}/stream")
 async def stream_task_progress(task_id: str):
-    """
-    SSE endpoint to stream progress updates for a background task.
-
-    Args:
-        task_id (str): The ID of the task to track.
-
-    Returns:
-        StreamingResponse: Event stream of task updates.
-
-    Raises:
-        HTTPException: If the task ID is not found.
-    """
+    """SSE endpoint to stream progress updates for a background task."""
     task = queue_manager.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -609,6 +696,7 @@ async def stream_task_progress(task_id: str):
     async def event_generator():
         last_progress_val = -1
         last_log_count = 0
+        sent_segments_count = 0
         
         while True:
             current_task = queue_manager.get_task(task_id)
@@ -619,22 +707,25 @@ async def stream_task_progress(task_id: str):
             status = current_task["status"]
             progress = current_task["progress"]
             logs = current_task["logs"]
+            segments = current_task.get("segments", [])
             
-            # Extract additional metadata from the task if available
-            # This is critical for accurate progress tracking in the UI
             current_item = current_task.get("current_item")
             total_items = current_task.get("total_items")
             
-            if progress != last_progress_val or len(logs) > last_log_count:
+            new_segments = []
+            if len(segments) > sent_segments_count:
+                new_segments = segments[sent_segments_count:]
+                sent_segments_count = len(segments)
+            
+            if progress != last_progress_val or len(logs) > last_log_count or new_segments:
                 status_msg = logs[-1] if len(logs) > 0 else "Initializing..."
                 
-                # CRITICAL: Always include current_item and total_items in SSE payload
-                # to allow precise frontend progress calculation based on segment count.
                 payload = {
                     "status": status_msg,
                     "progress": progress,
                     "current_item": current_item,
-                    "total_items": total_items
+                    "total_items": total_items,
+                    "new_segments": new_segments 
                 }
                 
                 if status == TaskStatus.COMPLETED and current_task["audio_b64"]:
@@ -669,19 +760,7 @@ async def stream_task_progress(task_id: str):
 
 @router.post("/tasks/{task_id}/cancel")
 async def cancel_task(task_id: str, finalize: bool = Query(False)):
-    """
-    Cancels a running background task.
-
-    Args:
-        task_id (str): ID of the task to cancel.
-        finalize (bool, optional): Whether to finalize partial results. Defaults to False.
-
-    Returns:
-        dict: success status.
-
-    Raises:
-        HTTPException: If task is not found or already completed.
-    """
+    """Cancels a running background task."""
     cancelled = queue_manager.cancel_task(task_id, finalize=finalize)
     if not cancelled:
         raise HTTPException(status_code=400, detail="Task not found or already finished")

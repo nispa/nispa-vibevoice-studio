@@ -18,11 +18,11 @@ def test_multi_model_orchestration():
         
         # Test VibeVoice dispatch
         provider.synthesize("test", "VibeVoice-1.5B")
-        provider.vibe.synthesize.assert_called_with("test", "VibeVoice-1.5B", None, None, None)
+        provider.vibe.synthesize.assert_called_with("test", "VibeVoice-1.5B", None, None, None, None)
         
         # Test Qwen dispatch
         provider.synthesize("test", "Qwen3-TTS-1.7B")
-        provider.qwen.synthesize.assert_called_with("test", "Qwen3-TTS-1.7B", None, None, None)
+        provider.qwen.synthesize.assert_called_with("test", "Qwen3-TTS-1.7B", None, None, None, None)
 
 def test_qwen_dependency_check_fail():
     """Verify that Qwen3TTSProvider raises ImportError if dependencies are missing."""
@@ -39,6 +39,11 @@ def test_qwen_voice_design_logs():
     provider = Qwen3TTSProvider()
     provider._load_model = MagicMock() # Mock actual model loading
     provider.model = MagicMock()
+    # Mocking the model generation to return expected tuple (wavs, sr)
+    import torch
+    provider.model.generate_custom_voice.return_value = ([torch.zeros(1)], 16000)
+    provider.model.generate_voice_design.return_value = ([torch.zeros(1)], 16000)
+    provider.model.generate_voice_clone.return_value = ([torch.zeros(1)], 16000)
     provider.processor = MagicMock()
     
     # Mock silent wav return to avoid actual inference
@@ -46,12 +51,12 @@ def test_qwen_voice_design_logs():
     
     with patch('torch.no_grad'), patch('torchaudio.save'):
         # Test Base TTS
-        provider.synthesize("test", "Qwen-Model")
+        provider.synthesize("test", "Qwen3-TTS-1.7B-CustomVoice")
         # Test Voice Design
-        provider.synthesize("test", "Qwen-Model", voice_description="deep voice")
+        provider.synthesize("test", "Qwen3-TTS-1.7B-VoiceDesign", voice_description="deep voice")
         # Test Cloning
-        with patch('os.path.exists', return_value=True):
-            provider.synthesize("test", "Qwen-Model", voice_id="en-test")
+        with patch('os.path.exists', return_value=True), patch('builtins.open'):
+            provider.synthesize("test", "Qwen3-TTS-1.7B-Base", voice_id="en-test")
 
     # If we got here without errors, the logic flow for param handling is verified
     assert provider._load_model.called

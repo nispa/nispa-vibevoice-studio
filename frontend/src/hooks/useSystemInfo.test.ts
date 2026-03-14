@@ -30,7 +30,7 @@ describe('useSystemInfo', () => {
             await result.current.fetchSystemInfo();
         });
 
-        expect(fetch).toHaveBeenCalledWith('http://localhost:8000/api/system-info');
+        expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/system-info');
         expect(result.current.systemInfo).toEqual(mockData);
         expect(result.current.isLoading).toBe(false);
         expect(result.current.error).toBeNull();

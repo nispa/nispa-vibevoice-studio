@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import SubtitleMode from '../../components/SubtitleMode';
+import SubtitleMode from './index';
 import { useGlobalContext } from '../../context/GlobalContext';
 import { useJobArchive } from '../../hooks/useJobArchive';
 

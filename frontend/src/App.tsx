@@ -1,21 +1,25 @@
 import { useState } from 'react';
-import SubtitleMode from './components/SubtitleMode';
-import ScriptMode from './components/ScriptMode';
+import SubtitleMode from './features/subtitle';
+import ScriptMode from './features/script';
 import SystemInfo from './components/SystemInfo';
 import SystemFooter from './components/SystemFooter';
 import AppHeader from './components/AppHeader';
 import AppModeToggle from './components/AppModeToggle';
 import AppAudioResult from './components/AppAudioResult';
-import { VoicesManagementModal } from './components/VoicesManagementModal';
+import LoadingOverlay from './components/ui/LoadingOverlay';
+import { VoicesManagementModal } from './components/VoicesManagement';
 import { useGlobalContext } from './context/GlobalContext';
 
 function App() {
-  const { appMode, setAppMode, systemInfo, isProcessing, audioUrl } = useGlobalContext();
+  const { appMode, setAppMode, systemInfo, isProcessing, audioUrl, isBackendReady } = useGlobalContext();
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [showVoicesModal, setShowVoicesModal] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-50 flex flex-col items-center py-12 px-4 selection:bg-blue-500/30">
+      {/* Loading Overlay when backend is not ready */}
+      {!isBackendReady && <LoadingOverlay />}
+
       {/* System Info Modal */}
       <SystemInfo isOpen={showSystemInfo} onClose={() => setShowSystemInfo(false)} />
 

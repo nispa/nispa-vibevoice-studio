@@ -15,12 +15,20 @@ export interface SubtitleSegment {
     text: string;
     is_translated?: boolean;
     original_text?: string;
+    audioUrl?: string;
+    isApproved?: boolean;
 }
 
 /**
  * Supported target languages for translation.
  */
-export const TARGET_LANGUAGES = ['English', 'Italian', 'German', 'Spanish', 'French'];
+export const TARGET_LANGUAGES = [
+    'English', 'Italian', 'French', 'German', 'Spanish', 'Portuguese', 
+    'Chinese', 'Japanese', 'Korean', 'Russian', 'Arabic',
+    'Sicilian (scn_Latn)', 'Friulian (fur_Latn)', 'Sardinian (srd_Latn)',
+    'Lombard (lmo_Latn)', 'Venetian (vec_Latn)', 'Neapolitan (nap_Latn)',
+    'Other (Custom Code)'
+];
 
 // --- Context Definition ---
 
@@ -63,6 +71,8 @@ interface SubtitleContextProps {
 
     subtitleSegments: SubtitleSegment[];
     setSubtitleSegments: (s: SubtitleSegment[]) => void;
+    loadedJobId: number | null;
+    setLoadedJobId: (id: number | null) => void;
     showEditor: boolean;
     setShowEditor: (b: boolean) => void;
     showArchive: boolean;
@@ -70,6 +80,8 @@ interface SubtitleContextProps {
 
     generationProgress: number;
     setGenerationProgress: (p: number) => void;
+    generatedSegments: any[];
+    setGeneratedSegments: Dispatch<SetStateAction<any[]>>;
 
     // Task Management
     currentTaskId: string | null;
@@ -78,7 +90,8 @@ interface SubtitleContextProps {
 
     // Callbacks
     loadJobSegments: (job: any) => void;
-    saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => Promise<void>;
+    saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent?: boolean) => Promise<void>;
+    updateJob: (jobId: number, updateData: any) => Promise<any>;
 }
 
 const SubtitleContext = createContext<SubtitleContextProps | undefined>(undefined);
@@ -121,9 +134,11 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     // Subtitle Editor & Job Archive
     const [subtitleSegments, setSubtitleSegments] = useState<SubtitleSegment[]>([]);
+    const [loadedJobId, setLoadedJobId] = useState<number | null>(null);
     const [showEditor, setShowEditor] = useState(false);
     const [showArchive, setShowArchive] = useState(false);
     const [generationProgress, setGenerationProgress] = useState(0);
+    const [generatedSegments, setGeneratedSegments] = useState<any[]>([]);
 
     // Task Management
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -138,13 +153,13 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }, [voices, selectedVoiceId]);
 
     /**
-     * Ensures selected model remains valid when available models change.
+     * Resets loadedJobId when a new file is manually uploaded.
      */
     useEffect(() => {
-        if (models.length > 0 && !models.includes(selectedModel)) {
-            setSelectedModel(models[0]);
+        if (subtitleFile && !loadedJobId) {
+            // New file upload logic could go here if needed
         }
-    }, [models, selectedModel]);
+    }, [subtitleFile, loadedJobId]);
 
     // --- Complex Callbacks ---
 
@@ -167,8 +182,6 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
                     : `[${timestamp}] ✗ Generation cancelled and discarded.`;
                 
                 setActivityLogs(prev => [...prev, logMsg]);
-                // We don't null currentTaskId immediately if finalizing, 
-                // because we want to wait for the final SSE 'complete' message.
                 if (!finalize) {
                     setCurrentTaskId(null);
                 }
@@ -180,24 +193,64 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     /**
      * Saves the current subtitle configuration and segments as a draft job.
-     * 
-     * @param {string} customNote - Optional note for the draft.
-     * @param {SubtitleSegment[]} customSegments - Optional segments override.
-     * @param {string} customFilename - Optional filename override.
+     * If segments are not yet loaded, it attempts to parse them from the file first.
      */
-    const saveJobDraft = async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string) => {
-        const segmentsToSave = customSegments || subtitleSegments;
+    const saveJobDraft = async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent = false) => {
+        let segmentsToSave = customSegments || subtitleSegments;
         const fileToSave = customFilename || (subtitleFile ? subtitleFile.name : 'Unknown');
 
+        // If segments are missing but we have a file, try to parse it first
+        if (segmentsToSave.length === 0 && subtitleFile) {
+            try {
+                const formData = new FormData();
+                formData.append('subtitle_file', subtitleFile);
+                const res = await fetch(
+                    `http://localhost:8000/api/preview-subtitles?group_by_punctuation=${groupByPunctuation}`,
+                    { method: 'POST', body: formData }
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    segmentsToSave = data.segments;
+                    setSubtitleSegments(segmentsToSave);
+                }
+            } catch (err) {
+                console.error("Auto-parsing failed during save:", err);
+            }
+        }
+
         if (segmentsToSave.length === 0) {
-            alert('Please load subtitles first');
+            if (!silent) alert('Please load subtitles first');
             return;
+        }
+
+        // If we are updating an existing job
+        if (loadedJobId) {
+            try {
+                const updated = await updateJobAction(loadedJobId, {
+                    modified_segments: segmentsToSave,
+                    notes: customNote || 'Updated from UI'
+                });
+                if (updated && !silent && !customNote) alert(`Job #${loadedJobId} updated!`);
+                return;
+            } catch (err) {
+                console.error("Failed to update job:", err);
+            }
         }
 
         const jobData = {
             original_filename: fileToSave,
-            subtitle_segments: segmentsToSave,
-            modified_segments: segmentsToSave,
+            subtitle_segments: segmentsToSave.map(s => ({
+                ...s,
+                text: s.original_text || s.text,
+                is_translated: false,
+                audioUrl: s.audioUrl || null,
+                isApproved: !!s.isApproved
+            })),
+            modified_segments: segmentsToSave.map(s => ({
+                ...s,
+                audioUrl: s.audioUrl || null,
+                isApproved: !!s.isApproved
+            })),
             voice_id: selectedVoiceId || "None",
             voice_name: voices.find(v => v.id === selectedVoiceId)?.name || selectedVoiceId || "None",
             model_name: selectedModel || "None",
@@ -205,7 +258,10 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             notes: customNote || 'Draft saved from UI'
         };
 
-        await saveJobAction(jobData, !!customNote);
+        const newJob = await saveJobAction(jobData, silent || !!customNote);
+        if (newJob) {
+            setLoadedJobId(newJob.id);
+        }
     };
 
     /**
@@ -214,16 +270,36 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
      * @param {any} job - The job object from the database.
      */
     const loadJobSegments = (job: any) => {
-        setSubtitleSegments(job.modified_segments);
+        setLoadedJobId(job.id);
+        
+        // Use modified_segments as the primary source, ensuring audio fields are preserved
+        const segments = (job.modified_segments || job.subtitle_segments || []).map((s: any) => ({
+            ...s,
+            audioUrl: s.audioUrl || null,
+            isApproved: !!s.isApproved
+        }));
+        setSubtitleSegments(segments);
+        
         setSelectedVoiceId(job.voice_id);
         setSelectedModel(job.model_name);
         setGroupByPunctuation(job.group_by_punctuation);
-        if (job.language) setSelectedLanguage(job.language);
+        
+        // Try to recover the target language from notes if possible
+        if (job.notes) {
+            const langMatch = job.notes.match(/to ([A-Za-z\s]+)(?: \(|$)/);
+            if (langMatch) setSelectedLanguage(langMatch[1].trim());
+        }
 
         const pseudoFile = new File([], job.original_filename || 'recovered_job.srt');
         setSubtitleFile(pseudoFile as any);
 
         alert(`Loaded job #${job.id}: ${job.original_filename}`);
+    };
+
+    const { updateJob: updateJobAction } = useJobArchive();
+
+    const updateJob = async (jobId: number, updateData: any) => {
+        return await updateJobAction(jobId, updateData);
     };
 
     return (
@@ -242,12 +318,15 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             showPreview, setShowPreview,
             loadingPreview, setLoadingPreview,
             subtitleSegments, setSubtitleSegments,
+            loadedJobId, setLoadedJobId,
             showEditor, setShowEditor,
             showArchive, setShowArchive,
             generationProgress, setGenerationProgress,
+            generatedSegments, setGeneratedSegments,
             currentTaskId, setCurrentTaskId,
             cancelGeneration,
-            loadJobSegments, saveJobDraft
+            loadJobSegments, saveJobDraft,
+            updateJob
         }}>
             {children}
         </SubtitleContext.Provider>

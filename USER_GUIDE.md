@@ -1,109 +1,80 @@
-# User Guide - Nispa VibeVoice Studio
+# User Guide - Nispa VibeVoice Studio (v0.5.0)
 
-Welcome to **Nispa VibeVoice Studio**. This guide will walk you through the steps to use all the program's features to generate high-quality synthesized voices.
+Welcome to **Nispa VibeVoice Studio**. This guide covers the dual-engine architecture (**VibeVoice** and **Qwen3-TTS**) to generate high-quality synthesized voices with advanced cloning and design capabilities.
 
 ---
 
 ## 1. Installation and Quick Start
 
-### Installation
-Ensure you have **Python 3.11+**, **Node.js**, and **Git** installed.
-- **Windows**: Double-click `install.bat`.
-- **Linux/Mac**: Open a terminal and run `chmod +x install.sh && ./install.sh`.
+### Interactive Installer
+The installer handles all Python dependencies and detects your hardware:
+- **Windows**: Run `install.bat`.
+- **Linux/Mac**: Run `chmod +x install.sh && ./install.sh`.
 
-### Startup
-- **Windows**: Run `start.bat`.
-- **Linux/Mac**: Run `./start.sh`.
-The program will automatically open your browser at `http://localhost:5173/`.
+### Environment Optimization
+After dependency installation, the system runs `optimize_env.py`. This script:
+1.  **Detects NVIDIA GPUs**: Suggests and installs the correct **Flash Attention** wheel.
+2.  **Checks System Tools**: Verifies if **FFmpeg** and **SoX** are available.
+3.  **Configures Paths**: Saves tool locations to `data/settings.json`.
+
+### Voice Cloning Requirements (SoX)
+If you plan to use Qwen3's Zero-Shot Voice Cloning on Windows:
+1. Download SoX from [sox.sourceforge.net](http://sox.sourceforge.net/).
+2. Add it to your PATH or configure the path in `data/settings.json`.
 
 ---
 
-## 2. Initial Configuration (Models and Voices)
+## 2. Models and Weights Management
 
-### Downloading Models
-Before starting, you must download a VibeVoice model from Hugging Face (links are in `README.md`) and place it in the `data/model/` directory.
-*Example: `data/model/VibeVoice-1.5B/`.*
+### Weights Downloader (Recommended)
+Use the integrated tool to fetch official weights from Hugging Face:
+- **Windows**: `venv\Scripts\python backend\scripts\download_model.py`
+- **Linux/Mac**: `./venv/bin/python backend/scripts/download_model.py`
 
-### Adding Custom Voices (Cloning)
-To clone a specific voice:
-1. Prepare a **WAV** audio file of about 10-20 seconds of the target person speaking (clear, no background music).
-2. Copy the file to the `data/voices/` folder.
-3. Rename it following the standard: `language-name_gender.wav` (e.g., `en-john_man.wav`).
+### Resource Requirements (VRAM)
 
-### Translation Service Setup (Ollama)
-To enable offline translation:
-1. Install **Ollama** from the official website ([ollama.com](https://ollama.com/)).
-2. Open your terminal and download the recommended translation model:
-   ```bash
-   ollama run huihui_ai/hy-mt1.5-abliterated:7B
-   ```
-3. Ensure Ollama is running while using the Studio.
+| Model | Strengths | VRAM Req. |
+|-------|-----------|-----------|
+| **VibeVoice 1.5B** | Stable, great for long texts, up to 4 speakers. | ~4GB |
+| **VibeVoice Large (7B)** | Highest VibeVoice quality, very natural. | ~14GB |
+| **Qwen3 0.6B** | Extremely fast, 3s cloning, lightweight. | ~2GB |
+| **Qwen3 1.7B** | High fidelity, superior cloning, Premium. | ~6GB |
 
 ---
 
 ## 3. Workflow: Subtitle Mode
 
-> **💡 CRITICAL HINT: From Transcription to Translation**
-> If you are working on a transcription (original .srt file) and wish to translate it, the most critical step is **Grouping**.
-> Original subtitles are often split into very short segments for on-screen reading; if translated and synthesized as-is, the voice will sound robotic and fragmented.
-> **It is essential** to use the "Group" function after translation to merge segments into complete sentences: this allows the AI to generate fluid and natural intonation.
+### 100% Offline Translation
+Nispa Studio uses **NLLB-200** internally. No external service (like Ollama) is required.
+1.  **Upload**: Drag and drop a `.srt` or `.vtt` file.
+2.  **Configure**: Select Source and Target languages.
+3.  **Translate**: Click "Translate Subtitles". The process is chunked for stability.
+4.  **Edit**: Use the "Edit Translate" button to refine the text.
 
-This mode is ideal for creating voiceovers synchronized with existing video.
-
-1. **Upload**: Drag a `.srt` or `.vtt` file into the upload area.
-2. **Editing**: You can modify the text of each segment directly in the table.
-3. **Translation (Optional)**:
-   - If **Ollama** is active, click "Translate".
-   - Choose the target language and AI model (e.g., `hy-mt1.5-abliterated`).
-   - The system will translate segments line-by-line while maintaining original timing.
-4. **Grouping**: Use the "Group" feature to join short segments into natural sentences, avoiding robotic pauses between subtitles.
-5. **Generation**: Click **Generate Audio**. The system will process each segment and align them temporally to prevent overlaps.
+### Generation & Sync
+1.  **Generate Voice-over**: This button triggers an **Auto-save** and starts synthesis.
+2.  **Audio Trimmer**: If a segment has "hallucinations" (unwanted noise or words):
+    - Click **Trim** next to the segment in the Activity Log.
+    - Move the **Mark-In** and **Mark-Out** sliders to select the clean audio.
+    - Click **Apply & Update** to fix the segment instantly.
 
 ---
 
 ## 4. Workflow: Script Mode (Free Text)
 
-Ideal for audiobooks, podcasts, or simple narrations with multiple characters.
-
-1. **Input**: Type or paste your text into the main area.
-   - **Multi-Speaker Syntax**: To use different voices, start each line with a speaker label followed by a colon.
-   - **Example**:
-     ```text
-     Speaker1: Hello, how are you today?
-     Speaker2: I am doing great, thank you for asking!
-     Speaker1: That is wonderful to hear.
-     ```
-2. **Configuration**: 
-   - Choose the **VibeVoice-1.5B** or **VibeVoice-Large** model (these support up to **4 speakers**).
-   - *Note*: The **VibeVoice-0.5B** (Streaming) model only supports **1 speaker**.
-   - In the **Speaker Voice Mapping** panel, assign a different voice for each speaker detected in your script (Speaker1, Speaker2, etc.).
-3. **Generation**: Click **Generate**. You will see the real-time log informing you which part of the text is being synthesized.
+1.  **Syntax**: Use `Speaker1: Hello!`, `Speaker2: Hi there!` format.
+2.  **Voice Mapping**: Map each speaker to a reference voice in the sidebar.
+3.  **Voice Design (Qwen3)**: Describe a voice (e.g., "a raspy old man") to generate audio without a reference file.
 
 ---
 
-## 5. Voice Selection and Settings
+## 5. Troubleshooting & FAQ
 
-In the side panel (Voice Settings):
-- **Speaker Profile**: Choose from default voices or those you uploaded to `data/voices/`.
-- **Filters**: Filter voices by language, gender, or accent.
-- **Audio Format**: Choose between **WAV** (max quality) or **MP3** (smaller files).
+### "APEX FusedRMSNorm not available"
+This is a standard warning. The system automatically uses the highly optimized native PyTorch implementation. You can ignore this.
 
----
+### VRAM Saturation
+The Studio includes a **VRAM Manager** that unloads the previous engine when you switch between VibeVoice and Qwen3. If you still encounter "Out of Memory" errors, use smaller models (0.6B or 1.5B).
 
-## 6. Monitoring and Management
-
-### Operation Details
-During generation, click the **"Processing..."** or **"Operation Details"** button to open a modal with technical logs. If necessary, you can cancel the operation and choose to download only the audio generated up to that point.
-
-### Job Archive
-All your projects are saved automatically:
-- Click the archive icon to recover a previous session.
-- You can save "Drafts" to resume work later with all texts and settings preserved.
-
-### Hardware Dashboard
-At the bottom right, you can monitor your **GPU (VRAM)** and **RAM** usage. This is useful for understanding if the chosen model is too heavy for your computer.
-
----
-
-## 7. Final Results
-All generated audio files are automatically saved in the `data/outputs/` folder with a filename including the date and time, ensuring you never lose your work.
+### Missing Tools
+If FFmpeg or SoX are not found, the Studio will notify you at startup. Install them and ensure they are in your system PATH.

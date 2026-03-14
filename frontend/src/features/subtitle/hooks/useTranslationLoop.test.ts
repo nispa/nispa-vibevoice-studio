@@ -57,47 +57,40 @@ describe('useTranslationLoop', () => {
         });
     });
 
-    it('should translate segments in a loop', async () => {
+    it('should translate segments in batch', async () => {
+        vi.useFakeTimers();
+        const mockTranslatedSegments = [
+            { index: 1, text: 'Ciao', is_translated: true },
+            { index: 2, text: 'Mondo', is_translated: true }
+        ];
         (global.fetch as any).mockResolvedValue({
             ok: true,
-            json: async () => ({ translated_text: 'Ciao' })
+            json: async () => ({ segments: mockTranslatedSegments })
         });
 
         const { result } = renderHook(() => useTranslationLoop());
 
+        let promise: Promise<void>;
         await act(async () => {
-            await result.current.runTranslationLoop('prompt');
+            promise = result.current.runTranslationLoop('prompt');
         });
 
-        // Verify it was called for each untranslated segment
-        expect(global.fetch).toHaveBeenCalledTimes(2);
+        await act(async () => {
+            vi.runAllTimers();
+        });
+        
+        await promise!;
+
+        // Verify batch fetch
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining('api/translate-batch'),
+            expect.any(Object)
+        );
+        expect(mockSetSubtitleSegments).toHaveBeenCalledWith(mockTranslatedSegments);
         expect(mockSetIsTranslating).toHaveBeenCalledWith(true);
         expect(mockSetIsTranslating).toHaveBeenCalledWith(false);
         expect(mockSetTranslationProgress).toHaveBeenCalledWith(100);
         expect(mockSaveJobDraft).toHaveBeenCalled();
-    });
-
-    it('should stop translation when paused', async () => {
-        (global.fetch as any).mockImplementation(async () => {
-            mockIsPausedRef.current = true; // Simulate pause during first fetch
-            return {
-                ok: true,
-                json: async () => ({ translated_text: 'Ciao' })
-            };
-        });
-
-        const { result } = renderHook(() => useTranslationLoop());
-
-        await act(async () => {
-            await result.current.runTranslationLoop('prompt');
-        });
-
-        // Should only fetch once because it pauses
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-        expect(mockSaveJobDraft).toHaveBeenCalledWith(
-            'Translation Paused Draft',
-            expect.any(Array),
-            expect.any(String)
-        );
+        vi.useRealTimers();
     });
 });

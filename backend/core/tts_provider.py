@@ -5,6 +5,8 @@ import torch
 import torchaudio
 import io
 import numpy as np
+import gc
+from core.config import get_sox_path, get_ffmpeg_path, config_manager
 
 class TTSProvider(ABC):
     """
@@ -106,26 +108,50 @@ class VibeVoiceProvider(TTSProvider):
     def _load_model(self, model_name: str):
         """
         Loads the specified VibeVoice model into memory or retrieves it from cache.
-
-        Args:
-            model_name (str): The name of the model directory within data/model/.
-
-        Raises:
-            FileNotFoundError: If the model directory does not exist.
-            ImportError: If required VibeVoice libraries are missing.
-            RuntimeError: If there is an error during model initialization.
         """
         if self.loaded_model_name == model_name and self.model is not None:
-            print(f"[TTS] Using cached model: {model_name}")
             return
         
+        # Cleanup if we are switching engines or models to save VRAM
+        if self.model is not None:
+            print(f"[TTS] Unloading previous model {self.loaded_model_name} to free VRAM")
+            self.model.to("cpu")
+            self.model = None
+            self.processor = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        
+        # Add backend and vendors to sys.path
+        import sys
+        core_dir = os.path.dirname(os.path.abspath(__file__))
+        backend_dir = os.path.dirname(core_dir)
+        vendors_dir = os.path.join(backend_dir, "vendors")
+        
+        # IMPORTANT: Force Python to find our vendored version first
+        # and remove any existing reference to 'vibevoice' in sys.modules
+        # to ensure it reloads from our local path.
+        if "vibevoice" in sys.modules:
+            del sys.modules["vibevoice"]
+            
+        for d in [backend_dir, vendors_dir]:
+            if d not in sys.path:
+                sys.path.insert(0, d)
+                print(f"[TTS] Added to sys.path: {d}")
+            
         # Dependency Check
         try:
-            from vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference
-        except ImportError:
+            # We now import specifically from vendors to avoid any ambiguity
+            # 'import vibevoice' should now resolve to vendors/vibevoice
+            import vibevoice
+            print(f"[TTS] VibeVoice module located at: {vibevoice.__file__}")
+            
+            from vendors.vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference
+            from vendors.vibevoice.processor.vibevoice_processor import VibeVoiceProcessor
+        except ImportError as e:
+            print(f"[TTS] Vendored import failed: {e}")
             raise ImportError(
-                "VibeVoice dependencies not found. Please run the installer again "
-                "and select option 1 or 3 to install VibeVoice support."
+                f"Vendored VibeVoice source not found or internal imports failing. Error: {e}"
             )
 
         model_dir = os.path.join(self.base_model_dir, model_name)
@@ -135,9 +161,6 @@ class VibeVoiceProvider(TTSProvider):
         print(f"[TTS] Loading VibeVoice model '{model_name}' from {model_dir}...")
         
         try:
-            from vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference
-            from vibevoice.processor.vibevoice_processor import VibeVoiceProcessor
-            
             # Load processor
             self.processor = VibeVoiceProcessor.from_pretrained(model_dir)
             
@@ -148,7 +171,7 @@ class VibeVoiceProvider(TTSProvider):
                 if self.device == "mps":
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                         model_dir,
-                        torch_dtype=self.dtype,
+                        dtype=self.dtype,
                         attn_implementation=self.attn_impl,
                         device_map=None,
                     )
@@ -288,7 +311,7 @@ class VibeVoiceProvider(TTSProvider):
                     max_new_tokens=None,
                     cfg_scale=1.3,
                     tokenizer=self.processor.tokenizer,
-                    generation_config={'do_sample': False},
+                    generation_config={'do_sample': True, 'temperature': 0.1},
                     verbose=False,
                     is_prefill=True,
                 )
@@ -360,14 +383,24 @@ class Qwen3TTSProvider(TTSProvider):
         if self.loaded_model_name == model_name and self.model is not None:
             return
         
+        # Cleanup if we are switching engines or models to save VRAM
+        if self.model is not None:
+            print(f"[Qwen-TTS] Unloading previous model {self.loaded_model_name} to free VRAM")
+            self.model.to("cpu")
+            self.model = None
+            self.processor = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        
         # Dependency Check
         try:
-            from qwen_tts import Qwen3TTSModel
+            import transformers
             import accelerate
         except ImportError:
             raise ImportError(
-                "Qwen3-TTS dependencies not found (qwen-tts missing). Please run the installer again "
-                "and select option 2 or 3 to install Qwen3-TTS support."
+                "Required dependencies (transformers, accelerate) not found. "
+                "Please run the installer again."
             )
 
         model_dir = os.path.join(self.base_model_dir, model_name)
@@ -376,19 +409,33 @@ class Qwen3TTSProvider(TTSProvider):
 
         print(f"[Qwen-TTS] Loading model '{model_name}' from {model_dir}...")
         try:
-            # Forcing a specific device (cuda:0) instead of auto to avoid cross-device cat errors
+            # We use Qwen3TTSModel from the qwen_tts package
+            from qwen_tts import Qwen3TTSModel
             target_device = "cuda:0" if self.device == "cuda" else self.device
             
-            self.model = Qwen3TTSModel.from_pretrained(
-                model_dir, 
-                dtype=self.dtype,
-                device_map={"": target_device} if self.device == "cuda" else None,
-                trust_remote_code=True
-            )
+            # Use flash_attention_2 if on CUDA, otherwise fallback to sdpa
+            try:
+                self.model = Qwen3TTSModel.from_pretrained(
+                    model_dir, 
+                    dtype=self.dtype,
+                    device_map={"": target_device} if self.device == "cuda" else None,
+                    attn_implementation="flash_attention_2" if self.device == "cuda" else "sdpa"
+                )
+            except Exception as e:
+                print(f"[Qwen-TTS] Flash Attention 2 failed or not supported, falling back to sdpa: {e}")
+                self.model = Qwen3TTSModel.from_pretrained(
+                    model_dir, 
+                    dtype=self.dtype,
+                    device_map={"": target_device} if self.device == "cuda" else None,
+                    attn_implementation="sdpa" 
+                )
+
+            # Suppress pad_token_id warnings
+            if hasattr(self.model, "config"):
+                self.model.config.pad_token_id = self.model.config.eos_token_id
 
             self.loaded_model_name = model_name
             self.actual_device = target_device 
- # Store for inference
         except Exception as e:
             print(f"[Qwen-TTS] Error loading model: {e}")
             raise RuntimeError(f"Error loading Qwen3-TTS weights: {e}")
@@ -510,10 +557,76 @@ class MultiModelProvider(TTSProvider):
     Orchestrator that selects the correct provider based on model prefix.
     """
     def __init__(self):
-        self.vibe = VibeVoiceProvider()
-        self.qwen = Qwen3TTSProvider()
+        self._vibe = None
+        self._qwen = None
+        self._is_ready = False
+
+    @property
+    def vibe(self):
+        if self._vibe is None:
+            # Only import and instantiate when needed
+            print("[TTS] Lazy loading VibeVoiceProvider...")
+            self._vibe = VibeVoiceProvider()
+        return self._vibe
+
+    @property
+    def qwen(self):
+        if self._qwen is None:
+            # Only import and instantiate when needed
+            print("[TTS] Lazy loading Qwen3TTSProvider...")
+            self._qwen = Qwen3TTSProvider()
+        return self._qwen
+
+    def initialize(self):
+        """
+        Explicitly initializes both providers in the background.
+        Called on startup to pre-warm the engines without blocking the main API thread.
+        """
+        if not self._is_ready:
+            print("[TTS] Warming up providers in background...")
+            # Triggering properties to instantiate
+            _ = self.vibe
+            _ = self.qwen
+            self._is_ready = True
+            print("[TTS] All engines warmed up and ready.")
+
+    @property
+    def is_ready(self) -> bool:
+        return self._is_ready
+
+    def clean_vram(self):
+        """
+        Forcefully clears VRAM by moving models to CPU, deleting references,
+        and emptying the CUDA cache.
+        """
+        print("[TTS] Force cleaning VRAM...")
+        if self._vibe and self._vibe.model:
+            try:
+                self._vibe.model.to("cpu")
+                self._vibe.model = None
+                self._vibe.processor = None
+                self._vibe.loaded_model_name = None
+            except: pass
+            
+        if self._qwen and self._qwen.model:
+            try:
+                self._qwen.model.to("cpu")
+                self._qwen.model = None
+                self._qwen.processor = None
+                self._qwen.loaded_model_name = None
+            except: pass
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        print("[TTS] VRAM cleaned.")
 
     def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
+        # Ensure we are ready
+        if not self._is_ready:
+            self.initialize()
+            
         # Check if the model name contains "Qwen" to delegate to the Qwen provider
         if "Qwen" in model_name:
             return self.qwen.synthesize(text, model_name, reference_audio_path, voice_id, voice_description, language)

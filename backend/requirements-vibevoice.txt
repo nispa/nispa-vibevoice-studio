@@ -1,6 +1,9 @@
-# VibeVoice specific requirements
---extra-index-url https://download.pytorch.org/whl/cu124
-torch==2.5.1+cu124
-torchaudio==2.5.1+cu124
-# Removing strict versioning to allow coexistence with Qwen
-git+https://github.com/vibevoice-community/VibeVoice.git
+# VibeVoice specific requirements (for Vendored version)
+diffusers
+tqdm
+huggingface_hub
+pyyaml
+einops
+numpy
+scipy
+librosa

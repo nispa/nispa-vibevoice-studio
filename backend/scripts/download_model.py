@@ -48,6 +48,11 @@ MODELS = {
         "name": "Qwen3-TTS-12Hz-0.6B-CustomVoice",
         "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
         "description": "Qwen3 0.6B Custom (Fast Built-in, Low VRAM)"
+    },
+    "10": {
+        "name": "NLLB-200-Distilled-600M",
+        "repo": "facebook/nllb-200-distilled-600M",
+        "description": "Internal Offline Translator (Supports 200 languages)"
     }
 }
 
@@ -55,17 +60,26 @@ def main():
     # Set the local models directory
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     models_dir = os.path.join(base_dir, "data", "model")
+    translation_dir = os.path.join(base_dir, "data", "model-translation")
     
+    # Ensure directories exist
+    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(translation_dir, exist_ok=True)
+
     while True:
         print("\n=======================================")
         print("   Nispa Studio Weights Downloader")
         print("=======================================")
-        print(f"Destination: {models_dir}")
+        print(f"Main Destination: {models_dir}")
+        print(f"Translation Destination: {translation_dir}")
         print("")
         
         for key, model in MODELS.items():
+            # Choose destination based on model type
+            current_dest = translation_dir if "NLLB" in model['name'] else models_dir
+            
             # Check if model directory exists and is not empty
-            target_path = os.path.join(models_dir, model['name'])
+            target_path = os.path.join(current_dest, model['name'])
             is_installed = os.path.exists(target_path) and len(os.listdir(target_path)) > 0
             
             status_mark = "[*] [ALREADY INSTALLED]" if is_installed else "[ ]"
@@ -81,7 +95,8 @@ def main():
             continue
 
         selected = MODELS[choice]
-        target_path = os.path.join(models_dir, selected['name'])
+        current_dest = translation_dir if "NLLB" in selected['name'] else models_dir
+        target_path = os.path.join(current_dest, selected['name'])
         
         # Auto-download Tokenizer if a Qwen model is chosen and tokenizer is missing
         if "Qwen" in selected['name'] and selected['name'] != "Qwen3-TTS-Tokenizer-12Hz":

@@ -38,41 +38,52 @@ def init_db():
 def create_job(job_data: JobCreate) -> JobResponse:
     """
     Creates a new voiceover job entry in the database.
-
-    Args:
-        job_data (JobCreate): The job configuration and subtitle segments.
-
-    Returns:
-        JobResponse: The newly created job as a Pydantic model.
     """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     now = datetime.now().isoformat()
     
-    cursor.execute('''
-        INSERT INTO subtitle_jobs (
-            original_filename, subtitle_segments, modified_segments,
-            voice_id, voice_name, model_name, group_by_punctuation,
-            notes, created_at, updated_at, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        job_data.original_filename,
-        json.dumps([seg.dict() for seg in job_data.subtitle_segments]),
-        json.dumps([seg.dict() for seg in job_data.modified_segments]),
-        job_data.voice_id,
-        job_data.voice_name,
-        job_data.model_name,
-        1 if job_data.group_by_punctuation else 0,
-        job_data.notes,
-        now,
-        now,
-        'draft'
-    ))
-    
-    job_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    def serialize_segments(segments):
+        res = []
+        for seg in segments:
+            if hasattr(seg, 'model_dump'):
+                res.append(seg.model_dump())
+            elif hasattr(seg, 'dict'):
+                res.append(seg.dict())
+            else:
+                res.append(seg)
+        return json.dumps(res)
+
+    try:
+        cursor.execute('''
+            INSERT INTO subtitle_jobs (
+                original_filename, subtitle_segments, modified_segments,
+                voice_id, voice_name, model_name, group_by_punctuation,
+                notes, created_at, updated_at, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            job_data.original_filename,
+            serialize_segments(job_data.subtitle_segments),
+            serialize_segments(job_data.modified_segments),
+            job_data.voice_id,
+            job_data.voice_name,
+            job_data.model_name,
+            1 if job_data.group_by_punctuation else 0,
+            job_data.notes,
+            now,
+            now,
+            'draft'
+        ))
+        
+        job_id = cursor.lastrowid
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Create job failed: {e}")
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
     
     return get_job(job_id)
 
@@ -129,13 +140,6 @@ def get_all_jobs(limit: int = 50, offset: int = 0) -> Tuple[List[JobResponse], i
 def update_job(job_id: int, update_data: JobUpdate) -> JobResponse:
     """
     Updates an existing job's segments or notes.
-
-    Args:
-        job_id (int): The ID of the job to update.
-        update_data (JobUpdate): The new data for the job.
-
-    Returns:
-        JobResponse: The updated job data.
     """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -145,7 +149,14 @@ def update_job(job_id: int, update_data: JobUpdate) -> JobResponse:
     
     if update_data.modified_segments is not None:
         updates.append('modified_segments = ?')
-        params.append(json.dumps([seg.dict() for seg in update_data.modified_segments]))
+        # Ensure we serialize correctly whether it's a list of dicts or Pydantic models
+        serialized_segments = []
+        for seg in update_data.modified_segments:
+            if hasattr(seg, 'dict'):
+                serialized_segments.append(seg.dict())
+            else:
+                serialized_segments.append(seg)
+        params.append(json.dumps(serialized_segments))
     
     if update_data.notes is not None:
         updates.append('notes = ?')
@@ -158,8 +169,11 @@ def update_job(job_id: int, update_data: JobUpdate) -> JobResponse:
         params.append(job_id)
         
         query = f"UPDATE subtitle_jobs SET {', '.join(updates)} WHERE id = ?"
-        cursor.execute(query, params)
-        conn.commit()
+        try:
+            cursor.execute(query, params)
+            conn.commit()
+        except sqlite3.Error as e:
+            print(f"[DB] Update failed: {e}")
     
     conn.close()
     return get_job(job_id)

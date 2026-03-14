@@ -72,16 +72,8 @@ Thumbs.db
 .DS_Store
 
 # Large ML model files
+data/model-translation/*
 data/model/*
-data/model/*.safetensors
-data/model/**/*.safetensors
-!data/model/*/README.md
-!data/model/*/config.json
-!data/model/*/configuration.json
-!data/model/*/preprocessor_config.json
-!data/model/*/generation_config.json
-!data/model/*/quantization_config.json
-!data/model/*/model.safetensors.index.json
 
 # Database
 backend/jobs.db

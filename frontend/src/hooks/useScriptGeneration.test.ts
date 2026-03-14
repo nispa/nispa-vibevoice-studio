@@ -27,7 +27,9 @@ describe('useScriptGeneration', () => {
 
         (useGlobalContext as any).mockReturnValue({
             setIsProcessing: mockSetIsProcessing,
-            setAudioUrl: mockSetAudioUrl
+            setAudioUrl: mockSetAudioUrl,
+            models: [{ id: 'model1', name: 'Model 1', supports_voice_design: false }],
+            selectedLanguage: 'English'
         });
     });
 

@@ -29,7 +29,7 @@ describe('useJobArchive', () => {
             await result.current.loadJobs();
         });
 
-        expect(fetch).toHaveBeenCalledWith('http://localhost:8000/api/jobs?limit=100');
+        expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/jobs?limit=100');
         expect(result.current.jobs).toEqual(mockJobs);
     });
 
@@ -44,7 +44,7 @@ describe('useJobArchive', () => {
         });
 
         expect(confirm).toHaveBeenCalled();
-        expect(fetch).toHaveBeenCalledWith('http://localhost:8000/api/jobs/1', { method: 'DELETE' });
+        expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/jobs/1', { method: 'DELETE' });
     });
 
     it('does not delete job if not confirmed', async () => {

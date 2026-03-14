@@ -5,8 +5,8 @@ Nispa VibeVoice Studio follows a **Client-Server architecture** optimized for lo
 
 - **Frontend:** Single Page Application (SPA) built with React 19, TypeScript, and Tailwind CSS 4.
 - **Backend:** High-performance asynchronous API built with FastAPI (Python 3.11+).
-- **TTS Engine:** VibeVoice (Microsoft Research) integration for zero-shot voice cloning.
-- **LLM Integration:** Local Ollama API for subtitle translation.
+- **TTS Engine:** Dual-provider (VibeVoice & Qwen3-TTS). Qwen3 uses the official `qwen-tts` library with Flash Attention 2.
+- **Translation:** Internal Dynamic NLLB-200 engine. Supports multiple model loading from `data/model-translation/`.
 - **Persistence:** SQLite database for job tracking and local filesystem for audio storage.
 
 ---

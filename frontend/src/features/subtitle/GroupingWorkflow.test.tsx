@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { SubtitleProvider, useSubtitleContext } from './context/SubtitleContext';
 import { SubtitleGroupingControls } from './components/SubtitleGroupingControls';
-import { SubtitlePreviewModal } from '../../components/SubtitlePreviewModal';
+import { SubtitlePreviewModal } from './components/SubtitlePreviewModal';
 import { GlobalProvider } from '../../context/GlobalContext';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';

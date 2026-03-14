@@ -49,10 +49,10 @@ export const useTranslationLoop = () => {
      * and handles auto-saving to the job archive.
      * 
      * @param {string} customPrompt - The user-defined prompt template for translation.
+     * @param {string} sourceCode - NLLB source language code.
+     * @param {string} targetCode - NLLB target language code.
      */
-    const runTranslationLoop = async (customPrompt: string) => {
-        let currentSegments = [...subtitleSegments];
-
+    const runTranslationLoop = async (customPrompt: string, sourceCode: string = 'eng_Latn', targetCode: string = 'ita_Latn') => {
         setIsTranslating(true);
         setHasStartedTranslation(true);
         setIsPausing(false);
@@ -61,106 +61,91 @@ export const useTranslationLoop = () => {
         setTranslationLogs([]);
         setEstimatedTimeRemaining(null);
 
-        /**
-         * Helper to append a timestamped message to the translation logs.
-         */
         const addTransLog = (msg: string) => {
             const time = new Date().toLocaleTimeString();
             setTranslationLogs(prev => [...prev, `[${time}] ${msg}`]);
         };
 
-        addTransLog(`Starting translation to ${targetLanguage} using model ${selectedOllamaModel}...`);
+        addTransLog(`Starting translation (${sourceCode} -> ${targetCode}) using ${selectedOllamaModel}...`);
 
-        let translatedCount = currentSegments.filter(s => s.is_translated).length;
-        setTranslationProgress(Math.round((translatedCount / currentSegments.length) * 100));
-        let hasError = false;
+        try {
+            const totalSegments = subtitleSegments.length;
+            const CHUNK_SIZE = 10;
+            let processedSegments = 0;
+            let updatedSegments = [...subtitleSegments];
 
-        const startTime = Date.now();
-        let sessionTranslatedCount = 0;
+            for (let i = 0; i < totalSegments; i += CHUNK_SIZE) {
+                // Check if user paused
+                if (isPausedRef.current) {
+                    addTransLog("⏸ Translation paused by user.");
+                    setIsTranslating(false);
+                    setIsPausing(false);
+                    return;
+                }
 
-        for (let i = 0; i < currentSegments.length; i++) {
-            if (isPausedRef.current) break;
+                const chunk = subtitleSegments.slice(i, i + CHUNK_SIZE);
+                addTransLog(`Translating segments ${i + 1} to ${Math.min(i + CHUNK_SIZE, totalSegments)}...`);
 
-            const seg = currentSegments[i];
-            if (seg.is_translated) continue;
-
-            const prevTranslated = currentSegments.slice(0, i).reverse().find(s => s.is_translated);
-            if (prevTranslated) {
-                setPreviousOriginalText(prevTranslated.original_text || prevTranslated.text);
-                setPreviousTranslatedText(prevTranslated.text);
-            } else {
-                setPreviousOriginalText('');
-                setPreviousTranslatedText('');
-            }
-
-            setCurrentOriginalText(seg.text);
-            setCurrentTranslatedText('');
-            addTransLog(`Translating segment ${seg.index}...`);
-
-            try {
                 const fd = new FormData();
-                fd.append('text', seg.text);
-                fd.append('target_language', targetLanguage);
+                fd.append('segments_json', JSON.stringify(chunk));
+                fd.append('target_language', targetCode);
+                fd.append('source_language', sourceCode);
                 fd.append('model_name', selectedOllamaModel);
-                fd.append('prompt', customPrompt);
 
-                const res = await fetch('http://localhost:8000/api/translate-segment', {
+                const res = await fetch('http://127.0.0.1:8000/api/translate-batch', {
                     method: 'POST', body: fd
                 });
 
                 if (res.ok) {
                     const data = await res.json();
-                    currentSegments[i] = {
-                        ...seg,
-                        original_text: seg.original_text || seg.text,
-                        text: data.translated_text,
-                        is_translated: true
-                    };
+                    const translatedChunk = data.segments;
+                    
+                    // Merge translated chunk back into updatedSegments
+                    for (let j = 0; j < translatedChunk.length; j++) {
+                        updatedSegments[i + j] = translatedChunk[j];
+                    }
 
-                    setSubtitleSegments([...currentSegments]); // force update
-                    setCurrentTranslatedText(data.translated_text);
-                    addTransLog(`✓ Segment ${seg.index} translated.`);
+                    // Update UI state for current items
+                    if (translatedChunk.length > 0) {
+                        const lastTrans = translatedChunk[translatedChunk.length - 1];
+                        setPreviousOriginalText(setCurrentOriginalText(lastTrans.original_text || ''));
+                        setPreviousTranslatedText(setCurrentTranslatedText(lastTrans.text || ''));
+                    }
 
-                    translatedCount++;
-                    sessionTranslatedCount++;
-                    setTranslationProgress(Math.round((translatedCount / currentSegments.length) * 100));
-
-                    const elapsed = Date.now() - startTime;
-                    const avgTime = elapsed / sessionTranslatedCount;
-                    const remainingSegments = currentSegments.length - translatedCount;
-                    setEstimatedTimeRemaining((avgTime * remainingSegments) / 1000);
+                    processedSegments += chunk.length;
+                    const progress = Math.round((processedSegments / totalSegments) * 100);
+                    setTranslationProgress(progress);
+                    
+                    // Update main segments state to show changes in the editor/UI
+                    setSubtitleSegments([...updatedSegments]);
                 } else {
-                    console.error(`Failed to translate segment ${seg.index}`);
-                    addTransLog(`✗ Failed to translate segment ${seg.index}`);
-                    hasError = true;
-                    break;
+                    const errData = await res.json();
+                    throw new Error(errData.detail || "Chunk translation failed");
                 }
-            } catch (e) {
-                console.error(e);
-                addTransLog(`✗ Error translating segment ${seg.index}: ${String(e)}`);
-                hasError = true;
-                break;
             }
-        }
 
-        setIsTranslating(false);
+            setTranslationProgress(100);
+            addTransLog(`✓ All ${totalSegments} segments translated successfully.`);
 
-        // Auto-save logic
-        const baseName = subtitleFile ? subtitleFile.name.replace(/\.[^/.]+$/, "") : "translated_subtitles";
-        const newFilename = `${baseName}_${targetLanguage}.srt`;
+            // Update pseudo file info
+            const baseName = subtitleFile ? subtitleFile.name.replace(/\.[^/.]+$/, "") : "translated_subtitles";
+            const newFilename = `${baseName}_${targetCode}.srt`;
+            const translatedFile = new File([], newFilename, { type: 'text/plain' });
+            setSubtitleFile(translatedFile);
 
-        // Update pseudo file so user knows translation is attached
-        const translatedFile = new File([], newFilename, { type: 'text/plain' });
-        setSubtitleFile(translatedFile);
+            // Final save to Job Archive
+            saveJobDraft(`Fully translated to ${targetCode} (Offline)`, updatedSegments, newFilename);
+            
+            setTimeout(() => {
+                alert(`Translation to ${targetCode} complete! Saved to Job Archive.`);
+                setIsTranslating(false);
+            }, 500);
 
-        if (isPausedRef.current) {
-            saveJobDraft('Translation Paused Draft', currentSegments, newFilename);
-        } else if (!hasError) {
-            saveJobDraft(`Fully translated to ${targetLanguage}`, currentSegments, newFilename);
-            alert(`Translation to ${targetLanguage} complete! Saved to Job Archive.`);
-        } else {
-            alert('Translation encountered an error and paused. State saved.');
-            saveJobDraft('Translation Error Draft', currentSegments, newFilename);
+        } catch (e) {
+            console.error(e);
+            addTransLog(`✗ Error during translation: ${String(e)}`);
+            setIsTranslating(false);
+            alert(`Translation error: ${String(e)}`);
         }
     };
 

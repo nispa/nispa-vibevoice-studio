@@ -8,6 +8,8 @@ export interface Segment {
     start_ms: number;
     end_ms: number;
     text: string;
+    is_translated?: boolean;
+    original_text?: string | null;
 }
 
 /**
@@ -152,12 +154,43 @@ export function useJobArchive() {
         return null;
     }, [loadJobs]);
 
+    /**
+     * Updates an existing job record in the database.
+     * 
+     * @param {number} jobId - The ID of the job to update.
+     * @param {any} updateData - The updated job data (modified_segments, notes, etc).
+     * @returns {Promise<Job | null>} The updated job record or null if failed.
+     */
+    const updateJob = useCallback(async (jobId: number, updateData: any) => {
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/jobs/${jobId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData),
+            });
+
+            if (res.ok) {
+                const updatedJob = await res.json();
+                // Refresh local jobs list to reflect changes in UI
+                setJobs(prev => prev.map(j => j.id === jobId ? updatedJob : j));
+                return updatedJob;
+            } else {
+                const error = await res.json();
+                console.error('Update failed:', error);
+            }
+        } catch (err) {
+            console.error('Error updating job:', err);
+        }
+        return null;
+    }, []);
+
     return {
         jobs,
         loading,
         loadJobs,
         deleteJob,
         downloadSrt,
-        saveJobDraft
+        saveJobDraft,
+        updateJob
     };
 }

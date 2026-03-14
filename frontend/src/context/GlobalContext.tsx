@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useSystemInfo } from '../hooks/useSystemInfo';
 import type { SystemInfoData } from '../hooks/useSystemInfo';
@@ -50,6 +50,7 @@ interface GlobalContextProps {
     connectionStatus: ConnectionStatus;
     isLoadingSystemInfo: boolean;
     systemInfoError: string | null;
+    isBackendReady: boolean;
     
     // Shared TTS Data
     voices: Voice[];
@@ -68,25 +69,27 @@ const GlobalContext = createContext<GlobalContextProps | undefined>(undefined);
  * 
  * @param {object} props - Component props.
  * @param {ReactNode} props.children - Child components to be wrapped.
+ * @param {boolean} [props.skipPolling] - Optional: Skip backend polling (useful for tests).
  */
-export function GlobalProvider({ children }: { children: ReactNode }) {
+export function GlobalProvider({ children, skipPolling = false }: { children: ReactNode, skipPolling?: boolean }) {
     const [appMode, setAppMode] = useState<AppMode>('subtitle');
     const [isProcessing, setIsProcessing] = useState(false);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [isBackendReady, setIsBackendReady] = useState(skipPolling);
     
     // Shared TTS Data
     const [voices, setVoices] = useState<Voice[]>([]);
     const [models, setModels] = useState<Model[]>([]);
     const [isLoadingTtsData, setIsLoadingTtsData] = useState(false);
 
-    const { systemInfo, isLoading, error, fetchSystemInfo } = useSystemInfo();
+    const { systemInfo, isLoading: isLoadingSystemInfo, error: systemInfoError, fetchSystemInfo } = useSystemInfo();
 
-    const connectionStatus: ConnectionStatus = isLoading ? 'connecting' : error ? 'error' : 'connected';
+    const connectionStatus: ConnectionStatus = !isBackendReady ? 'connecting' : systemInfoError ? 'error' : 'connected';
 
     /**
      * Fetches available voices from the backend.
      */
-    const fetchVoices = async () => {
+    const fetchVoices = useCallback(async () => {
         try {
             const res = await fetch('http://127.0.0.1:8000/api/voices');
             const data = await res.json();
@@ -94,12 +97,12 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
         } catch (err) {
             console.error("Failed to fetch voices:", err);
         }
-    };
+    }, []);
 
     /**
      * Fetches available TTS models from the backend.
      */
-    const fetchModels = async () => {
+    const fetchModels = useCallback(async () => {
         try {
             const res = await fetch('http://127.0.0.1:8000/api/models');
             const data = await res.json();
@@ -107,22 +110,67 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
         } catch (err) {
             console.error("Failed to fetch models:", err);
         }
-    };
+    }, []);
 
     /**
      * Refreshes both voices and models data.
      */
-    const refreshTtsData = async () => {
+    const refreshTtsData = useCallback(async () => {
         setIsLoadingTtsData(true);
         await Promise.all([fetchVoices(), fetchModels()]);
         setIsLoadingTtsData(false);
-    };
+    }, [fetchVoices, fetchModels]);
 
-    // Fetch once on mount
+    // Poll for backend readiness
     useEffect(() => {
-        fetchSystemInfo();
-        refreshTtsData();
-    }, [fetchSystemInfo]);
+        if (skipPolling) return;
+
+        let isMounted = true;
+        let pollInterval: any;
+
+        const checkStatus = async () => {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'ready') {
+                        if (isMounted) {
+                            setIsBackendReady(true);
+                            clearInterval(pollInterval);
+                        }
+                    }
+                }
+            } catch (e) {
+                // Ignore errors during polling
+                if (isMounted) setIsBackendReady(false);
+            }
+        };
+
+        checkStatus(); // Check immediately
+        pollInterval = setInterval(checkStatus, 2000); // Then poll every 2s
+
+        return () => {
+            isMounted = false;
+            clearInterval(pollInterval);
+        };
+    }, [skipPolling]);
+
+    // Reset processing state if backend becomes unavailable
+    useEffect(() => {
+        if (!isBackendReady && isProcessing) {
+            setIsProcessing(false);
+            setAudioUrl(null);
+            console.log("[Global] Backend disconnected. Resetting processing state.");
+        }
+    }, [isBackendReady, isProcessing]);
+
+    // Fetch data once backend is ready
+    useEffect(() => {
+        if (isBackendReady) {
+            fetchSystemInfo();
+            refreshTtsData();
+        }
+    }, [isBackendReady, fetchSystemInfo, refreshTtsData]);
 
     return (
         <GlobalContext.Provider
@@ -136,8 +184,9 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
                 systemInfo,
                 fetchSystemInfo,
                 connectionStatus,
-                isLoadingSystemInfo: isLoading,
-                systemInfoError: error,
+                isLoadingSystemInfo,
+                systemInfoError,
+                isBackendReady,
                 voices,
                 models,
                 isLoadingTtsData,
