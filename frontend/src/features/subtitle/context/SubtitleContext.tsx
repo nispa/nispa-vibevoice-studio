@@ -17,6 +17,9 @@ export interface SubtitleSegment {
     original_text?: string;
     audioUrl?: string;
     audioBase64?: string; // Raw base64 for persistence
+    voice_id?: string;
+    model_name?: string;
+    language?: string;
     isApproved?: boolean;
 }
 
@@ -102,7 +105,7 @@ interface SubtitleContextProps {
 
     // Callbacks
     loadJobSegments: (job: any) => void;
-    saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent?: boolean) => Promise<void>;
+    saveJobDraft: (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent?: boolean) => Promise<number | null>;
     updateJob: (jobId: number, updateData: any) => Promise<any>;
 }
 
@@ -120,6 +123,8 @@ const SubtitleContext = createContext<SubtitleContextProps | undefined>(undefine
  * @param {ReactNode} props.children - Child components to be wrapped.
  */
 export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
+    // ... (rest remains the same up to saveJobDraft)
+
     const { voices, models } = useGlobalContext();
     const { saveJobDraft: saveJobAction } = useJobArchive();
 
@@ -264,9 +269,10 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
                     notes: customNote || 'Updated from UI'
                 });
                 if (updated && !silent && !customNote) alert(`Job #${loadedJobId} updated!`);
-                return;
+                return loadedJobId;
             } catch (err) {
                 console.error("Failed to update job:", err);
+                return null;
             }
         }
 
@@ -278,12 +284,18 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 is_translated: false,
                 audioUrl: s.audioUrl || null,
                 audioBase64: s.audioBase64 || null,
+                voice_id: s.voice_id || null,
+                model_name: s.model_name || null,
+                language: s.language || null,
                 isApproved: !!s.isApproved
             })),
             modified_segments: segmentsToSave.map(s => ({
                 ...s,
                 audioUrl: s.audioUrl || null,
                 audioBase64: s.audioBase64 || null,
+                voice_id: s.voice_id || null,
+                model_name: s.model_name || null,
+                language: s.language || null,
                 isApproved: !!s.isApproved
             })),
             voice_id: selectedVoiceId || "None",
@@ -296,7 +308,10 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const newJob = await saveJobAction(jobData, silent || !!customNote);
         if (newJob) {
             setLoadedJobId(newJob.id);
+            return newJob.id;
         }
+        
+        return null;
     };
 
     /**
@@ -330,6 +345,9 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             return {
                 ...s,
                 audioUrl: audioUrl,
+                voice_id: s.voice_id,
+                model_name: s.model_name,
+                language: s.language,
                 isApproved: !!s.isApproved
             };
         });

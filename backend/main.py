@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers (minimal impact because routers themselves use lazy imports now)
-from api.routers import system, voices, generation, jobs
+from api.routers import system, voices, generation, jobs, translation, tasks
 
 app = FastAPI(title="Nispa Voiceover API")
 
@@ -20,7 +20,9 @@ app.add_middleware(
 # Register API routers
 app.include_router(system.router)
 app.include_router(voices.router)
+app.include_router(translation.router)
 app.include_router(generation.router)
+app.include_router(tasks.router)
 app.include_router(jobs.router)
 
 @app.on_event("startup")

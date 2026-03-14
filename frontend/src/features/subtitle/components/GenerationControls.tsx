@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Loader2, Activity } from 'lucide-react';
+import { Settings, Loader2, Activity, Music } from 'lucide-react';
 import VoiceSelector from '../../../components/ui/VoiceSelector';
 import ModelSelector from '../../../components/ui/ModelSelector';
 import LanguageSelector from '../../../components/ui/LanguageSelector';
@@ -43,6 +43,7 @@ export const GenerationControls: React.FC = () => {
         setErrorMsg,
         groupByPunctuation,
         subtitleSegments,
+        setSubtitleSegments,
         saveJobDraft,
         generationProgress: progress,
         setGenerationProgress: setProgress,
@@ -106,8 +107,9 @@ export const GenerationControls: React.FC = () => {
         startTimeRef.current = Date.now();
 
         // AUTO-SAVE BEFORE GENERATION
+        let currentJobId: number | null = null;
         try {
-            await saveJobDraft('Initial save before generation', undefined, undefined, true);
+            currentJobId = await saveJobDraft('Initial save before generation', undefined, undefined, true);
         } catch (err) {
             console.warn("Failed to perform initial save:", err);
         }
@@ -123,9 +125,19 @@ export const GenerationControls: React.FC = () => {
         };
 
         const formData = new FormData();
-        // ALWAYS send current segments if they exist to allow RESUMING (sending partial audioUrls)
-        if (subtitleSegments && subtitleSegments.length > 0) {
-            formData.append('subtitle_segments', JSON.stringify(subtitleSegments));
+        
+        if (currentJobId) {
+            // BEST PRACTICE: If we have a saved job, just pass the ID.
+            // The backend will fetch the segments directly from the database,
+            // avoiding massive JSON payload uploads.
+            formData.append('job_id', currentJobId.toString());
+        } else if (subtitleSegments && subtitleSegments.length > 0) {
+            // Fallback: send segments, but strip heavy base64 to avoid 1MB limits
+            const strippedSegments = subtitleSegments.map(s => {
+                const { audioBase64, ...rest } = s;
+                return rest;
+            });
+            formData.append('subtitle_segments', JSON.stringify(strippedSegments));
         } else if (subtitleFile) {
             formData.append('subtitle_file', subtitleFile);
         }
@@ -135,6 +147,7 @@ export const GenerationControls: React.FC = () => {
         formData.append('group_by_punctuation', groupByPunctuation.toString());
         formData.append('output_format', outputFormat);
         formData.append('language', selectedLanguage);
+        
         if (supportsVoiceDesign && voiceDescription) {
             formData.append('voice_description', voiceDescription);
         }
@@ -180,18 +193,17 @@ export const GenerationControls: React.FC = () => {
                                 index: seg.index,
                                 text: seg.text,
                                 audioUrl: audioUrl,
-                                audioBase64: seg.audio_b64 // Store raw B64 for database persistence
+                                audioBase64: seg.audio_b64, // Store raw B64 for database persistence
+                                voice_id: seg.voice_id,
+                                model_name: seg.model_name,
+                                language: seg.language
                             };
                         });
                         
                         setGeneratedSegments(prev => [...prev, ...newPreviewSegments]);
                         
                         // CRITICAL: Update the main subtitleSegments so that they can be saved/resumed
-                        // We find each segment by index and attach its audioUrl AND audioBase64
-                        // @ts-ignore
-                        const { setSubtitleSegments, subtitleSegments: currentSegments } = useSubtitleContext.getState ? {setSubtitleSegments: () => {}, subtitleSegments: []} : {setSubtitleSegments, subtitleSegments}; 
-                        
-                        // Note: Using functional update to avoid closure staleness
+                        // We find each segment by index and attach its audioUrl AND metadata
                         setSubtitleSegments((prev: any[]) => {
                             const updated = [...prev];
                             newPreviewSegments.forEach((newSeg: any) => {
@@ -200,7 +212,10 @@ export const GenerationControls: React.FC = () => {
                                     updated[idx] = { 
                                         ...updated[idx], 
                                         audioUrl: newSeg.audioUrl,
-                                        audioBase64: newSeg.audioBase64 
+                                        audioBase64: newSeg.audioBase64,
+                                        voice_id: newSeg.voice_id,
+                                        model_name: newSeg.model_name,
+                                        language: newSeg.language
                                     };
                                 }
                             });
@@ -320,15 +335,13 @@ export const GenerationControls: React.FC = () => {
                 setIsProcessing(false);
             }
             
-            // CRITICAL: Save what we have generated so far to the database
-            // By passing 'undefined' as customSegments, saveJobDraft will automatically 
-            // use segmentsRef.current which holds the absolute latest real-time data,
-            // circumventing the stale closure problem of the subtitleSegments state.
-            console.log("[GenerationControls] Persisting partial segments after cancel using latest ref state...");
-            await saveJobDraft('Interrupted by user', undefined, undefined, true);
+            // NOTE: We no longer need to call saveJobDraft here.
+            // The backend is now saving segments incrementally directly to the database.
+            // A simple refresh of the job list or reloading the page will show the saved segments.
+            console.log("[GenerationControls] Task cancelled. Segments were saved in real-time by the backend.");
             
         } catch (err) {
-            console.error("Error during cancel/save:", err);
+            console.error("Error during cancel:", err);
             setIsProcessing(false);
         }
     };

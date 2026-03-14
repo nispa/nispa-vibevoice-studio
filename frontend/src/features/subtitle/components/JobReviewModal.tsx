@@ -1,15 +1,9 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, Download, Loader2, Music, FileText, AlertCircle } from 'lucide-react';
+import { X, CheckCircle2, Download, Loader2, Music, FileText, AlertCircle, RefreshCw } from 'lucide-react';
 import { AudioWaveformPlayer } from '../../../components/ui/AudioWaveformPlayer';
-
-interface SubtitleSegment {
-    index: number;
-    text: string;
-    audioUrl?: string;
-    audioBase64?: string;
-    start_ms: number;
-    end_ms: number;
-}
+import { useSubtitleContext } from '../context/SubtitleContext';
+import type { SubtitleSegment } from '../context/SubtitleContext';
+import { useGlobalContext } from '../../../context/GlobalContext';
 
 interface JobReviewModalProps {
     isOpen: boolean;
@@ -27,10 +21,13 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
     segments 
 }) => {
     const [isFinalizing, setIsFinalizing] = useState(false);
+    const [regeneratingIds, setRegeneratingIds] = useState<Record<number, boolean>>({});
     const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [filterGenerated, setFilterGenerated] = useState(true);
     const itemsPerPage = 10;
+    
+    const { setSubtitleSegments, updateJob, selectedVoiceId, selectedModel, selectedLanguage } = useSubtitleContext();
 
     if (!isOpen) return null;
 
@@ -79,7 +76,75 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
         return seg.audioUrl;
     };
 
+    const handleRegenerate = async (seg: SubtitleSegment) => {
+        // Use segment specific settings if available, else fallback to current context
+        const voiceId = seg.voice_id || selectedVoiceId;
+        const modelName = seg.model_name || selectedModel;
+        const lang = seg.language || selectedLanguage;
+
+        if (!voiceId) {
+            setError("Cannot regenerate: No voice selected.");
+            return;
+        }
+
+        setRegeneratingIds(prev => ({ ...prev, [seg.index]: true }));
+        setError(null);
+
+        try {
+            const fd = new FormData();
+            fd.append('text', seg.text);
+            fd.append('voice_id', voiceId);
+            fd.append('model_name', modelName);
+            fd.append('language', lang);
+
+            const res = await fetch('http://localhost:8000/api/generate-segment', {
+                method: 'POST',
+                body: fd
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || "Regeneration failed");
+            }
+
+            const data = await res.json();
+            const newBase64 = data.audio_base64;
+            const newAudioUrl = `data:audio/wav;base64,${newBase64}`;
+
+            // Update local state in context
+            const updatedSegments = segments.map(s => {
+                if (s.index === seg.index) {
+                    return { 
+                        ...s, 
+                        audioBase64: newBase64, 
+                        audioUrl: newAudioUrl,
+                        voice_id: voiceId,
+                        model_name: modelName,
+                        language: lang
+                    };
+                }
+                return s;
+            });
+
+            setSubtitleSegments(updatedSegments);
+
+            // Update database immediately
+            if (jobId) {
+                await updateJob(jobId, {
+                    modified_segments: updatedSegments
+                });
+            }
+
+        } catch (e: any) {
+            console.error("Regeneration error:", e);
+            setError(`Failed to regenerate segment #${seg.index}: ${e.message}`);
+        } finally {
+            setRegeneratingIds(prev => ({ ...prev, [seg.index]: false }));
+        }
+    };
+
     const handleFinalize = async () => {
+
         if (!jobId) return;
         
         setIsFinalizing(true);
@@ -186,26 +251,31 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                     {paginatedSegments.map((seg) => (
                         <div 
                             key={seg.index} 
-                            className="bg-slate-900/80 border border-slate-800 hover:border-indigo-500/30 rounded-2xl p-5 transition-all group shadow-sm"
+                            className="bg-slate-900/80 border border-slate-800 hover:border-indigo-500/30 rounded-2xl p-5 transition-all group shadow-sm flex flex-col gap-4"
                         >
-                            <div className="flex flex-col md:flex-row gap-5 items-start md:items-center">
-                                {/* Segment Info */}
-                                <div className="w-full md:w-1/3 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[10px] font-bold rounded uppercase tracking-wider">
-                                            #{seg.index}
+                            {/* Segment Info (Top) */}
+                            <div className="w-full space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[10px] font-bold rounded uppercase tracking-wider">
+                                        #{seg.index}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-slate-500">
+                                        {Math.floor(seg.start_ms / 1000)}s → {Math.floor(seg.end_ms / 1000)}s
+                                    </span>
+                                    {(seg.voice_id || seg.model_name) && (
+                                        <span className="text-[10px] text-indigo-400/70 border border-indigo-500/20 px-2 py-0.5 rounded-full ml-auto">
+                                            {seg.model_name || 'TTS'} • {seg.voice_id?.split('-').pop() || 'Voice'}
                                         </span>
-                                        <span className="text-[10px] font-mono text-slate-500">
-                                            {Math.floor(seg.start_ms / 1000)}s → {Math.floor(seg.end_ms / 1000)}s
-                                        </span>
-                                    </div>
-                                    <p className="text-sm font-medium text-slate-300 leading-snug line-clamp-2 italic">
-                                        "{seg.text}"
-                                    </p>
+                                    )}
                                 </div>
+                                <p className="text-sm font-medium text-slate-300 leading-snug italic">
+                                    "{seg.text}"
+                                </p>
+                            </div>
 
-                                {/* Audio Player */}
-                                <div className="flex-1 w-full">
+                            {/* Audio Player & Actions (Bottom) */}
+                            <div className="flex items-center gap-4 w-full">
+                                <div className="flex-1">
                                     {getActiveAudioUrl(seg) ? (
                                         <AudioWaveformPlayer 
                                             audioUrl={getActiveAudioUrl(seg)!} 
@@ -219,6 +289,18 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
                                         </div>
                                     )}
                                 </div>
+                                <button
+                                    onClick={() => handleRegenerate(seg)}
+                                    disabled={regeneratingIds[seg.index]}
+                                    className="shrink-0 p-3 bg-slate-800 hover:bg-indigo-600/20 text-slate-400 hover:text-indigo-400 border border-slate-700 hover:border-indigo-500/30 rounded-xl transition-all flex items-center justify-center disabled:opacity-50"
+                                    title="Regenerate this segment"
+                                >
+                                    {regeneratingIds[seg.index] ? (
+                                        <Loader2 size={18} className="animate-spin" />
+                                    ) : (
+                                        <RefreshCw size={18} />
+                                    )}
+                                </button>
                             </div>
                         </div>
                     ))}

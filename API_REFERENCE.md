@@ -155,7 +155,15 @@ Create a ZIP archive containing individual audio segments.
 
 ### POST `/tasks/generate-subtitles`
 Create a background task for timed subtitle synthesis.
-- **Form Data:** Same as `/generate-audio`.
+- **Form Data:**
+  - `subtitle_file` (Optional) or `subtitle_segments` (JSON)
+  - `voice_id`
+  - `model_name`
+  - `group_by_punctuation`
+  - `output_format`
+  - `voice_description` (Optional)
+  - `language` (Optional)
+  - `job_id` (Optional): If provided, allows backend to load segments directly from SQLite, bypassing JSON payload limits and enabling Real-time saving.
 - **Response:** `{"status": "success", "task_id": "..."}`
 
 ### POST `/tasks/generate`

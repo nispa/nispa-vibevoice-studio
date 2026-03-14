@@ -1,61 +1,53 @@
-# Technical Documentation: Nispa VibeVoice Studio
+# Technical Documentation: Nispa VibeVoice Studio (v0.5.0)
 
 ## 1. System Architecture
-Nispa VibeVoice Studio follows a **Client-Server architecture** optimized for local execution of AI models.
+Nispa VibeVoice Studio follows a **Client-Server architecture** optimized for local execution of AI models, ensuring 100% privacy and maximum hardware utilization.
 
 - **Frontend:** Single Page Application (SPA) built with React 19, TypeScript, and Tailwind CSS 4.
 - **Backend:** High-performance asynchronous API built with FastAPI (Python 3.11+).
-- **TTS Engine:** Dual-provider (VibeVoice & Qwen3-TTS). Qwen3 uses the official `qwen-tts` library with Flash Attention 2.
-- **Translation:** Internal Dynamic NLLB-200 engine. Supports multiple model loading from `data/model-translation/`.
-- **Persistence:** SQLite database for job tracking and local filesystem for audio storage.
+- **TTS Engine:** Modular, Dual-provider architecture (`core/tts/`):
+  - **Qwen3-TTS:** Uses the official `qwen-tts` library with Flash Attention 2/3 for parallel tensor processing.
+  - **VibeVoice:** Stable autoregressive generator for multi-speaker long-form content.
+- **Translation:** Internal Dynamic NLLB-200 engine, with optional fallback/integration to a local Ollama instance.
+- **Persistence:** SQLite database (`db/database.py`) for job tracking, real-time segment saving, and local filesystem for final audio storage.
 
 ---
 
 ## 2. Backend Components
 
-### 2.1. TTS Queue Manager (`core/queue_manager.py`)
-To prevent blocking the main thread during heavy AI inference, the system uses an internal asynchronous queue.
-- **Asynchronous Processing:** Uses `asyncio.Queue` to process tasks sequentially.
-- **Progress Tracking:** Implements `OutputRedirector` to capture logs and streams them to the frontend using **Server-Sent Events (SSE)**.
-- **Task Management:** Supports submission, cancellation, and retrieval of job status.
+### 2.1. Modular Routers (`api/routers/`)
+The backend is split into domain-specific modules:
+- `tasks.py`: Handles complex, long-running asynchronous tasks (SSE generation, batching).
+- `translation.py`: Dedicated to offline NLLB and Ollama proxying.
+- `generation.py`: Synchronous, lightweight generation endpoints.
+- `jobs.py`: API for CRUD operations on the SQLite archive.
 
-### 2.2. VibeVoice Provider (`core/tts_provider.py`)
-This is the interface to the VibeVoice model.
-- **Device Detection:** Automatically selects CUDA (NVIDIA), MPS (Apple Silicon), or CPU.
-- **Zero-Shot Cloning:** Uses a 10-second reference WAV to extract speaker embeddings and synthesize text in the cloned voice.
-- **Caching:** Models are loaded into VRAM/RAM once and cached for subsequent requests to reduce latency.
+### 2.2. TTS Core Engine (`core/tts/`)
+A highly extensible object-oriented pattern:
+- **`base.py`**: Defines the `TTSProvider` abstract class.
+- **`qwen_provider.py`**: 
+  - Implements **Hardware-Aware Dynamic Batching**. It queries `torch.cuda.mem_get_info()` to dynamically adjust the `BATCH_SIZE` (from 1 to 8) based on available VRAM and the specific model's footprint (0.6B vs 1.7B).
+  - Implements **Aggressive VRAM Cleanup**: Explicitly deletes heavy PyTorch tensors and forces `gc.collect()` and `torch.cuda.empty_cache()` inside `finally` blocks to prevent OOM memory leaks.
+- **`tts_provider.py`**: The Orchestrator (`MultiModelProvider`) that routes requests to the correct underlying engine.
 
 ### 2.3. Audio Aligner (`core/aligner.py`)
-The aligner ensures that generated audio matches the timing of the original subtitles.
-- **Shifting Logic:** If a generated audio segment is longer than the subtitle duration, the system "shifts" the subsequent segments forward to avoid overlap.
-- **Silence Padding:** Adds silence gaps between segments to maintain synchronization with the original video timestamps.
-
-### 2.4. Subtitle Parser (`core/parser.py`)
-- **SRT/VTT Support:** Uses `srt` and `webvtt-py` libraries.
-- **Intelligent Grouping:** A specialized algorithm that merges segments based on punctuation (., !, ?) to create complete sentences, leading to more natural TTS intonation.
+Ensures that generated audio perfectly matches the original SRT/VTT timing.
+- **Shifting Logic:** If a generated segment is longer than the subtitle duration, the system shifts subsequent segments forward to avoid overlap.
+- **Silence Padding:** Adds silence gaps between segments to maintain synchronization with video timestamps.
 
 ---
 
 ## 3. Frontend Components
 
-### 3.1. State Management
-The application uses **React Context API** for modular state management:
-- `GlobalContext`: Handles system-wide settings, hardware monitoring, and shared TTS metadata (voices/models).
-- `SubtitleContext`: Manages the complex state of subtitle files, segments, and generation logs.
+### 3.1. Context Architecture
+Uses **React Context API** to separate business logic from UI:
+- `GlobalContext`: System settings, hardware monitoring, and shared TTS metadata.
+- `SubtitleContext`: Manages subtitle segments. It uses a robust `useRef` architecture (`segmentsRef`) to ensure the auto-save functionality always has access to real-time data, avoiding React stale-closure bugs during asynchronous operations.
 - `TranslationContext`: Controls the LLM translation loop state.
 
-### 3.2. Translation Workflow
-Translation is handled iteratively to avoid long timeouts and provide real-time feedback:
-1. The frontend identifies untranslated segments.
-2. It sends individual segments to the `/api/translate-segment` endpoint.
-3. This endpoint proxies the request to a local **Ollama** instance.
-4. The frontend updates the UI segment-by-segment and auto-saves progress.
-
-### 3.3. Hardware Monitoring
-The system leverages `psutil` and `torch` on the backend to provide real-time hardware telemetry:
-- GPU VRAM allocation/total.
-- CPU core usage and total system RAM.
-- Active hardware acceleration (CUDA/MPS).
+### 3.2. Generation & Review UI
+- **GenerationControls**: Interacts with the SSE stream, calculating ETA using a weighted moving average to compensate for the "burst" updates caused by backend dynamic batching.
+- **JobReviewModal**: A paginated, non-destructive editing gallery. Allows users to listen to individual waveforms, trim hallucinations via `AudioTrimmer`, and perform **Surgical Regenerations** by calling `/api/generate-segment` using the preserved metadata (Voice, Model, Language) of that specific segment.
 
 ---
 
@@ -67,19 +59,22 @@ The system leverages `psutil` and `torch` on the backend to provide real-time ha
 | `id` | INTEGER | Primary Key |
 | `original_filename` | TEXT | Source filename |
 | `subtitle_segments` | TEXT (JSON) | Original segments |
-| `modified_segments` | TEXT (JSON) | Segments after editing/grouping/translation |
+| `modified_segments` | TEXT (JSON) | Segments after editing. **Includes `audioBase64`** |
 | `voice_id` | TEXT | Reference voice used |
 | `status` | TEXT | draft, processing, completed, failed |
 
+*Note: The `SubtitleSegmentData` Pydantic model enforces `extra="ignore"` to safely handle legacy job formats while supporting new fields like `voice_id` and `audioBase64` per segment.*
+
 ---
 
-## 5. API Flow: Audio Generation
-1. **POST `/api/tasks/generate-subtitles`**: Backend receives segments and voice config, returns `task_id`.
-2. **GET `/api/tasks/{task_id}/stream`**: Frontend opens an SSE connection to receive live logs and progress.
-3. **Synthesis Loop**: The `QueueManager` calls `tts_engine.synthesize` for each segment.
-4. **Alignment**: The `Aligner` combines WAV bytes into a single MP3/WAV file.
-5. **Completion**: The SSE stream sends `type: complete` with the final audio as a **Base64 string**.
-6. **Persistence**: The file is saved in `data/outputs/` for future retrieval.
+## 5. API Flow: Subtitle Generation (Backend-Driven Real-Time Save)
+This workflow guarantees **Zero Data Loss**:
+1. **POST `/api/tasks/generate-subtitles`**: Frontend requests generation and passes a `job_id`.
+2. **SSE Connection**: Frontend opens `/api/tasks/{task_id}/stream`.
+3. **Dynamic Batching**: The `queue_manager` calculates the optimal batch size based on VRAM.
+4. **Synthesis & Injection**: The engine synthesizes a batch. **Before** yielding the result to the frontend, the backend instantly injects the generated `audioBase64` into the SQLite database for the specific `job_id`.
+5. **Streaming**: The SSE stream updates the frontend UI.
+6. **Cancellation (Safe)**: If the user cancels, the backend simply stops the loop. No data is lost because every completed segment was already persisted to disk at Step 4.
 
 ---
 
