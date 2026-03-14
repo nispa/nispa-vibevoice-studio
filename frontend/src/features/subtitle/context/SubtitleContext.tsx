@@ -16,6 +16,7 @@ export interface SubtitleSegment {
     is_translated?: boolean;
     original_text?: string;
     audioUrl?: string;
+    audioBase64?: string; // Raw base64 for persistence
     isApproved?: boolean;
 }
 
@@ -86,6 +87,14 @@ interface SubtitleContextProps {
     showReviewModal: boolean;
     setShowReviewModal: (b: boolean) => void;
 
+    // Progress details
+    totalItems: number;
+    setTotalItems: (n: number) => void;
+    currentItems: number;
+    setCurrentItems: (n: number) => void;
+    estimatedTime: string;
+    setEstimatedTime: (s: string) => void;
+
     // Task Management
     currentTaskId: string | null;
     setCurrentTaskId: (id: string | null) => void;
@@ -136,13 +145,32 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [loadingPreview, setLoadingPreview] = useState(false);
 
     // Subtitle Editor & Job Archive
-    const [subtitleSegments, setSubtitleSegments] = useState<SubtitleSegment[]>([]);
+    const [subtitleSegments, setSubtitleSegmentsState] = useState<SubtitleSegment[]>([]);
+    const segmentsRef = useRef<SubtitleSegment[]>([]);
+
+    const setSubtitleSegments = (s: SubtitleSegment[] | ((prev: SubtitleSegment[]) => SubtitleSegment[])) => {
+        if (typeof s === 'function') {
+            setSubtitleSegmentsState(prev => {
+                const next = s(prev);
+                segmentsRef.current = next;
+                return next;
+            });
+        } else {
+            setSubtitleSegmentsState(s);
+            segmentsRef.current = s;
+        }
+    };
     const [loadedJobId, setLoadedJobId] = useState<number | null>(null);
     const [showEditor, setShowEditor] = useState(false);
     const [showArchive, setShowArchive] = useState(false);
     const [generationProgress, setGenerationProgress] = useState(0);
     const [generatedSegments, setGeneratedSegments] = useState<any[]>([]);
     const [showReviewModal, setShowReviewModal] = useState(false);
+
+    // Progress details
+    const [totalItems, setTotalItems] = useState(0);
+    const [currentItems, setCurrentItems] = useState(0);
+    const [estimatedTime, setEstimatedTime] = useState('--:--');
 
     // Task Management
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -200,7 +228,8 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
      * If segments are not yet loaded, it attempts to parse them from the file first.
      */
     const saveJobDraft = async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent = false) => {
-        let segmentsToSave = customSegments || subtitleSegments;
+        // Use provided segments, or the latest segments from our Ref, or the state as fallback
+        let segmentsToSave = customSegments || segmentsRef.current || subtitleSegments;
         const fileToSave = customFilename || (subtitleFile ? subtitleFile.name : 'Unknown');
 
         // If segments are missing but we have a file, try to parse it first
@@ -248,11 +277,13 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 text: s.original_text || s.text,
                 is_translated: false,
                 audioUrl: s.audioUrl || null,
+                audioBase64: s.audioBase64 || null,
                 isApproved: !!s.isApproved
             })),
             modified_segments: segmentsToSave.map(s => ({
                 ...s,
                 audioUrl: s.audioUrl || null,
+                audioBase64: s.audioBase64 || null,
                 isApproved: !!s.isApproved
             })),
             voice_id: selectedVoiceId || "None",
@@ -277,11 +308,31 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setLoadedJobId(job.id);
         
         // Use modified_segments as the primary source, ensuring audio fields are preserved
-        const segments = (job.modified_segments || job.subtitle_segments || []).map((s: any) => ({
-            ...s,
-            audioUrl: s.audioUrl || null,
-            isApproved: !!s.isApproved
-        }));
+        // We need to convert saved Base64 back to Blob URLs for the browser
+        const segments = (job.modified_segments || job.subtitle_segments || []).map((s: any) => {
+            let audioUrl = s.audioUrl || null;
+            
+            // If we have base64 but no valid blob URL (which is always true on reload), reconstruct it
+            if (s.audioBase64 && (!audioUrl || audioUrl.startsWith('blob:'))) {
+                try {
+                    const binaryString = atob(s.audioBase64);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    const blob = new Blob([bytes], { type: 'audio/wav' });
+                    audioUrl = URL.createObjectURL(blob);
+                } catch (e) {
+                    console.error("Failed to reconstruct audio from base64:", e);
+                }
+            }
+
+            return {
+                ...s,
+                audioUrl: audioUrl,
+                isApproved: !!s.isApproved
+            };
+        });
         setSubtitleSegments(segments);
         
         setSelectedVoiceId(job.voice_id);
@@ -328,6 +379,9 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
             generationProgress, setGenerationProgress,
             generatedSegments, setGeneratedSegments,
             showReviewModal, setShowReviewModal,
+            totalItems, setTotalItems,
+            currentItems, setCurrentItems,
+            estimatedTime, setEstimatedTime,
             currentTaskId, setCurrentTaskId,
             cancelGeneration,
             loadJobSegments, saveJobDraft,

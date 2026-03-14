@@ -3,6 +3,7 @@ import { Settings, Loader2, Activity } from 'lucide-react';
 import VoiceSelector from '../../../components/ui/VoiceSelector';
 import ModelSelector from '../../../components/ui/ModelSelector';
 import LanguageSelector from '../../../components/ui/LanguageSelector';
+import { GenerationProgressDisplay } from './GenerationProgressDisplay';
 import { useSubtitleContext } from '../context/SubtitleContext';
 import { useGlobalContext } from '../../../context/GlobalContext';
 
@@ -49,11 +50,19 @@ export const GenerationControls: React.FC = () => {
         setGeneratedSegments,
         currentTaskId,
         setCurrentTaskId,
-        cancelGeneration
+        cancelGeneration,
+        setTotalItems,
+        setCurrentItems,
+        setEstimatedTime,
+        totalItems,
+        currentItems,
+        estimatedTime,
+        setShowReviewModal
     } = useSubtitleContext();
 
     const lastLogRef = React.useRef<string>('');
     const eventSourceRef = React.useRef<EventSource | null>(null);
+    const startTimeRef = React.useRef<number>(0);
 
     const [outputFormat, setOutputFormat] = React.useState<'mp3' | 'wav'>('mp3');
     const [voiceDescription, setVoiceDescription] = React.useState<string>('');
@@ -89,6 +98,12 @@ export const GenerationControls: React.FC = () => {
         setGeneratedSegments([]); // Clear previous previews
         lastLogRef.current = '';
         setShowLogsModal(true);
+        
+        // Reset progress details
+        setTotalItems(0);
+        setCurrentItems(0);
+        setEstimatedTime('--:--');
+        startTimeRef.current = Date.now();
 
         // AUTO-SAVE BEFORE GENERATION
         try {
@@ -164,14 +179,15 @@ export const GenerationControls: React.FC = () => {
                             return {
                                 index: seg.index,
                                 text: seg.text,
-                                audioUrl: audioUrl
+                                audioUrl: audioUrl,
+                                audioBase64: seg.audio_b64 // Store raw B64 for database persistence
                             };
                         });
                         
                         setGeneratedSegments(prev => [...prev, ...newPreviewSegments]);
                         
                         // CRITICAL: Update the main subtitleSegments so that they can be saved/resumed
-                        // We find each segment by index and attach its audioUrl
+                        // We find each segment by index and attach its audioUrl AND audioBase64
                         // @ts-ignore
                         const { setSubtitleSegments, subtitleSegments: currentSegments } = useSubtitleContext.getState ? {setSubtitleSegments: () => {}, subtitleSegments: []} : {setSubtitleSegments, subtitleSegments}; 
                         
@@ -181,7 +197,11 @@ export const GenerationControls: React.FC = () => {
                             newPreviewSegments.forEach((newSeg: any) => {
                                 const idx = updated.findIndex(s => s.index === newSeg.index);
                                 if (idx !== -1) {
-                                    updated[idx] = { ...updated[idx], audioUrl: newSeg.audioUrl };
+                                    updated[idx] = { 
+                                        ...updated[idx], 
+                                        audioUrl: newSeg.audioUrl,
+                                        audioBase64: newSeg.audioBase64 
+                                    };
                                 }
                             });
                             return updated;
@@ -191,8 +211,26 @@ export const GenerationControls: React.FC = () => {
                     // CRITICAL: Progress calculation must be independent and based on 
                     // current_item / total_items received from the backend.
                     if (data.current_item && data.total_items) {
-                        const calcProgress = (data.current_item / data.total_items) * 100;
+                        const total = data.total_items;
+                        const current = data.current_item;
+                        setTotalItems(total);
+                        setCurrentItems(current);
+
+                        const calcProgress = (current / total) * 100;
                         setProgress(calcProgress);
+
+                        // ETA CALCULATION
+                        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+                        const remaining = total - current;
+                        if (current > 0 && remaining > 0) {
+                            const avgPerItem = elapsed / current;
+                            const etaSec = Math.round(remaining * avgPerItem);
+                            const m = Math.floor(etaSec / 60);
+                            const s = etaSec % 60;
+                            setEstimatedTime(`${m}:${s.toString().padStart(2, '0')}`);
+                        } else if (remaining === 0) {
+                            setEstimatedTime('0:00');
+                        }
                     } else if (data.progress !== undefined) {
                         // Fallback if specialized fields are missing
                         setProgress(data.progress);
@@ -271,13 +309,26 @@ export const GenerationControls: React.FC = () => {
             eventSourceRef.current = null;
         }
 
-        if (choice) {
-            // User chose to download partial audio
-            await cancelGeneration(true);
-            // The audio will be received via SSE and handled by the existing complete logic
-        } else {
-            // User chose to discard
-            await cancelGeneration(false);
+        try {
+            if (choice) {
+                // User chose to download partial audio
+                await cancelGeneration(true);
+                // The audio will be received via SSE and handled by the existing complete logic
+            } else {
+                // User chose to discard
+                await cancelGeneration(false);
+                setIsProcessing(false);
+            }
+            
+            // CRITICAL: Save what we have generated so far to the database
+            // By passing 'undefined' as customSegments, saveJobDraft will automatically 
+            // use segmentsRef.current which holds the absolute latest real-time data,
+            // circumventing the stale closure problem of the subtitleSegments state.
+            console.log("[GenerationControls] Persisting partial segments after cancel using latest ref state...");
+            await saveJobDraft('Interrupted by user', undefined, undefined, true);
+            
+        } catch (err) {
+            console.error("Error during cancel/save:", err);
             setIsProcessing(false);
         }
     };
@@ -348,14 +399,14 @@ export const GenerationControls: React.FC = () => {
 
             {/* Action */}
             <div className="pt-4 border-t border-slate-800 flex justify-end items-center gap-4">
-                {isProcessing && (
-                    <div className="flex items-center gap-4 animate-fade-in">
-                        <div className="flex items-center gap-2 text-indigo-400">
-                            <Loader2 size={18} className="animate-spin" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Synthesis in progress</span>
-                        </div>
-                    </div>
-                )}
+                <GenerationProgressDisplay 
+                    current={currentItems}
+                    total={totalItems}
+                    eta={estimatedTime}
+                    isProcessing={isProcessing}
+                    variant="compact"
+                />
+                
                 {activityLogs.length > 0 && (
                     <button
                         onClick={() => setShowLogsModal(true)}
@@ -372,6 +423,18 @@ export const GenerationControls: React.FC = () => {
                         </span>
                     </button>
                 )}
+
+                {subtitleSegments.some(s => s.audioUrl || s.audioBase64) && (
+                    <button
+                        onClick={() => setShowReviewModal(true)}
+                        disabled={isProcessing}
+                        className="px-6 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+                    >
+                        <Music size={18} />
+                        Review Audio ({subtitleSegments.filter(s => s.audioUrl || s.audioBase64).length})
+                    </button>
+                )}
+
                 <button
                     onClick={handleGenerate}
                     disabled={!subtitleFile || !selectedVoiceId || isProcessing}

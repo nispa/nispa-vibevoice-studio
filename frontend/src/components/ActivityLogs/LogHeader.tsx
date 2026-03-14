@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Copy, Trash2 } from 'lucide-react';
 
 import { ProgressBar } from '../ui/ProgressBar';
+import { GenerationProgressDisplay } from '../../features/subtitle/components/GenerationProgressDisplay';
 
 interface LogHeaderProps {
     title: string;
@@ -9,6 +10,9 @@ interface LogHeaderProps {
     handleCopyLogs: () => void;
     onClear?: () => void;
     onClose: () => void;
+    totalItems?: number;
+    currentItems?: number;
+    estimatedTime?: string;
 }
 
 export const LogHeader: React.FC<LogHeaderProps> = ({
@@ -16,7 +20,10 @@ export const LogHeader: React.FC<LogHeaderProps> = ({
     progress,
     handleCopyLogs,
     onClear,
-    onClose
+    onClose,
+    totalItems = 0,
+    currentItems = 0,
+    estimatedTime = '--:--'
 }) => {
     return (
         <div className="border-b border-slate-700/50 bg-slate-800/30 p-6 flex justify-between items-center relative overflow-hidden shrink-0">
@@ -26,11 +33,18 @@ export const LogHeader: React.FC<LogHeaderProps> = ({
                     {title}
                 </h2>
                 
-                {/* Progress Bar */}
-                <div className="mt-4 max-w-md">
+                {/* Progress Bar & Details */}
+                <div className="mt-4 max-w-md space-y-2">
+                    <GenerationProgressDisplay 
+                        current={currentItems}
+                        total={totalItems}
+                        eta={estimatedTime}
+                        isProcessing={progress > 0 && progress < 100}
+                        variant="full"
+                    />
                     <ProgressBar 
                         progress={progress} 
-                        label={progress === 100 ? 'Completed' : 'Overall Progress'}
+                        label={progress === 100 ? 'Completed' : ''}
                     />
                 </div>
             </div>

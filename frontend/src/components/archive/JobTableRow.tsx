@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Copy, Trash2 } from 'lucide-react';
+import { Download, Copy, Trash2, Music } from 'lucide-react';
 import type { Job } from '../../hooks/useJobArchive';
 import { AudioWaveformPlayer } from '../ui/AudioWaveformPlayer';
 
@@ -52,6 +52,9 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
                          job.subtitle_segments.some(s => s.is_translated) ||
                          job.notes?.toLowerCase().includes('translation');
 
+    const hasAudio = job.modified_segments.some(s => s.audioBase64 || s.audioUrl?.startsWith('data:audio/')) ||
+                     job.subtitle_segments.some(s => s.audioBase64 || s.audioUrl?.startsWith('data:audio/'));
+
     return (
         <div className="bg-slate-800/40 border border-slate-700/30 rounded-lg overflow-hidden">
             {/* Job Header */}
@@ -64,6 +67,11 @@ export const JobTableRow: React.FC<JobTableRowProps> = ({
                         <span className={`inline-block px-2 py-1 text-xs font-bold rounded border ${getStatusColor(job.status)}`}>
                             {job.status.toUpperCase()}
                         </span>
+                        {hasAudio && (
+                             <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 text-xs font-bold rounded flex items-center gap-1 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                <Music size={10} /> AUDIO SAVED
+                             </span>
+                        )}
                         {isTranslated && (
                              <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 text-xs font-bold rounded">
                                 TRANSLATED

@@ -15,6 +15,9 @@ interface ActivityLogsModalProps {
     progress?: number;
     onCancel?: (finalize: boolean) => void;
     generatedSegments?: any[];
+    totalItems?: number;
+    currentItems?: number;
+    estimatedTime?: string;
 }
 
 export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
@@ -26,7 +29,10 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
     audioUrl,
     progress = 0,
     onCancel,
-    generatedSegments = []
+    generatedSegments = [],
+    totalItems,
+    currentItems,
+    estimatedTime
 }) => {
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -96,6 +102,9 @@ export const ActivityLogsModal: React.FC<ActivityLogsModalProps> = ({
                     handleCopyLogs={handleCopyLogs}
                     onClear={onClear}
                     onClose={onClose}
+                    totalItems={totalItems}
+                    currentItems={currentItems}
+                    estimatedTime={estimatedTime}
                 />
 
                 <div className="flex-1 overflow-hidden flex flex-col">

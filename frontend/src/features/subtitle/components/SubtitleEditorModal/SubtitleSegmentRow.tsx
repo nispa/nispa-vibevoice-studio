@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Globe, Loader2, Trash2, Mic2, CheckCircle2, Scissors } from 'lucide-react';
+import { Globe, Loader2, Trash2, CheckCircle2, Scissors } from 'lucide-react';
 import { useTranslationContext } from '../../context/TranslationContext';
-import { useGlobalContext } from '../../../../context/GlobalContext';
 import type { Segment } from './types';
 import { formatMsToTime } from './utils';
 import { AudioWaveformPlayer } from '../../../../components/ui/AudioWaveformPlayer';
@@ -31,11 +30,9 @@ export const SubtitleSegmentRow: React.FC<SubtitleSegmentRowProps> = React.memo(
     onApprovalToggle
 }) => {
     const [isTranslating, setIsTranslating] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
     const [showTrimmer, setShowTrimmer] = useState(false);
     
     const { targetLanguage } = useTranslationContext();
-    const { selectedVoiceId, selectedModel } = useGlobalContext();
 
     const handleTranslate = async () => {
         if (!targetLanguage) {
@@ -68,39 +65,6 @@ export const SubtitleSegmentRow: React.FC<SubtitleSegmentRowProps> = React.memo(
             console.error(e);
         } finally {
             setIsTranslating(false);
-        }
-    };
-
-    const handleGenerateAudio = async () => {
-        if (!selectedVoiceId) {
-            alert('Please select a voice in the main panel first.');
-            return;
-        }
-
-        setIsGenerating(true);
-        try {
-            const fd = new FormData();
-            fd.append('text', segment.text);
-            fd.append('voice_id', selectedVoiceId);
-            fd.append('model_name', selectedModel || 'VibeVoice-1.5B');
-
-            const res = await fetch('http://localhost:8000/api/generate-segment', {
-                method: 'POST', body: fd
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                onAudioUpdated(index, `data:audio/wav;base64,${data.audio_base64}`);
-            } else {
-                const err = await res.json();
-                console.error("Synthesis failed:", err.detail);
-                alert(`Synthesis error: ${err.detail}`);
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Error connecting to synthesis server.");
-        } finally {
-            setIsGenerating(false);
         }
     };
 
@@ -143,15 +107,6 @@ export const SubtitleSegmentRow: React.FC<SubtitleSegmentRowProps> = React.memo(
                         {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Globe size={16} />}
                     </button>
                     
-                    <button
-                        onClick={handleGenerateAudio}
-                        disabled={isGenerating}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${segment.audioUrl ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20'}`}
-                    >
-                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Mic2 size={14} />}
-                        {segment.audioUrl ? 'RE-GENERATE' : 'GENERATE AUDIO'}
-                    </button>
-
                     <button
                         onClick={() => onApprovalToggle(index)}
                         disabled={!segment.audioUrl}

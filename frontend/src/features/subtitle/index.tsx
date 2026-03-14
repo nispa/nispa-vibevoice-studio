@@ -36,7 +36,9 @@ const SubtitleModeContent: FC = () => {
         loadJobSegments, generationProgress,
         cancelGeneration,
         generatedSegments,
-        showReviewModal, setShowReviewModal
+        showReviewModal, setShowReviewModal,
+        totalItems, currentItems, estimatedTime,
+        saveJobDraft
     } = useSubtitleContext();
 
     const {
@@ -181,6 +183,9 @@ const SubtitleModeContent: FC = () => {
                 progress={generationProgress}
                 onCancel={cancelGeneration}
                 generatedSegments={generatedSegments}
+                totalItems={totalItems}
+                currentItems={currentItems}
+                estimatedTime={estimatedTime}
             />
 
             <SubtitlePreviewModal
