@@ -21,7 +21,7 @@ def check_tool(name, version_cmd, install_help):
     print(f"[+] Checking {name}...")
     path = config_manager.get_path(name.lower()) if HAS_CONFIG else name.lower()
     try:
-        subprocess.check_call([path] + version_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.check_call([path] + version_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"[✓] {name} is installed and accessible at: {path}")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -57,7 +57,8 @@ def main():
         except ImportError:
             print("[i] Flash Attention not found. Running dynamic installer...")
             try:
-                subprocess.check_call([sys.executable, os.path.join(os.path.dirname(__file__), "install_flash_attn.py")])
+                subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "install_flash_attn.py")],
+                               input=b"y\n", check=True)
             except Exception as e:
                 print(f"[!] Flash Attention installation attempt failed: {e}")
 

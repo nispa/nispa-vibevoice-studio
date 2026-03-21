@@ -1,6 +1,6 @@
 {
     "paths": {
-        "sox": "sox",
+        "sox": "C:\\Program Files (x86)\\sox-14-4-2\\sox.exe",
         "ffmpeg": "ffmpeg",
         "ffprobe": "ffprobe"
     },
