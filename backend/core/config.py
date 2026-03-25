@@ -55,6 +55,9 @@ class ConfigManager:
         },
         "ui": {
             "theme": "dark"
+        },
+        "tts": {
+            "batch_overrides": {}
         }
     }
 

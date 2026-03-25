@@ -75,14 +75,13 @@ class MultiModelProvider(TTSProvider):
             torch.cuda.ipc_collect()
         print("[TTS] VRAM cleaned.")
 
-    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None, skip_cleanup: bool = False) -> bytes:
         # Ensure we are ready
         if not self._is_ready:
             self.initialize()
-            
-        # Check if the model name contains "Qwen" to delegate to the Qwen provider
+
         if "Qwen" in model_name:
-            return self.qwen.synthesize(text, model_name, reference_audio_path, voice_id, voice_description, language)
+            return self.qwen.synthesize(text, model_name, reference_audio_path, voice_id, voice_description, language, skip_cleanup=skip_cleanup)
         else:
             return self.vibe.synthesize(text, model_name, reference_audio_path, voice_id, voice_description, language)
 

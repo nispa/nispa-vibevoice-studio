@@ -17,7 +17,7 @@ export interface SseMessage {
     progress?: number;
     current_item?: number;
     total_items?: number;
-    audioBase64?: string;
+    audioUrl?: string;
     message?: string;
     new_segments?: SseNewSegment[];
 }

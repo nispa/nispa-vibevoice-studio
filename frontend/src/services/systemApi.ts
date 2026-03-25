@@ -39,6 +39,20 @@ export interface DeleteOrphanResult {
     total_freed_mb: number;
 }
 
+export interface ModelBatchInfo {
+    id: string;
+    recommended_batch: number;
+    user_batch: number | null;
+    effective_batch: number;
+}
+
+export interface VramInfo {
+    vram_free_gb: number | null;
+    vram_total_gb: number | null;
+    cuda_available: boolean;
+    models: ModelBatchInfo[];
+}
+
 export const systemApi = {
     getStatus: () => apiGet<StatusResponse>('/api/status'),
     getSystemInfo: () => apiGet<SystemInfoData>('/api/system-info'),
@@ -48,4 +62,11 @@ export const systemApi = {
     vacuumDb: () => apiFetch('/api/maintenance/vacuum', { method: 'POST' }),
     listOrphanAudio: () => apiGet<OrphanAudioResult>('/api/maintenance/orphan-audio'),
     deleteOrphanAudio: () => apiFetch('/api/maintenance/orphan-audio', { method: 'DELETE' }),
+    getVramInfo: () => apiGet<VramInfo>('/api/system/vram-info'),
+    setBatchOverride: (model_id: string, batch_size: number | null) =>
+        apiFetch('/api/system/batch-override', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_id, batch_size }),
+        }),
 };

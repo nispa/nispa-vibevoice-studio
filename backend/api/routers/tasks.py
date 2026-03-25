@@ -128,27 +128,53 @@ async def create_subtitle_task(
 
         total_items = len(job_segments)
 
-        def calculate_optimal_batch_size(model_name: str) -> int:
+        # Per-model config: (cost_gb_per_segment, peak_multiplier, max_batch)
+        # peak_multiplier accounts for KV cache + attention buffers during generate()
+        # Qwen has higher attention overhead than VibeVoice
+        _MODEL_VRAM_CONFIG = {
+            "1.7B": (1.8, 2.5, 6),
+            "0.6B": (1.0, 2.0, 8),
+        }
+        _DEFAULT_VRAM_CONFIG = (1.5, 2.0, 8)
+
+        def _get_model_config(model_name: str):
+            for key, cfg in _MODEL_VRAM_CONFIG.items():
+                if key in model_name:
+                    return cfg
+            return _DEFAULT_VRAM_CONFIG
+
+        # Cache of profiled cost per segment (set after first real batch)
+        _profiled_cost: dict = {"gb": None}
+
+        def calculate_optimal_batch_size(model_name: str, profiled_cost_gb: float | None = None) -> int:
+            # Check user override first
+            from core.config import config_manager as _cfg
+            user_override = _cfg.settings.get("tts", {}).get("batch_overrides", {}).get(model_name)
+            if user_override is not None:
+                print(f"[VRAM] Using user override batch={user_override} for {model_name}")
+                return int(user_override)
+
             if not torch.cuda.is_available():
-                return 1 # Fallback for CPU or MPS
+                return 1
             try:
-                free_vram_bytes, _ = torch.cuda.mem_get_info()
+                free_vram_bytes, total_vram_bytes = torch.cuda.mem_get_info()
                 free_vram_gb = free_vram_bytes / (1024 ** 3)
-                
-                # Estimated VRAM cost per segment
-                if "1.7B" in model_name:
-                    cost_per_segment_gb = 1.8
-                elif "0.6B" in model_name:
-                    cost_per_segment_gb = 1.0
-                else:
-                    cost_per_segment_gb = 1.5
-                    
-                # 1GB absolute safety margin
-                usable_vram = max(0, free_vram_gb - 1.0)
-                calculated_batch = int(usable_vram // cost_per_segment_gb)
-                
-                # Clamp between 1 and 8
-                return max(1, min(calculated_batch, 8))
+
+                estimated_cost, peak_multiplier, max_batch = _get_model_config(model_name)
+                cost_per_segment_gb = profiled_cost_gb if profiled_cost_gb else estimated_cost
+
+                # Reserve 40% of free VRAM as headroom for generation peaks
+                usable_vram = free_vram_gb * 0.60
+
+                # Effective cost includes peak overhead during model.generate()
+                effective_cost = cost_per_segment_gb * peak_multiplier
+
+                calculated_batch = int(usable_vram // effective_cost)
+                clamped = max(1, min(calculated_batch, max_batch))
+
+                print(f"[VRAM] free={free_vram_gb:.1f}GB usable={usable_vram:.1f}GB "
+                      f"cost={effective_cost:.2f}GB/seg → batch={clamped} (max={max_batch})")
+                return clamped
             except Exception as e:
                 print(f"[Sistema] Errore calcolo VRAM: {e}")
                 return 2
@@ -158,11 +184,12 @@ async def create_subtitle_task(
 
         segments_with_audio = []
         current_batch_size = BATCH_SIZE
+        _first_batch_done = {"done": False}
 
         i = 0
         while i < total_items:
-            # Recalculate batch size each iteration — VRAM may have changed
-            current_batch_size = calculate_optimal_batch_size(model_name)
+            # Recalculate using profiled cost if available
+            current_batch_size = calculate_optimal_batch_size(model_name, _profiled_cost["gb"])
             batch = job_segments[i:i+current_batch_size]
 
             task_state = queue_manager.get_task(task_id)
@@ -188,18 +215,45 @@ async def create_subtitle_task(
                     "message": f"[TTS] Synthesizing batch of {len(texts)} segments..."
                 }
                 
+                _oom_retry = False
                 try:
+                    _vram_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
                     wav_bytes_list = await asyncio.to_thread(
                         tts_engine.synthesize_batch, texts, model_name, None, voice_id, voice_description, language
                     )
+                    # Profile VRAM cost on first real batch
+                    if not _first_batch_done["done"] and torch.cuda.is_available() and len(texts) > 1:
+                        _vram_after = torch.cuda.memory_allocated()
+                        _delta_gb = (_vram_after - _vram_before) / (1024 ** 3)
+                        if _delta_gb > 0:
+                            _profiled_cost["gb"] = _delta_gb / len(texts)
+                            print(f"[VRAM] Profiled cost: {_profiled_cost['gb']:.3f}GB/seg "
+                                  f"(measured on batch of {len(texts)})")
+                        _first_batch_done["done"] = True
                     for (j, _), wav_bytes in zip(to_generate, wav_bytes_list):
                         generated_audios[j] = wav_bytes
+                except torch.cuda.OutOfMemoryError as oom_e:
+                    print(f"[VRAM] OOM on batch size {len(texts)}, halving and retrying: {oom_e}")
+                    import gc as _gc; _gc.collect()
+                    torch.cuda.empty_cache()
+                    # Halve the effective batch size for future iterations
+                    current_batch_size = max(1, current_batch_size // 2)
+                    # Also update profiled cost to prevent recurrence
+                    _, cfg_cost, _ = _get_model_config(model_name)
+                    _profiled_cost["gb"] = (_profiled_cost["gb"] or cfg_cost) * 2.0
+                    print(f"[VRAM] Updated cost estimate to {_profiled_cost['gb']:.3f}GB/seg after OOM")
+                    _oom_retry = True
                 except Exception as e:
                     print(f"[TTS] Batch synthesis failed, falling back to sequential: {e}")
+                    _oom_retry = True
+
+                if _oom_retry:
+                    # Use skip_cleanup=True for Qwen to avoid N×flush; we flush once after the loop
                     for j, seg in to_generate:
                         try:
                             wav_bytes = await asyncio.to_thread(
-                                tts_engine.synthesize, seg.text, model_name, None, voice_id, voice_description, language
+                                tts_engine.synthesize, seg.text, model_name, None, voice_id, voice_description, language,
+                                True  # skip_cleanup — single flush below
                             )
                             generated_audios[j] = wav_bytes
                         except Exception as inner_e:
@@ -209,54 +263,59 @@ async def create_subtitle_task(
                             buf = io.BytesIO()
                             silent.export(buf, format="wav")
                             generated_audios[j] = buf.getvalue()
+                    # Single VRAM flush after the entire fallback loop
+                    import gc as _gc; _gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
+            # --- BATCH DB SAVE: read job once per batch, not per segment ---
+            job_record = get_job(job_id) if job_id else None
+            db_segments_by_index: dict = {}
+            if job_record and job_record.modified_segments:
+                for s in job_record.modified_segments:
+                    s_dict = s.dict() if hasattr(s, 'dict') else dict(s)
+                    db_segments_by_index[s_dict.get("index")] = s_dict
+            batch_had_new_audio = False
+            # --------------------------------------------------------------
 
             # Process the batch and yield updates sequentially to SSE
             for j, item in enumerate(batch):
                 global_idx = i + j
                 seg = item["segment"]
-                
+
                 if item["audio_bytes"]:
                     wav_bytes = item["audio_bytes"]
                     msg = f"[SKIP] Segment #{seg.index} already has audio."
                 else:
                     wav_bytes = generated_audios.get(j)
                     msg = f"✓ Segment #{seg.index} completed."
-                
+
                 segments_with_audio.append((seg, wav_bytes))
-                
+
                 # Encode individual segment for preview
                 seg_audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
-                
-                # --- REAL-TIME DB SAVE ---
-                if job_id and not item["audio_bytes"]:
-                    try:
-                        job_record = get_job(job_id)
-                        if job_record and job_record.modified_segments:
-                            audio_path = save_segment_audio(
-                                job_record.original_filename, job_id, seg.index, wav_bytes
-                            )
-                            updated_segments = []
-                            for s in job_record.modified_segments:
-                                s_dict = s.dict() if hasattr(s, 'dict') else dict(s)
-                                if s_dict.get("index") == seg.index:
-                                    s_dict["audioUrl"] = audio_path
-                                    s_dict.pop("audioBase64", None)
-                                    s_dict["voice_id"] = voice_id
-                                    s_dict["model_name"] = model_name
-                                    s_dict["language"] = language
-                                updated_segments.append(s_dict)
 
-                            update_job(job_id, JobUpdate(modified_segments=updated_segments))
-                            print(f"[DB] Real-time saved segment {seg.index} → {audio_path}")
+                # Accumulate DB changes — file save per-segment, DB write deferred
+                if job_id and not item["audio_bytes"] and job_record:
+                    try:
+                        audio_path = save_segment_audio(
+                            job_record.original_filename, job_id, seg.index, wav_bytes
+                        )
+                        if seg.index in db_segments_by_index:
+                            db_segments_by_index[seg.index]["audioUrl"] = audio_path
+                            db_segments_by_index[seg.index].pop("audioBase64", None)
+                            db_segments_by_index[seg.index]["voice_id"] = voice_id
+                            db_segments_by_index[seg.index]["model_name"] = model_name
+                            db_segments_by_index[seg.index]["language"] = language
+                            batch_had_new_audio = True
                     except Exception as db_e:
-                        print(f"[DB] ✗ Real-time save failed for segment {seg.index}: {db_e}")
-                # -------------------------
+                        print(f"[DB] ✗ Failed to save audio file for segment {seg.index}: {db_e}")
 
                 after_progress = int(((global_idx + 1) / total_items) * 100)
                 if after_progress >= 100: after_progress = 99
-                
+
                 queue_manager.update_task(task_id, progress=after_progress)
-                
+
                 yield {
                     "progress": after_progress,
                     "total_items": total_items,
@@ -269,6 +328,15 @@ async def create_subtitle_task(
                     "language": language,
                     "message": msg
                 }
+
+            # Single DB write for the entire batch
+            if job_id and batch_had_new_audio and db_segments_by_index:
+                try:
+                    update_job(job_id, JobUpdate(modified_segments=list(db_segments_by_index.values())))
+                    new_segs = [item["segment"].index for item in batch if not item["audio_bytes"]]
+                    print(f"[DB] Batch saved {len(new_segs)} segment(s) in one write: {new_segs}")
+                except Exception as db_e:
+                    print(f"[DB] ✗ Batch write failed: {db_e}")
 
             # Explicit VRAM flush between batches
             import gc as _gc
@@ -287,21 +355,21 @@ async def create_subtitle_task(
         final_audio_bytes = await asyncio.to_thread(align_subtitles_audio, segments_with_audio, output_format)
         
         # PERSISTENCE
+        audio_filename = None
         try:
             output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "outputs"))
             os.makedirs(output_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"subtitle_voiceover_{timestamp}.{output_format.lower()}"
-            with open(os.path.join(output_dir, filename), "wb") as f:
+            audio_filename = f"subtitle_voiceover_{timestamp}.{output_format.lower()}"
+            with open(os.path.join(output_dir, audio_filename), "wb") as f:
                 f.write(final_audio_bytes)
-        except:
-            pass
+        except Exception as e:
+            print(f"[Output] Failed to save output file: {e}")
 
-        audio_b64 = base64.b64encode(final_audio_bytes).decode('utf-8')
         yield {
-            "progress": 100, 
-            "message": "Completed!", 
-            "audio_b64": audio_b64,
+            "progress": 100,
+            "message": "Completed!",
+            "audio_url": f"/outputs/{audio_filename}" if audio_filename else None,
             "format": output_format.lower()
         }
 
@@ -346,58 +414,124 @@ async def create_generation_task(
         raise HTTPException(status_code=400, detail=f"Maximum 4 speakers allowed for {model_name}. Detected: {len(unique_speakers)}")
 
     async def generation_job(task_id: str):
-        import base64
         import os
         from datetime import datetime
-        
+
         total_items = len(script_lines)
-        lines_with_audio = []
-        
-        for idx, line in enumerate(script_lines):
+        lines_with_audio = [None] * total_items
+
+        # Reuse the same VRAM config helpers from subtitle_job scope
+        _MODEL_VRAM_CONFIG_GEN = {"1.7B": (1.8, 2.5, 6), "0.6B": (1.0, 2.0, 8)}
+        _DEFAULT_VRAM_CONFIG_GEN = (1.5, 2.0, 8)
+
+        def _gen_batch_size() -> int:
+            from core.config import config_manager as _cfg
+            user_override = _cfg.settings.get("tts", {}).get("batch_overrides", {}).get(model_name)
+            if user_override is not None:
+                return int(user_override)
+            if not torch.cuda.is_available():
+                return 1
+            try:
+                free_bytes, _ = torch.cuda.mem_get_info()
+                free_gb = free_bytes / (1024 ** 3)
+                cfg = _DEFAULT_VRAM_CONFIG_GEN
+                for key, c in _MODEL_VRAM_CONFIG_GEN.items():
+                    if key in model_name:
+                        cfg = c
+                        break
+                usable = free_gb * 0.60
+                effective = cfg[0] * cfg[1]
+                return max(1, min(int(usable // effective), cfg[2]))
+            except Exception:
+                return 2
+
+        # Group consecutive lines by same voice_id for efficient batching
+        i = 0
+        while i < total_items:
             task_state = queue_manager.get_task(task_id)
             if task_state.get("status") == TaskStatus.CANCELLED:
                 if task_state.get("finalize_on_cancel"):
-                    break # Allow finalization
+                    break
                 return
-                
-            voice_id = speaker_voice_map_dict.get(line.speaker)
+
+            batch_size = _gen_batch_size()
+
+            # Collect a batch of consecutive lines with the same voice
+            voice_id = speaker_voice_map_dict.get(script_lines[i].speaker)
             if not voice_id:
-                raise Exception(f"No voice found for {line.speaker}")
-                
-            current_progress = int((idx / total_items) * 100)
+                raise Exception(f"No voice found for {script_lines[i].speaker}")
+
+            batch_indices = [i]
+            j = i + 1
+            while j < total_items and j - i < batch_size:
+                next_voice = speaker_voice_map_dict.get(script_lines[j].speaker)
+                if next_voice != voice_id:
+                    break
+                batch_indices.append(j)
+                j += 1
+
+            batch_texts = [script_lines[k].text for k in batch_indices]
+            current_progress = int((i / total_items) * 100)
             yield {
-                "progress": current_progress, 
+                "progress": current_progress,
                 "total_items": total_items,
-                "current_item": idx + 1,
-                "message": f"[TTS] Synthesizing text #{idx + 1} ({len(line.text)} chars): '{line.text}'"
+                "current_item": i + 1,
+                "message": f"[TTS] Synthesizing {len(batch_texts)} line(s) starting at #{i + 1}..."
             }
-            
-            wav_bytes = await asyncio.to_thread(
-                tts_engine.synthesize, line.text, model_name, None, voice_id, voice_description, language
-            )
 
-            lines_with_audio.append(wav_bytes)
+            try:
+                wav_list = await asyncio.to_thread(
+                    tts_engine.synthesize_batch, batch_texts, model_name, None, voice_id, voice_description, language
+                )
+                for k, wav_bytes in zip(batch_indices, wav_list):
+                    lines_with_audio[k] = wav_bytes
+            except Exception as e:
+                print(f"[TTS] generation_job batch failed, falling back to sequential: {e}")
+                for k in batch_indices:
+                    try:
+                        wav_bytes = await asyncio.to_thread(
+                            tts_engine.synthesize, script_lines[k].text, model_name, None, voice_id, voice_description, language
+                        )
+                        lines_with_audio[k] = wav_bytes
+                    except Exception as inner_e:
+                        print(f"[TTS] Sequential fallback failed for line {k}: {inner_e}")
+                        from pydub import AudioSegment as _AS
+                        buf = io.BytesIO()
+                        _AS.silent(duration=500).export(buf, format="wav")
+                        lines_with_audio[k] = buf.getvalue()
 
-            after_progress = int(((idx + 1) / total_items) * 100)
+            after_progress = int(((batch_indices[-1] + 1) / total_items) * 100)
             if after_progress >= 100: after_progress = 99
             queue_manager.update_task(task_id, progress=after_progress)
+            i = batch_indices[-1] + 1
 
         yield {"progress": 100, "message": "Finalizing audio file..."}
+        # Replace any None entries (cancelled mid-job) with silence
+        from pydub import AudioSegment as _AS
+        for k in range(len(lines_with_audio)):
+            if lines_with_audio[k] is None:
+                buf = io.BytesIO()
+                _AS.silent(duration=500).export(buf, format="wav")
+                lines_with_audio[k] = buf.getvalue()
         final_audio_bytes = await asyncio.to_thread(align_script_audio, lines_with_audio)
         
         # PERSISTENCE
+        audio_filename = None
         try:
             output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "outputs"))
             os.makedirs(output_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"script_voiceover_{timestamp}.mp3"
-            with open(os.path.join(output_dir, filename), "wb") as f:
+            audio_filename = f"script_voiceover_{timestamp}.mp3"
+            with open(os.path.join(output_dir, audio_filename), "wb") as f:
                 f.write(final_audio_bytes)
-        except:
-            pass
+        except Exception as e:
+            print(f"[Output] Failed to save output file: {e}")
 
-        audio_b64 = base64.b64encode(final_audio_bytes).decode('utf-8')
-        yield {"progress": 100, "message": "Completed!", "audio_b64": audio_b64}
+        yield {
+            "progress": 100,
+            "message": "Completed!",
+            "audio_url": f"/outputs/{audio_filename}" if audio_filename else None,
+        }
         
     task_id = queue_manager.submit_task(generation_job)
     return {"status": "success", "task_id": task_id}
@@ -445,8 +579,8 @@ async def stream_task_progress(task_id: str):
                     "new_segments": new_segments 
                 }
                 
-                if status == TaskStatus.COMPLETED and current_task["audio_b64"]:
-                    payload.update({"type": "complete", "audioBase64": current_task["audio_b64"]})
+                if status == TaskStatus.COMPLETED and current_task.get("audio_url"):
+                    payload.update({"type": "complete", "audioUrl": current_task["audio_url"]})
                     yield f"data: {json.dumps(payload)}\n\n"
                     break
                 elif status == TaskStatus.FAILED:

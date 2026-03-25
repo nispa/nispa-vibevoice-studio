@@ -1,9 +1,9 @@
 import os
 import uvicorn
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 # Import routers (minimal impact because routers themselves use lazy imports now)
 from api.routers import system, voices, generation, jobs, translation, tasks
@@ -22,6 +22,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Ensure CORS headers are present even on unhandled errors."""
+    status = exc.status_code if hasattr(exc, "status_code") else 500
+    detail = exc.detail if hasattr(exc, "detail") else str(exc)
+    return JSONResponse(
+        status_code=status,
+        content={"detail": detail},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+_outputs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "outputs"))
+os.makedirs(_outputs_dir, exist_ok=True)
+
+@app.get("/outputs/{filename}")
+async def serve_output_file(filename: str):
+    """Serves final rendered output audio files."""
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    file_path = os.path.join(_outputs_dir, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Output file not found")
+    ext = filename.rsplit(".", 1)[-1].lower()
+    media_type = "audio/mpeg" if ext == "mp3" else "audio/wav"
+    return FileResponse(file_path, media_type=media_type, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store",
+    })
+
 @app.get("/audio-files/{job_folder}/{filename}")
 async def serve_audio_file(job_folder: str, filename: str):
     """Serves generated segment audio files with proper CORS headers."""
@@ -30,7 +59,10 @@ async def serve_audio_file(job_folder: str, filename: str):
     file_path = os.path.join(_audio_rendering_dir, job_folder, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Audio file not found")
-    return FileResponse(file_path, media_type="audio/wav")
+    return FileResponse(file_path, media_type="audio/wav", headers={
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store",
+    })
 
 # Register API routers
 app.include_router(system.router)

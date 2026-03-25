@@ -25,6 +25,79 @@ def update_settings(settings: dict):
     """Updates the system settings."""
     return config_manager.save_settings(settings)
 
+@router.get("/system/vram-info")
+def get_vram_info():
+    """
+    Returns current VRAM status and recommended/configured batch sizes per installed model.
+    Used by the Generation settings tab.
+    """
+    # VRAM snapshot
+    vram_free_gb = None
+    vram_total_gb = None
+    if torch.cuda.is_available():
+        try:
+            free_bytes, total_bytes = torch.cuda.mem_get_info()
+            vram_free_gb = round(free_bytes / (1024 ** 3), 2)
+            vram_total_gb = round(total_bytes / (1024 ** 3), 2)
+        except Exception:
+            pass
+
+    # Per-model config (mirrors tasks.py logic)
+    MODEL_VRAM_CONFIG = {
+        "1.7B": {"cost_gb": 1.8, "peak_multiplier": 2.5, "max_batch": 6},
+        "0.6B": {"cost_gb": 1.0, "peak_multiplier": 2.0, "max_batch": 8},
+    }
+    DEFAULT_VRAM_CONFIG = {"cost_gb": 1.5, "peak_multiplier": 2.0, "max_batch": 8}
+
+    def recommended_batch(model_name: str) -> int:
+        if vram_free_gb is None:
+            return 1
+        cfg = DEFAULT_VRAM_CONFIG
+        for key, c in MODEL_VRAM_CONFIG.items():
+            if key in model_name:
+                cfg = c
+                break
+        usable = vram_free_gb * 0.60
+        effective_cost = cfg["cost_gb"] * cfg["peak_multiplier"]
+        calculated = int(usable // effective_cost)
+        return max(1, min(calculated, cfg["max_batch"]))
+
+    overrides = config_manager.settings.get("tts", {}).get("batch_overrides", {})
+
+    models_info = []
+    if MODELS_DIR.exists():
+        for entry in os.listdir(MODELS_DIR):
+            if os.path.isdir(MODELS_DIR / entry):
+                rec = recommended_batch(entry)
+                override = overrides.get(entry)
+                models_info.append({
+                    "id": entry,
+                    "recommended_batch": rec,
+                    "user_batch": override,
+                    "effective_batch": override if override is not None else rec,
+                })
+
+    return {
+        "vram_free_gb": vram_free_gb,
+        "vram_total_gb": vram_total_gb,
+        "cuda_available": torch.cuda.is_available(),
+        "models": models_info,
+    }
+
+@router.post("/system/batch-override")
+def set_batch_override(model_id: str = Body(...), batch_size: int | None = Body(...)):
+    """Sets or clears a user batch size override for a specific model."""
+    settings = config_manager.settings
+    settings.setdefault("tts", {}).setdefault("batch_overrides", {})
+    if batch_size is None:
+        settings["tts"]["batch_overrides"].pop(model_id, None)
+    else:
+        if batch_size < 1 or batch_size > 32:
+            raise HTTPException(status_code=400, detail="batch_size must be between 1 and 32")
+        settings["tts"]["batch_overrides"][model_id] = batch_size
+    config_manager.save_settings(settings)
+    return {"ok": True, "overrides": settings["tts"]["batch_overrides"]}
+
 @router.get("/system/check-tools")
 def check_tools():
     """Verifies if system tools (SoX, FFmpeg) are accessible."""

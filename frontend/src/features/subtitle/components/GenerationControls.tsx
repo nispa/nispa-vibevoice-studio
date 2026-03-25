@@ -8,6 +8,7 @@ import { useSubtitleContext } from '../context/SubtitleContext';
 import type { SubtitleSegment } from '../context/SubtitleContext';
 import { useGlobalContext } from '../../../context/GlobalContext';
 import { ttsApi } from '../../../services/ttsApi';
+import { API_BASE_URL } from '../../../services/apiClient';
 import { base64ToBlobUrl } from '../../../utils/audio';
 import { showConfirm } from '../../../utils/uiEvents';
 import type { SseMessage, SseNewSegment } from '../../../types/sse';
@@ -213,8 +214,8 @@ export const GenerationControls: React.FC = () => {
                     setCurrentTaskId(null);
                     setProgress(100);
                     
-                    const url = base64ToBlobUrl(data.audioBase64, 'audio/mpeg');
-                    
+                    const url = data.audioUrl ? `${API_BASE_URL}${data.audioUrl}` : null;
+
                     setCurrentAudioUrl(url);
                     setAudioUrl(url);
                     setIsProcessing(false);

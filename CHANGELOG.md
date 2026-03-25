@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-25
+
+### Added
+- **Generation Settings tab** in Settings & Maintenance modal: shows live VRAM free/total, CUDA status, and per-model recommended batch size. Users can now set a custom batch size override per model, saved persistently in `data/settings.json`.
+- **True GPU batching for VibeVoice**: `synthesize_batch` now issues a single `processor()` + `model.generate()` call for the entire batch instead of looping sequentially, fully exploiting GPU parallelism (expected 2–4× throughput on CUDA).
+- **Script generation batching**: `generation_job` now groups consecutive lines with the same `voice_id` and calls `synthesize_batch`, matching the subtitle pipeline's batching behaviour.
+- **Final audio served via HTTP**: The completed output MP3/WAV is no longer base64-encoded into the SSE stream (~50 MB string). The file is written to `data/outputs/` and a new `GET /outputs/{filename}` endpoint serves it directly. Eliminates the large in-memory payload and the indefinite `audio_b64` retention in the task registry.
+- **Task memory eviction**: Completed, failed, and cancelled tasks are automatically removed from the in-memory registry 10 minutes after finishing, preventing unbounded memory growth during long sessions.
+
+### Fixed
+- **CORS error on intermittent audio fetch**: Added a global FastAPI exception handler that always injects `Access-Control-Allow-Origin: *` on error responses (4xx/5xx). Previously, unhandled exceptions bypassed the CORS middleware, causing the browser to report a CORS error instead of the real cause.
+- **Browser CORS cache poisoning**: Added `Cache-Control: no-store` to all audio file responses so a failed fetch is never cached by the browser.
+
+### Changed
+- **VRAM budget**: Safety margin changed from a flat `−1 GB` to `free_vram × 0.60` (reserves 40% as headroom for KV cache and attention buffers during `model.generate()`). Per-model peak multipliers added (Qwen3-1.7B: 2.5×, 0.6B: 2.0×) with absolute max-batch caps (6 and 8 respectively). Prevents large-VRAM systems from allocating oversized batches that spill into RAM.
+- **OOM auto-recovery**: If a batch triggers `torch.cuda.OutOfMemoryError`, the batch is halved, the VRAM cost estimate is doubled to prevent recurrence, and synthesis retries sequentially — no crash, no silent failure.
+- **VRAM profiling on first batch**: Measures actual VRAM delta after the first real batch and uses that value for subsequent calculations instead of static estimates.
+- **DB writes batched**: `get_job` + `update_job` now called once per batch (not once per segment). For a 100-segment job with batch size 4, this reduces SQLite operations from 200 to 50.
+- **Qwen: single VRAM flush in fallback path**: The sequential fallback (called when a batch fails) now passes `skip_cleanup=True` to each `synthesize` call and performs a single `gc.collect()` + `empty_cache()` at the end of the loop, instead of flushing once per segment.
+- **Qwen: per-segment language detection**: `synthesize_batch` now detects the language of each text individually and groups consecutive segments by language, issuing one model call per language group. Previously the language of `texts[0]` was applied to all segments.
+- **Qwen: voice reference caching**: `_get_voice_ref` is decorated with `@functools.lru_cache(maxsize=64)`. The `.wav` path and `.txt` transcription are read from disk only once per voice, not once per segment.
+- **`batch_overrides` respected in both jobs**: `calculate_optimal_batch_size` now reads `tts.batch_overrides` from `settings.json` and returns the user value immediately, bypassing VRAM calculation entirely.
+
 ## [0.6.0] - 2026-03-19
 
 ### Added

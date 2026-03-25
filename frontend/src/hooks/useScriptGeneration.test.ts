@@ -53,7 +53,7 @@ describe('useScriptGeneration', () => {
                         }
                         if (count === 1) {
                             count++;
-                            const data = 'data: {"type": "complete", "audioBase64": "SGVsbG8="}\n';
+                            const data = 'data: {"type": "complete", "audioUrl": "/outputs/test.mp3"}\n';
                             return { value: new TextEncoder().encode(data), done: false };
                         }
                         return { value: undefined, done: true };

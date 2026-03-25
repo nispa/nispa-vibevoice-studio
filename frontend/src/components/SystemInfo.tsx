@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Cpu, Wrench, AlertCircle } from 'lucide-react';
+import { Cpu, Wrench, Sliders, AlertCircle } from 'lucide-react';
 import { useSystemInfo } from '../hooks/useSystemInfo';
 import { SystemLog } from './system/SystemLog';
 import { MaintenanceTab } from './system/MaintenanceTab';
+import { GenerationTab } from './system/GenerationTab';
 
-type Tab = 'system' | 'maintenance';
+type Tab = 'system' | 'generation' | 'maintenance';
 
 interface SystemInfoProps {
     isOpen: boolean;
@@ -52,6 +53,10 @@ export const SystemInfo = ({ isOpen, onClose }: SystemInfoProps) => {
                             <Cpu size={15} />
                             System Info
                         </TabButton>
+                        <TabButton active={activeTab === 'generation'} onClick={() => setActiveTab('generation')}>
+                            <Sliders size={15} />
+                            Generation
+                        </TabButton>
                         <TabButton active={activeTab === 'maintenance'} onClick={() => setActiveTab('maintenance')}>
                             <Wrench size={15} />
                             Maintenance
@@ -82,6 +87,7 @@ export const SystemInfo = ({ isOpen, onClose }: SystemInfoProps) => {
                         </>
                     )}
 
+                    {activeTab === 'generation' && <GenerationTab />}
                     {activeTab === 'maintenance' && <MaintenanceTab />}
                 </div>
 

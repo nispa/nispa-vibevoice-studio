@@ -1,7 +1,10 @@
 import os
+import io
 import torch
 import gc
+import torchaudio
 import numpy as np
+import functools
 from typing import Optional, Union, List
 from core.tts.base import TTSProvider
 
@@ -98,247 +101,205 @@ class Qwen3TTSProvider(TTSProvider):
             print(f"[Qwen-TTS] Error loading model: {e}")
             raise RuntimeError(f"Error loading Qwen3-TTS weights: {e}")
 
-    def _load_voice_file(self, voice_id: str) -> str:
-        safe_voice_id = os.path.basename(voice_id)
-        if not safe_voice_id.endswith(".wav"):
-            voice_file = safe_voice_id + ".wav"
+    @staticmethod
+    def _detect_language(text: str, explicit: Optional[str] = None) -> str:
+        """Returns explicit language if provided, else heuristic detection."""
+        if explicit:
+            return explicit
+        return "Italian" if any(c in text.lower() for c in "àèéìòù") else "English"
+
+    def _get_silent_wav(self, duration_ms: int = 500) -> bytes:
+        """Returns silent WAV bytes."""
+        from pydub import AudioSegment
+        buf = io.BytesIO()
+        AudioSegment.silent(duration=duration_ms).export(buf, format="wav")
+        return buf.getvalue()
+
+    def _wav_from_tensor(self, audio_data, sr: int) -> bytes:
+        """Converts model output to WAV bytes and frees GPU memory."""
+        if not torch.is_tensor(audio_data):
+            audio_tensor = torch.from_numpy(audio_data).float()
         else:
-            voice_file = safe_voice_id
-        
+            audio_tensor = audio_data.detach().cpu().float()
+        if audio_tensor.dim() == 1:
+            audio_tensor = audio_tensor.unsqueeze(0)
+        buf = io.BytesIO()
+        torchaudio.save(buf, audio_tensor, sr, format="wav")
+        return buf.getvalue()
+
+    @functools.lru_cache(maxsize=64)
+    def _get_voice_ref(self, voice_id: str):
+        """Cached: returns (voice_path, ref_text | None) for a voice_id."""
+        safe_id = os.path.basename(voice_id)
+        voice_file = safe_id if safe_id.endswith(".wav") else safe_id + ".wav"
         voice_path = os.path.join(self.voices_dir, voice_file)
         if not os.path.exists(voice_path):
             raise FileNotFoundError(f"Voice reference '{voice_id}' not found.")
-        return voice_path
+        ref_text = None
+        txt_path = voice_path.replace(".wav", ".txt")
+        if os.path.exists(txt_path):
+            with open(txt_path, "r", encoding="utf-8") as f:
+                ref_text = f.read().strip()
+            print(f"[Qwen-TTS] Cached transcription for '{voice_id}' ({len(ref_text)} chars)")
+        return voice_path, ref_text
 
-    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
+    def _load_voice_file(self, voice_id: str) -> str:
+        """Legacy compatibility — returns just the path."""
+        path, _ = self._get_voice_ref(voice_id)
+        return path
+
+    def _vram_cleanup(self, local_vars: dict):
+        """Frees heavy tensors and releases VRAM cache."""
+        for name in ("wavs", "audio_data", "audio_tensor"):
+            if name in local_vars:
+                del local_vars[name]
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None, skip_cleanup: bool = False) -> bytes:
         if not text or not text.strip():
             return self._get_silent_wav()
 
         self._load_model(model_name)
-        
-        # Use passed language or fallback to detection
-        if not language:
-            language = "Italian" if any(char in text.lower() for char in "àèéìòù") else "English"
-        
-        print(f"[Qwen-TTS] Mode: Active [Language: {language}]")
+        language = self._detect_language(text, language)
+        print(f"[Qwen-TTS] synthesize [lang={language}]")
 
         ref_text = None
         if voice_id:
             try:
-                reference_audio_path = self._load_voice_file(voice_id)
-                # Check for matching transcription (.txt)
-                txt_path = reference_audio_path.replace(".wav", ".txt")
-                if os.path.exists(txt_path):
-                    with open(txt_path, "r", encoding="utf-8") as f:
-                        ref_text = f.read().strip()
-                        print(f"[Qwen-TTS] Found associated transcription for ICL mode ({len(ref_text)} chars)")
+                reference_audio_path, ref_text = self._get_voice_ref(voice_id)
             except Exception as e:
                 print(f"[Qwen-TTS] Warning: Voice reference not found: {e}")
                 reference_audio_path = None
 
+        _locals: dict = {}
         try:
-            # Determine capabilities based on model name
             is_design_model = "VoiceDesign" in model_name
             is_custom_model = "CustomVoice" in model_name
             is_base_model = "Base" in model_name
 
-            # 1. VOICE DESIGN MODE
             if voice_description and (is_design_model or is_base_model):
                 print(f"[Qwen-TTS] Mode: Voice Design ({language})")
-                wavs, sr = self.model.generate_voice_design(
-                    text=text,
-                    description=voice_description,
-                    language=language
+                _locals["wavs"], sr = self.model.generate_voice_design(
+                    text=text, description=voice_description, language=language
                 )
-            
-            # 2. VOICE CLONING MODE (Requires Base model)
             elif reference_audio_path and is_base_model:
-                print(f"[Qwen-TTS] Mode: 3s Voice Clone [Transcription: {'Present' if ref_text else 'Missing'}] ({language})")
+                print(f"[Qwen-TTS] Mode: 3s Voice Clone [tx={'yes' if ref_text else 'no'}] ({language})")
                 try:
-                    wavs, sr = self.model.generate_voice_clone(
-                        text=text,
-                        ref_audio=reference_audio_path,
-                        ref_text=ref_text, # Pass transcription if available
-                        language=language,
-                        x_vector_only_mode=False if ref_text else True # Enable ICL if text present
+                    _locals["wavs"], sr = self.model.generate_voice_clone(
+                        text=text, ref_audio=reference_audio_path, ref_text=ref_text,
+                        language=language, x_vector_only_mode=not bool(ref_text)
                     )
                 except Exception as e:
                     if "sox" in str(e).lower():
                         print("[Qwen-TTS] ERROR: SoX is required for Voice Cloning.")
-                    raise e
-
-            # 3. CUSTOM/BUILT-IN VOICE MODE (Fallback or specific Custom model)
+                    raise
             else:
                 if reference_audio_path and is_custom_model:
-                    print(f"[Qwen-TTS] Warning: {model_name} does not support cloning. Using a built-in voice instead.")
-                
-                # Check for built-in speaker names (Standard Qwen speakers)
-                speaker = "Vivian" # Default
+                    print(f"[Qwen-TTS] Warning: {model_name} does not support cloning. Using built-in voice.")
+                speaker = "Vivian"
                 if voice_id:
                     potential = voice_id.split('-')[-1].capitalize()
                     if potential in ["Vivian", "Ryan", "Daisy", "Bella"]:
                         speaker = potential
-
                 print(f"[Qwen-TTS] Mode: Custom/Built-in [Speaker: {speaker}] ({language})")
-                wavs, sr = self.model.generate_custom_voice(
-                    text=text,
-                    language=language,
-                    speaker=speaker
+                _locals["wavs"], sr = self.model.generate_custom_voice(
+                    text=text, language=language, speaker=speaker
                 )
 
-            # Convert resulting waveform to WAV bytes
-            import io
-            import torchaudio
-            buf = io.BytesIO()
-            
-            # wavs is usually a list of numpy arrays or tensors
-            audio_data = wavs[0]
-            if not torch.is_tensor(audio_data):
-                audio_tensor = torch.from_numpy(audio_data).float()
-            else:
-                audio_tensor = audio_data.detach().cpu().float()
-
-            if audio_tensor.dim() == 1:
-                audio_tensor = audio_tensor.unsqueeze(0)
-            
-            torchaudio.save(buf, audio_tensor, sr, format="wav")
-            return buf.getvalue()
+            return self._wav_from_tensor(_locals["wavs"][0], sr)
 
         except Exception as e:
             print(f"[Qwen-TTS] ✗ Synthesis error: {e}")
-            import traceback
-            traceback.print_exc()
+            import traceback; traceback.print_exc()
             raise RuntimeError(f"Qwen3-TTS inference failed: {e}")
         finally:
-            # --- CRITICAL: Aggressive VRAM cleanup after single synthesis ---
-            # PyTorch tensors returned by the model reside in the GPU's VRAM.
-            # If we don't explicitly delete these local variables, the Python Garbage Collector
-            # might keep them alive between iterations, causing VRAM usage to double or accumulate 
-            # until an Out Of Memory (OOM) crash occurs.
-            
-            # 1. Delete references to heavy tensors
-            if 'wavs' in locals():
-                del wavs
-            if 'audio_data' in locals():
-                del audio_data
-            if 'audio_tensor' in locals():
-                del audio_tensor
-                
-            # 2. Force Python to run Garbage Collection immediately
-            gc.collect()
-            
-            # 3. Force PyTorch to release the freed VRAM blocks back to the OS
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            # ----------------------------------------------------------------
+            if not skip_cleanup:
+                self._vram_cleanup(_locals)
+
+    def _call_model_batch(self, model_name: str, texts: list[str], language: str,
+                          reference_audio_path: Optional[str], ref_text: Optional[str],
+                          voice_id: Optional[str], voice_description: Optional[str]) -> tuple:
+        """Issues a single model call for a list of texts with the same language. Returns (wavs, sr)."""
+        is_design_model = "VoiceDesign" in model_name
+        is_custom_model = "CustomVoice" in model_name
+        is_base_model = "Base" in model_name
+
+        if voice_description and (is_design_model or is_base_model):
+            return self.model.generate_voice_design(
+                text=texts, description=voice_description, language=language
+            )
+        elif reference_audio_path and is_base_model:
+            return self.model.generate_voice_clone(
+                text=texts, ref_audio=reference_audio_path, ref_text=ref_text,
+                language=language, x_vector_only_mode=not bool(ref_text)
+            )
+        else:
+            if reference_audio_path and is_custom_model:
+                print(f"[Qwen-TTS] Warning: {model_name} does not support cloning. Using built-in voice.")
+            speaker = "Vivian"
+            if voice_id:
+                potential = voice_id.split('-')[-1].capitalize()
+                if potential in ["Vivian", "Ryan", "Daisy", "Bella"]:
+                    speaker = potential
+            return self.model.generate_custom_voice(
+                text=texts, language=language, speaker=speaker
+            )
 
     def synthesize_batch(self, texts: list[str], model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> list[bytes]:
         if not texts:
             return []
 
         self._load_model(model_name)
-        
-        # Use passed language or fallback to detection based on the first text
-        if not language:
-            first_text = texts[0]
-            language = "Italian" if any(char in first_text.lower() for char in "àèéìòù") else "English"
-        
-        print(f"[Qwen-TTS] Mode: Batch Active [Language: {language}, Batch Size: {len(texts)}]")
 
+        # Resolve voice ref once (cached)
         ref_text = None
         if voice_id:
             try:
-                reference_audio_path = self._load_voice_file(voice_id)
-                txt_path = reference_audio_path.replace(".wav", ".txt")
-                if os.path.exists(txt_path):
-                    with open(txt_path, "r", encoding="utf-8") as f:
-                        ref_text = f.read().strip()
+                reference_audio_path, ref_text = self._get_voice_ref(voice_id)
             except Exception as e:
                 print(f"[Qwen-TTS] Warning: Voice reference not found: {e}")
                 reference_audio_path = None
 
-        try:
-            is_design_model = "VoiceDesign" in model_name
-            is_custom_model = "CustomVoice" in model_name
-            is_base_model = "Base" in model_name
+        # Per-segment language detection — group consecutive segments by language
+        # to issue one model call per language group
+        per_text_lang = [self._detect_language(t, language) for t in texts]
 
-            # qwen_tts methods accept List[str] natively!
-            if voice_description and (is_design_model or is_base_model):
-                print(f"[Qwen-TTS] Mode: Batch Voice Design")
-                wavs, sr = self.model.generate_voice_design(
-                    text=texts,
-                    description=voice_description,
-                    language=language
-                )
-            elif reference_audio_path and is_base_model:
-                print(f"[Qwen-TTS] Mode: Batch Voice Clone")
-                wavs, sr = self.model.generate_voice_clone(
-                    text=texts,
-                    ref_audio=reference_audio_path,
-                    ref_text=ref_text,
-                    language=language,
-                    x_vector_only_mode=False if ref_text else True
-                )
+        # Build groups: list of (lang, [(orig_idx, text), ...])
+        groups: list[tuple[str, list[tuple[int, str]]]] = []
+        for i, (t, lang) in enumerate(zip(texts, per_text_lang)):
+            if groups and groups[-1][0] == lang:
+                groups[-1][1].append((i, t))
             else:
-                speaker = "Vivian"
-                if voice_id:
-                    potential = voice_id.split('-')[-1].capitalize()
-                    if potential in ["Vivian", "Ryan", "Daisy", "Bella"]:
-                        speaker = potential
+                groups.append((lang, [(i, t)]))
 
-                print(f"[Qwen-TTS] Mode: Batch Custom/Built-in [Speaker: {speaker}]")
-                wavs, sr = self.model.generate_custom_voice(
-                    text=texts,
-                    language=language,
-                    speaker=speaker
+        results: list[bytes] = [b""] * len(texts)
+        _locals: dict = {}
+
+        try:
+            for lang, group_items in groups:
+                orig_indices = [idx for idx, _ in group_items]
+                group_texts = [t for _, t in group_items]
+                print(f"[Qwen-TTS] Batch [{lang}]: {len(group_texts)} segment(s)")
+
+                _locals["wavs"], sr = self._call_model_batch(
+                    model_name, group_texts, lang,
+                    reference_audio_path, ref_text, voice_id, voice_description
                 )
 
-            # Convert resulting waveforms to WAV bytes
-            import io
-            import torchaudio
-            
-            result_bytes = []
-            for audio_data in wavs:
-                buf = io.BytesIO()
-                if not torch.is_tensor(audio_data):
-                    audio_tensor = torch.from_numpy(audio_data).float()
-                else:
-                    audio_tensor = audio_data.detach().cpu().float()
-                # Free the GPU tensor immediately after moving to CPU
-                del audio_data
+                for pos, wav in enumerate(_locals["wavs"]):
+                    results[orig_indices[pos]] = self._wav_from_tensor(wav, sr)
+                    del wav
 
-                if audio_tensor.dim() == 1:
-                    audio_tensor = audio_tensor.unsqueeze(0)
+                del _locals["wavs"]
 
-                torchaudio.save(buf, audio_tensor, sr, format="wav")
-                del audio_tensor
-                result_bytes.append(buf.getvalue())
-
-            return result_bytes
+            return results
 
         except Exception as e:
             print(f"[Qwen-TTS] ✗ Batch Synthesis error: {e}")
-            import traceback
-            traceback.print_exc()
+            import traceback; traceback.print_exc()
             raise RuntimeError(f"Qwen3-TTS batch inference failed: {e}")
         finally:
-            # --- CRITICAL: Aggressive VRAM cleanup after batch synthesis ---
-            # Similar to single synthesis, batch synthesis generates multiple large tensors
-            # that must be explicitly destroyed and collected to prevent VRAM memory leaks.
-            
-            # 1. Delete references to heavy tensors
-            if 'wavs' in locals():
-                del wavs
-            if 'audio_data' in locals():
-                del audio_data
-            if 'audio_tensor' in locals():
-                del audio_tensor
-                
-            # 2. Force Python Garbage Collection
-            gc.collect()
-            
-            # 3. Force PyTorch to release VRAM cache
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            # ---------------------------------------------------------------
+            self._vram_cleanup(_locals)
 

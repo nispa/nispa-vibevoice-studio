@@ -2,8 +2,7 @@ import { useState, useRef } from 'react';
 import { useScriptContext } from '../features/script/context/ScriptContext';
 import { useGlobalContext } from '../context/GlobalContext';
 import { ttsApi } from '../services/ttsApi';
-import { apiFetch } from '../services/apiClient';
-import { base64ToBlob } from '../utils/audio';
+import { apiFetch, API_BASE_URL } from '../services/apiClient';
 import type { SseMessage } from '../types/sse';
 
 /**
@@ -47,12 +46,11 @@ export const useScriptGeneration = () => {
             if (message.status) {
                 setProgressMessages(prev => [...prev, `[${timestamp}] ${message.status}`]);
             }
-        } else if (message.type === 'complete' && message.audioBase64) {
+        } else if (message.type === 'complete' && message.audioUrl) {
             setProgressValue(100);
             setProgressMessages(prev => [...prev, `[${timestamp}] ✓ Complete!`]);
 
-            const blob = base64ToBlob(message.audioBase64, 'audio/mpeg');
-            const url = URL.createObjectURL(blob);
+            const url = `${API_BASE_URL}${message.audioUrl}`;
             setAudioUrl(url);
 
             setTimeout(() => {

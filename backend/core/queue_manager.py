@@ -87,6 +87,17 @@ class TTSQueueManager:
         if self.worker_task is None or self.worker_task.done():
             self.worker_task = asyncio.create_task(self._worker_loop())
 
+    _EVICTION_DELAY_S = 600  # 10 minutes
+
+    async def _evict_task(self, task_id: str):
+        """Removes a completed/failed/cancelled task from memory after a delay."""
+        await asyncio.sleep(self._EVICTION_DELAY_S)
+        if task_id in self.tasks:
+            status = self.tasks[task_id].get("status")
+            if status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+                del self.tasks[task_id]
+                print(f"[Queue] Evicted task {task_id} from memory")
+
     async def _worker_loop(self):
         """
         Internal worker loop that processes tasks from the queue sequentially.
@@ -94,60 +105,51 @@ class TTSQueueManager:
         while True:
             # Wait for a task from the queue
             task_id, payload_func = await self.queue.get()
-            
+
             # If task was cancelled while in queue, skip it
             if self.tasks.get(task_id, {}).get("status") == TaskStatus.CANCELLED:
                 self.queue.task_done()
+                asyncio.create_task(self._evict_task(task_id))
                 continue
-                
+
             self.update_task(task_id, status=TaskStatus.PROCESSING, progress=0, message="Starting generation...")
-            
+
             try:
-                # payload_func is an async generic function that takes the task_id 
-                # and yields progress updates (progress_int, message_str, optional_base64_audio)
                 with OutputRedirector(self, task_id):
                     async for update in payload_func(task_id):
-                        # Check if cancelled during generation
                         task_state = self.tasks.get(task_id, {})
                         if task_state.get("status") == TaskStatus.CANCELLED:
-                            # If finalize_on_cancel is FALSE, we break immediately.
-                            # If TRUE, the generator (payload_func) itself is responsible 
-                            # for checking this and yielding the final audio.
                             if not task_state.get("finalize_on_cancel"):
                                 break
-                            # If finalizing, we let the generator continue its next yield 
-                            # (which should be the completion)
-                            
+
                         progress = update.get("progress", self.tasks[task_id]["progress"])
                         message = update.get("message", "")
-                        audio_b64 = update.get("audio_b64", None)
-                        
-                        # Store additional metadata if provided (e.g. for progress bar or previews)
+                        audio_url = update.get("audio_url", None)
+
                         if "current_item" in update:
                             self.tasks[task_id]["current_item"] = update["current_item"]
                         if "total_items" in update:
                             self.tasks[task_id]["total_items"] = update["total_items"]
-                        
-                        # Handle individual segment previews
+
                         if "segment_audio_b64" in update:
                             if "segments" not in self.tasks[task_id]:
                                 self.tasks[task_id]["segments"] = []
-                            
                             self.tasks[task_id]["segments"].append({
                                 "index": update.get("segment_index"),
                                 "text": update.get("segment_text"),
                                 "audio_b64": update["segment_audio_b64"]
                             })
 
-                        if audio_b64:
-                            self.update_task(task_id, status=TaskStatus.COMPLETED, progress=100, message=message, audio_b64=audio_b64)
+                        if audio_url:
+                            self.update_task(task_id, status=TaskStatus.COMPLETED, progress=100, message=message, audio_url=audio_url)
                         else:
                             self.add_log(task_id, message, progress)
-                        
+
             except Exception as e:
                 self.update_task(task_id, status=TaskStatus.FAILED, message=f"Error: {str(e)}")
             finally:
                 self.queue.task_done()
+                asyncio.create_task(self._evict_task(task_id))
 
     def submit_task(self, payload_func: AsyncGenerator) -> str:
         """
@@ -166,7 +168,7 @@ class TTSQueueManager:
             "status": TaskStatus.QUEUED,
             "progress": 0,
             "logs": ["Task queued. Waiting for available resources..."],
-            "audio_b64": None,
+            "audio_url": None,
             "created_at": time.time()
         }
         
@@ -185,7 +187,7 @@ class TTSQueueManager:
         """
         return self.tasks.get(task_id)
 
-    def update_task(self, task_id: str, status: str = None, progress: int = None, message: str = None, audio_b64: str = None):
+    def update_task(self, task_id: str, status: str = None, progress: int = None, message: str = None, audio_url: str = None):
         """
         Updates the status and progress of an existing task.
 
@@ -194,7 +196,7 @@ class TTSQueueManager:
             status (str, optional): The new status. Defaults to None.
             progress (int, optional): The new progress percentage. Defaults to None.
             message (str, optional): A log message to add. Defaults to None.
-            audio_b64 (str, optional): Base64 encoded audio string for completed tasks. Defaults to None.
+            audio_url (str, optional): Relative URL of the final output audio file. Defaults to None.
         """
         if task_id in self.tasks:
             if status:
@@ -203,8 +205,8 @@ class TTSQueueManager:
                 self.tasks[task_id]["progress"] = progress
             if message:
                 self.add_log(task_id, message, progress)
-            if audio_b64:
-                self.tasks[task_id]["audio_b64"] = audio_b64
+            if audio_url:
+                self.tasks[task_id]["audio_url"] = audio_url
 
     def add_log(self, task_id: str, message: str, progress: int = None):
         """
