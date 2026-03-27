@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo =======================================
-echo    Nispa Studio Installer (v0.6.0)
+echo    Nispa Studio Installer (v0.7.0)
 echo =======================================
 
 :: Step 1: Virtual Environment Setup
@@ -36,6 +36,14 @@ if "%ENGINE_CHOICE%"=="1" (
     echo [3/5] Installing ALL dependencies...
     pip install -r backend\\requirements-vibevoice.txt
     pip install -r backend\\requirements-qwen.txt
+)
+
+:: Flash Attention (compiled against installed torch/CUDA — requires MSVC + CUDA toolkit)
+echo.
+echo [3b/5] Installing Flash Attention...
+pip install flash-attn --no-build-isolation
+if errorlevel 1 (
+    echo [!] Flash Attention build failed. Continuing without it ^(optional^).
 )
 
 :: System Checks and Optimizations

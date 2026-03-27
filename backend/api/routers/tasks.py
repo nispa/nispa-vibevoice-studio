@@ -12,6 +12,9 @@ from fastapi.responses import StreamingResponse
 
 from core.parser import parse_subtitles, parse_script, group_subtitles_by_punctuation, SubtitleSegment
 from core.tts_provider import tts_engine
+from core.gpu_manager import gpu_manager
+from core.config import config_manager
+from core.vram_config import get_model_config, recommended_batch as vram_recommended_batch
 from core.aligner import align_subtitles_audio, align_script_audio
 from core.queue_manager import queue_manager, TaskStatus
 from core.audio_storage import save_segment_audio, load_segment_audio, is_file_path
@@ -128,31 +131,25 @@ async def create_subtitle_task(
 
         total_items = len(job_segments)
 
-        # Per-model config: (cost_gb_per_segment, peak_multiplier, max_batch)
-        # peak_multiplier accounts for KV cache + attention buffers during generate()
-        # Qwen has higher attention overhead than VibeVoice
-        _MODEL_VRAM_CONFIG = {
-            "1.7B": (1.8, 2.5, 6),
-            "0.6B": (1.0, 2.0, 8),
-        }
-        _DEFAULT_VRAM_CONFIG = (1.5, 2.0, 8)
-
         def _get_model_config(model_name: str):
-            for key, cfg in _MODEL_VRAM_CONFIG.items():
-                if key in model_name:
-                    return cfg
-            return _DEFAULT_VRAM_CONFIG
+            cfg = get_model_config(model_name)
+            return cfg.cost_gb, cfg.peak_multiplier, cfg.max_batch
 
         # Cache of profiled cost per segment (set after first real batch)
         _profiled_cost: dict = {"gb": None}
+
+        _last_logged_batch: dict = {"size": None}
 
         def calculate_optimal_batch_size(model_name: str, profiled_cost_gb: float | None = None) -> int:
             # Check user override first
             from core.config import config_manager as _cfg
             user_override = _cfg.settings.get("tts", {}).get("batch_overrides", {}).get(model_name)
             if user_override is not None:
-                print(f"[VRAM] Using user override batch={user_override} for {model_name}")
-                return int(user_override)
+                val = int(user_override)
+                if _last_logged_batch["size"] != val:
+                    print(f"[VRAM] Using user override batch={val} for {model_name}")
+                    _last_logged_batch["size"] = val
+                return val
 
             if not torch.cuda.is_available():
                 return 1
@@ -172,15 +169,17 @@ async def create_subtitle_task(
                 calculated_batch = int(usable_vram // effective_cost)
                 clamped = max(1, min(calculated_batch, max_batch))
 
-                print(f"[VRAM] free={free_vram_gb:.1f}GB usable={usable_vram:.1f}GB "
-                      f"cost={effective_cost:.2f}GB/seg → batch={clamped} (max={max_batch})")
+                if _last_logged_batch["size"] != clamped:
+                    print(f"[VRAM] free={free_vram_gb:.1f}GB usable={usable_vram:.1f}GB "
+                          f"cost={effective_cost:.2f}GB/seg → batch={clamped} (max={max_batch})")
+                    _last_logged_batch["size"] = clamped
                 return clamped
             except Exception as e:
                 print(f"[Sistema] Errore calcolo VRAM: {e}")
                 return 2
 
         BATCH_SIZE = calculate_optimal_batch_size(model_name)
-        print(f"[Sistema] VRAM analizzata. Batch Size dinamico impostato a: {BATCH_SIZE} per modello {model_name}")
+        print(f"[Sistema] Dynamic batch size: {BATCH_SIZE} for model {model_name}")
 
         segments_with_audio = []
         current_batch_size = BATCH_SIZE
@@ -218,10 +217,49 @@ async def create_subtitle_task(
                 _oom_retry = False
                 try:
                     _vram_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
-                    wav_bytes_list = await asyncio.to_thread(
-                        tts_engine.synthesize_batch, texts, model_name, None, voice_id, voice_description, language
-                    )
-                    # Profile VRAM cost on first real batch
+
+                    # --- Multi-GPU branch ---
+                    _disabled = set(config_manager.settings.get("tts", {}).get("multi_gpu", {}).get("disabled_devices", []))
+                    gpu_devices = [d for d in gpu_manager.get_devices() if d.index not in _disabled]
+                    if len(gpu_devices) >= 2 and len(to_generate) >= 2:
+                        splits = gpu_manager.compute_split(len(to_generate), gpu_devices)
+                        chunks: list[tuple[list, str]] = []
+                        start = 0
+                        for size, dev in zip(splits, gpu_devices):
+                            if size > 0:
+                                chunks.append((to_generate[start:start + size], dev.device_str))
+                            start += size
+
+                        if not _first_batch_done["done"]:
+                            gpu_manager.log_devices(gpu_devices)
+                            print(f"[GPU] Multi-GPU split: {[len(c) for c, _ in chunks]} segs → "
+                                  f"{[d for _, d in chunks]}")
+
+                        async def _synth_chunk(items: list, device: str) -> list[bytes]:
+                            chunk_texts = [seg.text for _, seg in items]
+                            return await asyncio.to_thread(
+                                tts_engine.synthesize_batch_on_device,
+                                chunk_texts, model_name, device,
+                                None, voice_id, voice_description, language
+                            )
+
+                        results_per_chunk = await asyncio.gather(
+                            *[_synth_chunk(items, dev) for items, dev in chunks]
+                        )
+                        for (items, _), chunk_results in zip(chunks, results_per_chunk):
+                            for (j, _), wav in zip(items, chunk_results):
+                                generated_audios[j] = wav
+                        wav_bytes_list = None  # already stored above
+                    else:
+                        # --- Single-GPU branch (original behaviour) ---
+                        wav_bytes_list = await asyncio.to_thread(
+                            tts_engine.synthesize_batch, texts, model_name, None,
+                            voice_id, voice_description, language
+                        )
+                        for (j, _), wav_bytes in zip(to_generate, wav_bytes_list):
+                            generated_audios[j] = wav_bytes
+
+                    # Profile VRAM cost on first real batch (single-GPU only)
                     if not _first_batch_done["done"] and torch.cuda.is_available() and len(texts) > 1:
                         _vram_after = torch.cuda.memory_allocated()
                         _delta_gb = (_vram_after - _vram_before) / (1024 ** 3)
@@ -229,9 +267,8 @@ async def create_subtitle_task(
                             _profiled_cost["gb"] = _delta_gb / len(texts)
                             print(f"[VRAM] Profiled cost: {_profiled_cost['gb']:.3f}GB/seg "
                                   f"(measured on batch of {len(texts)})")
-                        _first_batch_done["done"] = True
-                    for (j, _), wav_bytes in zip(to_generate, wav_bytes_list):
-                        generated_audios[j] = wav_bytes
+                    _first_batch_done["done"] = True
+
                 except torch.cuda.OutOfMemoryError as oom_e:
                     print(f"[VRAM] OOM on batch size {len(texts)}, halving and retrying: {oom_e}")
                     import gc as _gc; _gc.collect()
@@ -420,28 +457,15 @@ async def create_generation_task(
         total_items = len(script_lines)
         lines_with_audio = [None] * total_items
 
-        # Reuse the same VRAM config helpers from subtitle_job scope
-        _MODEL_VRAM_CONFIG_GEN = {"1.7B": (1.8, 2.5, 6), "0.6B": (1.0, 2.0, 8)}
-        _DEFAULT_VRAM_CONFIG_GEN = (1.5, 2.0, 8)
-
         def _gen_batch_size() -> int:
-            from core.config import config_manager as _cfg
-            user_override = _cfg.settings.get("tts", {}).get("batch_overrides", {}).get(model_name)
+            user_override = config_manager.settings.get("tts", {}).get("batch_overrides", {}).get(model_name)
             if user_override is not None:
                 return int(user_override)
             if not torch.cuda.is_available():
                 return 1
             try:
                 free_bytes, _ = torch.cuda.mem_get_info()
-                free_gb = free_bytes / (1024 ** 3)
-                cfg = _DEFAULT_VRAM_CONFIG_GEN
-                for key, c in _MODEL_VRAM_CONFIG_GEN.items():
-                    if key in model_name:
-                        cfg = c
-                        break
-                usable = free_gb * 0.60
-                effective = cfg[0] * cfg[1]
-                return max(1, min(int(usable // effective), cfg[2]))
+                return vram_recommended_batch(model_name, free_bytes / (1024 ** 3))
             except Exception:
                 return 2
 
@@ -536,6 +560,21 @@ async def create_generation_task(
     task_id = queue_manager.submit_task(generation_job)
     return {"status": "success", "task_id": task_id}
 
+
+@router.get("/tasks/active")
+async def get_active_task():
+    """Returns the currently running or queued task, if any."""
+    task = queue_manager.get_active_task()
+    if not task:
+        return {"active": False}
+    return {
+        "active": True,
+        "task_id": task["id"],
+        "status": task["status"],
+        "progress": task.get("progress", 0),
+        "current_item": task.get("current_item"),
+        "total_items": task.get("total_items"),
+    }
 
 @router.get("/tasks/{task_id}/stream")
 async def stream_task_progress(task_id: str):

@@ -53,6 +53,21 @@ export interface VramInfo {
     models: ModelBatchInfo[];
 }
 
+export interface GpuDeviceInfo {
+    index: number;
+    device_str: string;
+    name: string;
+    total_gb: number;
+    free_gb: number;
+}
+
+export interface MultiGpuInfo {
+    gpu_count: number;
+    devices: GpuDeviceInfo[];
+    enabled: boolean;
+    disabled_devices: number[];
+}
+
 export const systemApi = {
     getStatus: () => apiGet<StatusResponse>('/api/status'),
     getSystemInfo: () => apiGet<SystemInfoData>('/api/system-info'),
@@ -68,5 +83,12 @@ export const systemApi = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model_id, batch_size }),
+        }),
+    getMultiGpu: () => apiGet<MultiGpuInfo>('/api/system/multi-gpu'),
+    setMultiGpu: (disabled_devices: number[]) =>
+        apiFetch('/api/system/multi-gpu', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ disabled_devices }),
         }),
 };

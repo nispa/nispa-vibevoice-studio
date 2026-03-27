@@ -45,7 +45,7 @@ export const GenerationProgressDisplay: React.FC<GenerationProgressDisplayProps>
                         </span>
                         <span className="w-px h-2 bg-slate-700" />
                         <span className="flex items-center gap-1 text-indigo-400/80">
-                            <Timer size={10} /> {eta} rem
+                            <Timer size={10} /> {eta} remaining
                         </span>
                     </div>
                 )}
@@ -71,7 +71,7 @@ export const GenerationProgressDisplay: React.FC<GenerationProgressDisplayProps>
                         <span className="text-[10px] font-mono text-slate-300 flex items-center gap-1.5 bg-slate-800 px-2 py-1 rounded-lg border border-slate-700 shadow-sm">
                             <Timer size={12} className="text-indigo-400" /> {eta}
                         </span>
-                        <span className="text-[8px] text-slate-500 uppercase tracking-tighter">Estimated Time</span>
+                        <span className="text-[8px] text-slate-500 uppercase tracking-tighter">remaining</span>
                     </div>
                 )}
             </div>

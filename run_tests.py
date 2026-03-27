@@ -1,72 +1,56 @@
+"""
+Test runner for Nispa VibeVoice Studio.
+Usage:
+    python run_tests.py              # run all tests
+    python run_tests.py --backend    # backend only
+    python run_tests.py --frontend   # frontend only
+"""
 import subprocess
-import os
 import sys
+import os
 
-def run_command(command, cwd=None, env=None, label=""):
-    print(f"\n>>> Running {label}...")
-    try:
-        # On Windows, we need shell=True for some commands like npm
-        result = subprocess.run(command, cwd=cwd, env=env, shell=True)
-        return result.returncode == 0
-    except Exception as e:
-        print(f"Error running {label}: {e}")
+
+def run(cmd, cwd=None, env=None):
+    result = subprocess.run(cmd, cwd=cwd, env=env)
+    return result.returncode == 0
+
+
+def backend_tests():
+    print("\n=== Backend tests ===")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.path.join("backend")
+    return run(
+        [sys.executable, "-m", "pytest", "backend/tests", "-v", "--tb=short"],
+        env=env,
+    )
+
+
+def frontend_tests():
+    print("\n=== Frontend tests ===")
+    frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
+    if not os.path.exists(os.path.join(frontend_dir, "node_modules")):
+        print("  node_modules not found — run 'npm install' in frontend/ first")
         return False
+    return run(["npm", "run", "test", "--", "--run"], cwd=frontend_dir)
 
-def main():
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-    backend_dir = os.path.join(root_dir, "backend")
-    frontend_dir = os.path.join(root_dir, "frontend")
-    
-    # Prepare environment for backend
-    be_env = os.environ.copy()
-    be_env["PYTHONPATH"] = "backend"
-    
-    results = {}
-
-    print("=======================================")
-    print("   Nispa Studio Global Test Runner")
-    print("=======================================")
-
-    # 1. Backend Pytest
-    results["Backend API/Core"] = run_command(
-        ["pytest", "backend/tests"], 
-        cwd=root_dir, 
-        env=be_env, 
-        label="Backend Pytest"
-    )
-
-    # 2. Scripts Unittest
-    results["Install Scripts"] = run_command(
-        [sys.executable, "backend/tests/test_scripts.py"], 
-        cwd=root_dir, 
-        label="Script Unittests"
-    )
-
-    # 3. Frontend Vitest
-    results["Frontend UI"] = run_command(
-        ["npm", "test", "--", "--run"], 
-        cwd=frontend_dir, 
-        label="Frontend Vitest"
-    )
-
-    # Final Summary
-    print("\n" + "="*39)
-    print("           TEST SUMMARY")
-    print("="*39)
-    all_passed = True
-    for test_name, passed in results.items():
-        status = "PASSED [✓]" if passed else "FAILED [✗]"
-        print(f"{test_name:<25}: {status}")
-        if not passed:
-            all_passed = False
-    print("="*39)
-
-    if all_passed:
-        print("TOTAL STATUS: SUCCESSFUL")
-        sys.exit(0)
-    else:
-        print("TOTAL STATUS: FAILED")
-        sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    args = sys.argv[1:]
+    run_backend  = "--frontend" not in args
+    run_frontend = "--backend"  not in args
+
+    results = {}
+    if run_backend:
+        results["backend"] = backend_tests()
+    if run_frontend:
+        results["frontend"] = frontend_tests()
+
+    print("\n=== Results ===")
+    all_passed = True
+    for suite, passed in results.items():
+        status = "PASSED" if passed else "FAILED"
+        print(f"  {suite}: {status}")
+        if not passed:
+            all_passed = False
+
+    sys.exit(0 if all_passed else 1)

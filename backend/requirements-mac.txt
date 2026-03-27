@@ -8,9 +8,9 @@ webvtt-py
 psutil
 requests
 
-# Shared ML dependencies (cu130 for CUDA 13.x / sm_120+ Blackwell support)
---extra-index-url https://download.pytorch.org/whl/cu130
-torch==2.10.0
+# PyTorch for macOS (CPU + MPS via Apple Silicon)
+# Note: flash-attn is NOT available on macOS — sdpa is used automatically
+torch
 torchvision
 torchaudio
 transformers>=4.48.0

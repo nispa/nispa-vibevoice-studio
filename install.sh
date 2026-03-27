@@ -1,8 +1,16 @@
 #!/bin/bash
 
 echo "======================================="
-echo "   Nispa Studio Installer (v0.6.0)"
+echo "   Nispa Studio Installer (v0.7.0)"
 echo "======================================="
+
+# Detect platform
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    PLATFORM="mac"
+    echo "[i] macOS detected — using CPU/MPS (Apple Silicon) build"
+else
+    PLATFORM="linux"
+fi
 
 # Step 1: Virtual Environment Setup
 if [ ! -d "venv" ]; then
@@ -13,7 +21,11 @@ fi
 source venv/bin/activate
 
 echo "[2/5] Installing Core dependencies..."
-pip install -r backend/requirements.txt
+if [ "$PLATFORM" = "mac" ]; then
+    pip install -r backend/requirements-mac.txt
+else
+    pip install -r backend/requirements.txt
+fi
 
 # Step 2: Choose Engines
 echo ""
@@ -38,20 +50,38 @@ else
     pip install -r backend/requirements-qwen.txt
 fi
 
+# Flash Attention — macOS not supported, skip gracefully
+if [ "$PLATFORM" = "mac" ]; then
+    echo ""
+    echo "[3b/5] Skipping Flash Attention (not supported on macOS — sdpa used automatically)"
+fi
+
 # Step 3: System Checks and Optimizations
 echo ""
 echo "[4/5] Environment Optimization..."
-./venv/bin/python backend/scripts/optimize_env.py
+./venv/bin/python backend/scripts/optimize_env.py || true
 
 # Step 4: Final Directory Checks
 echo ""
 echo "[5/5] Ensuring data directories exist..."
 mkdir -p data/model data/model-translation data/voices data/outputs data/audio-rendering
 
+# SoX check (needed for Qwen voice cloning)
+if command -v sox &> /dev/null; then
+    echo "[OK] SoX found: $(sox --version 2>&1 | head -1)"
+elif [ "$PLATFORM" = "mac" ]; then
+    echo "[!] WARNING: SoX not found. Voice cloning may fail."
+    echo "    Install with: brew install sox"
+fi
+
 # Step 5: Frontend Setup
 echo ""
 echo "Setting up React frontend..."
-cd frontend && npm install && cd ..
+if [ -f "frontend/package.json" ]; then
+    cd frontend && npm install && cd ..
+else
+    echo "[!] Frontend folder not found or missing package.json. Skipping..."
+fi
 
 # Optional: Download models
 echo ""

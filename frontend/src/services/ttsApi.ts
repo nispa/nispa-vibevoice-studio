@@ -24,6 +24,9 @@ export const ttsApi = {
     submitGenerationTask: (body: FormData) =>
         apiPostForm<{ task_id: string }>('/api/tasks/generate-subtitles', body),
 
+    getActiveTask: () =>
+        apiGet<{ active: boolean; task_id?: string; status?: string; progress?: number; current_item?: number; total_items?: number }>('/api/tasks/active'),
+
     cancelTask: (taskId: string, finalize: boolean) =>
         apiFetch(`/api/tasks/${taskId}/cancel?finalize=${finalize}`, { method: 'POST' }),
 

@@ -15,17 +15,25 @@ class Qwen3TTSProvider(TTSProvider):
     Supports high-fidelity synthesis, 3-second voice cloning, 
     and voice design via text descriptions.
     """
-    def __init__(self):
+    def __init__(self, device: str = None):
+        """
+        Args:
+            device: Explicit device string (e.g. "cuda:0", "cuda:1").
+                    If None, auto-detects the best available device.
+        """
         self.base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "model"))
         self.voices_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "voices"))
-        
+
         self.loaded_model_name = None
         self.model = None
         self.processor = None
-        
+
         # Device selection logic
-        if torch.cuda.is_available():
-            self.device = "cuda"
+        if device:
+            self.device = device
+            self.dtype = torch.bfloat16
+        elif torch.cuda.is_available():
+            self.device = "cuda:0"
             self.dtype = torch.bfloat16
         elif torch.backends.mps.is_available():
             self.device = "mps"
@@ -33,7 +41,7 @@ class Qwen3TTSProvider(TTSProvider):
         else:
             self.device = "cpu"
             self.dtype = torch.float32
-            
+
         print(f"[Qwen-TTS] Device: {self.device}, dtype: {self.dtype}")
 
     def _load_model(self, model_name: str):
@@ -72,22 +80,23 @@ class Qwen3TTSProvider(TTSProvider):
         try:
             # We use Qwen3TTSModel from the qwen_tts package
             from qwen_tts import Qwen3TTSModel
-            target_device = "cuda:0" if self.device == "cuda" else self.device
-            
+            target_device = self.device
+            is_cuda = self.device.startswith("cuda")
+
             # Use flash_attention_2 if on CUDA, otherwise fallback to sdpa
             try:
                 self.model = Qwen3TTSModel.from_pretrained(
                     model_dir,
                     dtype=self.dtype,
-                    device_map={"": target_device} if self.device == "cuda" else None,
-                    attn_implementation="flash_attention_2" if self.device == "cuda" else "sdpa"
+                    device_map={"": target_device} if is_cuda else None,
+                    attn_implementation="flash_attention_2" if is_cuda else "sdpa"
                 )
             except Exception as e:
                 print(f"[Qwen-TTS] Flash Attention 2 failed or not supported, falling back to sdpa: {e}")
                 self.model = Qwen3TTSModel.from_pretrained(
                     model_dir,
                     dtype=self.dtype,
-                    device_map={"": target_device} if self.device == "cuda" else None,
+                    device_map={"": target_device} if is_cuda else None,
                     attn_implementation="sdpa"
                 )
 
@@ -124,7 +133,8 @@ class Qwen3TTSProvider(TTSProvider):
         if audio_tensor.dim() == 1:
             audio_tensor = audio_tensor.unsqueeze(0)
         buf = io.BytesIO()
-        torchaudio.save(buf, audio_tensor, sr, format="wav")
+        import soundfile as sf
+        sf.write(buf, audio_tensor.squeeze(0).numpy(), sr, format="WAV")
         return buf.getvalue()
 
     @functools.lru_cache(maxsize=64)

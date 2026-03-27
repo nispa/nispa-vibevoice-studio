@@ -34,7 +34,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo Starting Backend Server...
-start "VibeVoice Backend" powershell -NoExit -Command "$env:PATH='%PATH%'; cd backend; ..\venv\Scripts\Activate.ps1; uvicorn main:app --reload"
+start "VibeVoice Backend" powershell -NoExit -Command "$env:PATH='!PATH!'; cd backend; ..\venv\Scripts\Activate.ps1; uvicorn main:app --reload"
 
 echo.
 echo Starting Frontend Server...

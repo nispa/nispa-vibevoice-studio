@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-03-27
+
+### Added
+- **macOS / Apple Silicon support**: The app now runs on Mac. On Apple Silicon (M1/M2/M3/M4), PyTorch MPS is used as the compute device; on Intel Mac, CPU is used. CUDA is not required.
+- **`backend/core/device_utils.py`**: New utility module with `get_default_device()` — single source of truth for device selection across the entire backend (`cuda:N` with best free VRAM → `mps` → `cpu`).
+- **`backend/requirements-mac.txt`**: Mac-specific requirements file (standard PyTorch from PyPI, no `cu130` index URL, no Flash Attention).
+- **`install.sh` updated to v0.7.0**: Auto-detects macOS and uses `requirements-mac.txt`. Skips Flash Attention build on Mac with an explanatory message. Adds SoX check with `brew install sox` hint.
+
+### Changed
+- **`MultiModelProvider`** (`tts_provider.py`): Default device changed from the hardcoded `"cuda:0"` to `get_default_device()`. This was the root cause of failures on Mac — providers received an explicit `"cuda:0"` that bypassed the MPS detection already present in `vibe_provider.py` and `qwen_provider.py`.
+- **`TTSProvider._get_best_gpu()`** (`base.py`): Now delegates to `get_default_device()` and returns `"mps"` on Apple Silicon instead of `"cpu"`.
+
+### Notes
+- On Mac, dynamic VRAM batching always returns `batch_size=1` (MPS does not expose `mem_get_info`). Generation works correctly but without multi-segment parallelism. VRAM-aware batching for MPS is a future improvement.
+- Flash Attention is automatically replaced by `sdpa` on Mac (already handled in `vibe_provider.py` and `qwen_provider.py`).
+- SoX for Voice Cloning must be installed manually on Mac: `brew install sox`.
+
 ## [0.7.0] - 2026-03-25
 
 ### Added

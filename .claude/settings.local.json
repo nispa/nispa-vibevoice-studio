@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(npx vitest:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(wc -l f:/nispa-voiceover/backend/api/routers/*.py f:/nispa-voiceover/backend/core/*.py)",
+      "Bash(ls -la \"f:/nispa-voiceover/backend/tests/\"*.py)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(python -c \":*)",
+      "Bash(PYTHONPATH=backend venv/Scripts/python -m pytest backend/tests/test_vram_config.py backend/tests/test_gpu_manager.py backend/tests/test_parser.py backend/tests/test_aligner.py -v --tb=short)",
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(PYTHONPATH=backend venv/Scripts/python -m pytest backend/tests/test_vram_config.py backend/tests/test_gpu_manager.py backend/tests/test_parser.py backend/tests/test_aligner.py backend/tests/test_queue.py -v --tb=short)"
     ]
   }
 }

@@ -95,3 +95,6 @@ data/audio-rendering/*
 logs/
 *.tmp
 *.temp
+
+# Planning (local only)
+planning/

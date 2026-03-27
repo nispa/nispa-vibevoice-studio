@@ -9,29 +9,39 @@ from core.tts.base import TTSProvider
 class VibeVoiceProvider(TTSProvider):
     """
     Implementation of TTSProvider using the VibeVoice model.
-    
-    Supports high-quality text-to-speech synthesis with zero-shot voice cloning 
+
+    Supports high-quality text-to-speech synthesis with zero-shot voice cloning
     capabilities using reference audio files.
     """
-    def __init__(self):
+    def __init__(self, device: str = None):
         """
-        Initializes the VibeVoiceProvider, detects available hardware (CUDA, MPS, or CPU), 
-        and sets up directory paths.
+        Initializes the VibeVoiceProvider.
+
+        Args:
+            device: Explicit device string (e.g. "cuda:0", "cuda:1").
+                    If None, auto-detects the best available device.
         """
         # Paths
         self.base_model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "model"))
         self.voices_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "voices"))
-        
+
         # Model cache
         self.loaded_model_name = None
         self.model = None
         self.processor = None
-        
+
         # Device selection
-        if torch.cuda.is_available():
-            self.device = "cuda"
+        if device:
+            self.device = device
             self.dtype = torch.float16
-            # Check if flash-attn is actually installed to avoid warning spam
+            try:
+                import flash_attn
+                self.attn_impl = "flash_attention_2"
+            except ImportError:
+                self.attn_impl = "sdpa"
+        elif torch.cuda.is_available():
+            self.device = "cuda:0"
+            self.dtype = torch.float16
             try:
                 import flash_attn
                 self.attn_impl = "flash_attention_2"
@@ -45,8 +55,8 @@ class VibeVoiceProvider(TTSProvider):
             self.device = "cpu"
             self.dtype = torch.float32
             self.attn_impl = "sdpa"
-        
-        print(f"[TTS] Device: {self.device}, dtype: {self.dtype}")
+
+        print(f"[VibeVoice] Device: {self.device}, dtype: {self.dtype}")
 
     def _load_model(self, model_name: str):
         """
@@ -108,7 +118,7 @@ class VibeVoiceProvider(TTSProvider):
             self.processor = VibeVoiceProcessor.from_pretrained(model_dir)
             
             # Load model with device-specific optimizations
-            target_device = self._get_best_gpu() if self.device == "cuda" else self.device
+            target_device = self.device
             
             try:
                 if self.device == "mps":
@@ -119,7 +129,7 @@ class VibeVoiceProvider(TTSProvider):
                         device_map=None,
                     )
                     self.model.to("mps")
-                elif self.device == "cuda":
+                elif self.device.startswith("cuda"):
                     self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                         model_dir,
                         torch_dtype=self.dtype,
@@ -141,7 +151,8 @@ class VibeVoiceProvider(TTSProvider):
                 self.model = VibeVoiceForConditionalGenerationInference.from_pretrained(
                     model_dir,
                     torch_dtype=self.dtype,
-                    device_map=(self.device if self.device in ("cuda", "cpu") else None),
+                    device_map=({"": target_device} if self.device.startswith("cuda") else
+                                (self.device if self.device == "cpu" else None)),
                     attn_implementation='sdpa'
                 )
                 if self.device == "mps":

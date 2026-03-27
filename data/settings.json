@@ -11,5 +11,13 @@
     },
     "ui": {
         "theme": "dark"
+    },
+    "tts": {
+        "batch_overrides": {
+            "Qwen3-TTS-12Hz-1.7B-Base": 4
+        },
+        "multi_gpu": {
+            "disabled_devices": []
+        }
     }
 }

@@ -175,6 +175,13 @@ class TTSQueueManager:
         self.queue.put_nowait((task_id, payload_func))
         return task_id
 
+    def get_active_task(self) -> Optional[Dict[str, Any]]:
+        """Returns the first task that is QUEUED or PROCESSING, or None."""
+        for task in self.tasks.values():
+            if task.get("status") in (TaskStatus.QUEUED, TaskStatus.PROCESSING):
+                return task
+        return None
+
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieves the current state of a task.

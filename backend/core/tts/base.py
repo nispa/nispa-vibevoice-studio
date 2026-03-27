@@ -12,30 +12,19 @@ class TTSProvider(ABC):
 
     def _get_best_gpu(self) -> str:
         """
-        Detects the GPU with the most free VRAM.
-        Returns a string like 'cuda:0' or 'cuda:1'.
+        Detects the best available compute device.
+        Returns 'cuda:N' (best free VRAM), 'mps' (Apple Silicon), or 'cpu'.
         """
-        if not torch.cuda.is_available():
-            return "cpu"
-        
-        gpu_count = torch.cuda.device_count()
-        if gpu_count <= 1:
-            return "cuda:0"
-            
-        best_id = 0
-        max_free = 0
-        for i in range(gpu_count):
+        from core.device_utils import get_default_device
+        device = get_default_device()
+        if device.startswith("cuda:") and torch.cuda.device_count() > 1:
             try:
-                # Get free memory for each device
-                free, total = torch.cuda.mem_get_info(i)
-                if free > max_free:
-                    max_free = free
-                    best_id = i
+                idx = int(device.split(":")[1])
+                free, _ = torch.cuda.mem_get_info(idx)
+                print(f"[TTS] Selecting best GPU: {device} ({free / 1024**3:.2f} GB free)")
             except Exception:
-                continue
-        
-        print(f"[TTS] Selecting best GPU: cuda:{best_id} ({max_free / 1024**3:.2f} GB free)")
-        return f"cuda:{best_id}"
+                pass
+        return device
 
     @abstractmethod
     def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:

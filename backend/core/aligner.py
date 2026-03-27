@@ -1,7 +1,34 @@
 from pydub import AudioSegment
 import io
+import os
+import tempfile
 from typing import List, Tuple
 from .parser import SubtitleSegment, ScriptLine
+
+def _export_audio(audio: AudioSegment, fmt: str) -> bytes:
+    """
+    Exports an AudioSegment to bytes in the given format.
+    For MP3, uses a named temp file to avoid ffmpeg pipe truncation on large files.
+    For WAV, writes directly to BytesIO (no subprocess involved).
+    """
+    if fmt == "wav":
+        buf = io.BytesIO()
+        audio.export(buf, format="wav")
+        return buf.getvalue()
+
+    # MP3 (or other ffmpeg-based formats): write to a temp file to avoid pipe truncation
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=f".{fmt}")
+    os.close(tmp_fd)
+    try:
+        audio.export(tmp_path, format=fmt, bitrate="192k")
+        with open(tmp_path, "rb") as f:
+            return f.read()
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
 
 def align_subtitles_audio(segments_with_audio: List[Tuple[SubtitleSegment, bytes]], output_format: str = "mp3") -> bytes:
     """
@@ -42,11 +69,8 @@ def align_subtitles_audio(segments_with_audio: List[Tuple[SubtitleSegment, bytes
             print(f"[Aligner] Error processing segment {segment.index}: {e}")
             
     # Export final audio to requested format
-    out_buf = io.BytesIO()
-    # Ensure format is compatible with pydub (wav or mp3)
     fmt = output_format.lower() if output_format.lower() in ["wav", "mp3"] else "mp3"
-    master_audio.export(out_buf, format=fmt)
-    return out_buf.getvalue()
+    return _export_audio(master_audio, fmt)
 
 def align_script_audio(lines_with_audio: List[bytes], gap_ms: int = 300, output_format: str = "mp3") -> bytes:
     """
@@ -73,7 +97,5 @@ def align_script_audio(lines_with_audio: List[bytes], gap_ms: int = 300, output_
         except Exception as e:
             print(f"Error parsing script audio: {e}")
             
-    out_buf = io.BytesIO()
     fmt = output_format.lower() if output_format.lower() in ["wav", "mp3"] else "mp3"
-    master_audio.export(out_buf, format=fmt)
-    return out_buf.getvalue()
+    return _export_audio(master_audio, fmt)

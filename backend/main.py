@@ -1,6 +1,5 @@
 import os
 import uvicorn
-import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -84,11 +83,6 @@ async def startup_event():
     from core.queue_manager import queue_manager
     await queue_manager.start_worker()
 
-    # Initialize TTS engines in a separate thread to not block startup
-    # This allows the API to start responding to status checks immediately
-    from core.tts_provider import tts_engine
-    asyncio.create_task(asyncio.to_thread(tts_engine.initialize))
-    
 if __name__ == "__main__":
     """
     Main entry point for running the FastAPI server using Uvicorn.

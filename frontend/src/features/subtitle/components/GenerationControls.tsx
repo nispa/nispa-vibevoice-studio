@@ -74,6 +74,94 @@ export const GenerationControls: React.FC = () => {
     const [outputFormat, setOutputFormat] = React.useState<'mp3' | 'wav'>('mp3');
     const [voiceDescription, setVoiceDescription] = React.useState<string>('');
 
+    /** Persists the active task to sessionStorage so it survives a page refresh. */
+    const persistActiveTask = React.useCallback((taskId: string, jobId: number | null) => {
+        sessionStorage.setItem('nispa_task_id', taskId);
+        if (jobId != null) sessionStorage.setItem('nispa_job_id', String(jobId));
+    }, []);
+
+    /** Clears the persisted task from sessionStorage. */
+    const clearPersistedTask = React.useCallback(() => {
+        sessionStorage.removeItem('nispa_task_id');
+        sessionStorage.removeItem('nispa_job_id');
+    }, []);
+
+    /** Connects an EventSource to an existing task_id and sets processing state. */
+    const connectToTask = React.useCallback((task_id: string) => {
+        if (eventSourceRef.current) return; // already connected
+        setIsProcessing(true);
+        setCurrentTaskId(task_id);
+        setShowLogsModal(true);
+        addLog(`Reconnecting to task ${task_id}...`);
+
+        const eventSource = new EventSource(ttsApi.taskStreamUrl(task_id));
+        eventSourceRef.current = eventSource;
+
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data) as SseMessage;
+            if (data.type === 'progress' || data.type === 'complete') {
+                if (data.status) addLog(data.status);
+                if (data.new_segments && data.new_segments.length > 0) {
+                    const newPreviewSegments: GeneratedSegment[] = data.new_segments!.map((seg: SseNewSegment) => ({
+                        index: seg.index, text: seg.text,
+                        audioUrl: base64ToBlobUrl(seg.audio_b64), audioBase64: seg.audio_b64,
+                        voice_id: seg.voice_id, model_name: seg.model_name, language: seg.language
+                    }));
+                    setGeneratedSegments(prev => [...prev, ...newPreviewSegments]);
+                    setSubtitleSegments((prev: SubtitleSegment[]) => {
+                        const updated = [...prev];
+                        newPreviewSegments.forEach((newSeg: GeneratedSegment) => {
+                            const idx = updated.findIndex(s => s.index === newSeg.index);
+                            if (idx !== -1) updated[idx] = { ...updated[idx], audioUrl: newSeg.audioUrl, audioBase64: newSeg.audioBase64, voice_id: newSeg.voice_id, model_name: newSeg.model_name, language: newSeg.language };
+                        });
+                        return updated;
+                    });
+                }
+                if (data.current_item != null && data.total_items != null) {
+                    updateItemProgress(data.current_item, data.total_items);
+                } else if (data.progress !== undefined) {
+                    setProgress(data.progress);
+                }
+            }
+            if (data.type === 'complete') {
+                eventSource.close(); eventSourceRef.current = null;
+                setCurrentTaskId(null); clearPersistedTask();
+                setProgress(100);
+                const url = data.audioUrl ? `${API_BASE_URL}${data.audioUrl}` : null;
+                setCurrentAudioUrl(url); setAudioUrl(url); setIsProcessing(false);
+                addLog('✓ Generation finished.');
+                if (subtitleSegments.length > 0) saveJobDraft('Completed generation', subtitleSegments, subtitleFile?.name);
+                setTimeout(() => setShowReviewModal(true), 500);
+            }
+            if (data.type === 'error') {
+                eventSource.close(); eventSourceRef.current = null;
+                setCurrentTaskId(null); clearPersistedTask();
+                setErrorMsg(data.message); addLog(`✗ Error: ${data.message}`); setIsProcessing(false);
+            }
+        };
+        eventSource.onerror = () => {
+            eventSource.close(); eventSourceRef.current = null;
+            setCurrentTaskId(null); clearPersistedTask();
+            setErrorMsg("Lost connection to server while generating."); setIsProcessing(false);
+        };
+    }, [addLog, setIsProcessing, setCurrentTaskId, setShowLogsModal, setGeneratedSegments,
+        setSubtitleSegments, updateItemProgress, setProgress, setCurrentAudioUrl, setAudioUrl,
+        setErrorMsg, setShowReviewModal, saveJobDraft, subtitleSegments, subtitleFile, clearPersistedTask]);
+
+    /** On mount: check if there's an active task in the backend and reconnect. */
+    React.useEffect(() => {
+        const savedTaskId = sessionStorage.getItem('nispa_task_id');
+        if (!savedTaskId) return;
+        ttsApi.getActiveTask().then(res => {
+            if (res.active && res.task_id === savedTaskId) {
+                connectToTask(savedTaskId);
+            } else {
+                clearPersistedTask();
+            }
+        }).catch(() => clearPersistedTask());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const selectedModelData = models.find(m => m.id === selectedModel);
     const supportsVoiceDesign = selectedModelData?.supports_voice_design || false;
 
@@ -151,6 +239,7 @@ export const GenerationControls: React.FC = () => {
             addLog(`Submitting generation task (${outputFormat.toUpperCase()}) to server...`);
             const { task_id } = await ttsApi.submitGenerationTask(formData);
             setCurrentTaskId(task_id);
+            persistActiveTask(task_id, currentJobId);
             addLog(`Task created: ${task_id}. Waiting for progress...`);
 
             // Connect to EventSource for progress updates
@@ -212,6 +301,7 @@ export const GenerationControls: React.FC = () => {
                     eventSource.close();
                     eventSourceRef.current = null;
                     setCurrentTaskId(null);
+                    clearPersistedTask();
                     setProgress(100);
                     
                     const url = data.audioUrl ? `${API_BASE_URL}${data.audioUrl}` : null;
@@ -236,6 +326,7 @@ export const GenerationControls: React.FC = () => {
                     eventSource.close();
                     eventSourceRef.current = null;
                     setCurrentTaskId(null);
+                    clearPersistedTask();
                     setErrorMsg(data.message);
                     addLog(`✗ Error: ${data.message}`);
                     setIsProcessing(false);
@@ -246,6 +337,7 @@ export const GenerationControls: React.FC = () => {
                 eventSource.close();
                 eventSourceRef.current = null;
                 setCurrentTaskId(null);
+                clearPersistedTask();
                 setErrorMsg("Lost connection to server while generating.");
                 setIsProcessing(false);
             };

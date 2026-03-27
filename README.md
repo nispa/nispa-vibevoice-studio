@@ -19,11 +19,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.6.0-blueviolet?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.7.1-blueviolet?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" alt="Python"/>
   <img src="https://img.shields.io/badge/react-19-61DAFB?style=flat-square&logo=react" alt="React"/>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"/>
-  <img src="https://img.shields.io/badge/GPU-NVIDIA_RTX-76B900?style=flat-square&logo=nvidia" alt="GPU"/>
+  <img src="https://img.shields.io/badge/GPU-NVIDIA_RTX%20%7C%20Apple_MPS-76B900?style=flat-square&logo=nvidia" alt="GPU"/>
   <img src="https://img.shields.io/badge/offline-100%25-orange?style=flat-square" alt="Offline"/>
 </p>
 
@@ -79,10 +79,12 @@ Audio segments are saved to a local SQLite database **the instant they are gener
 | **OS** | Windows 10/11, Linux, macOS |
 | **Python** | 3.10+ |
 | **Node.js** | 18+ (for frontend) |
-| **GPU** | NVIDIA (RTX 30-series+ recommended) |
+| **GPU** | NVIDIA RTX (recommended) · Apple Silicon MPS · CPU fallback |
 | **RAM** | 16GB+ recommended |
 | **FFmpeg** | Required for audio processing |
-| **SoX** | Required for Qwen3 Voice Cloning on Windows |
+| **SoX** | Required for Qwen3 Voice Cloning (`brew install sox` on Mac) |
+
+> **macOS note**: Apple Silicon (M1/M2/M3/M4) is supported via PyTorch MPS. CUDA and Flash Attention are not required. `install.sh` auto-detects macOS and configures everything correctly. Batch size is fixed at 1 on MPS (VRAM-aware batching requires CUDA).
 
 ### Installation
 
@@ -110,10 +112,11 @@ start.bat
 
 The installer will:
 1. Create a Python virtual environment
-2. Install backend dependencies (with engine selection)
-3. Auto-detect Flash Attention compatibility
+2. Install backend dependencies (engine selection + platform-appropriate PyTorch build)
+3. Auto-detect Flash Attention compatibility (skipped automatically on macOS)
 4. Install frontend dependencies via `npm`
-5. Optionally launch the model downloader
+5. Check for SoX and print install hint if missing
+6. Optionally launch the model downloader
 
 ### FFmpeg Installation
 
@@ -179,6 +182,7 @@ nispa-voiceover/
 │   │   │   ├── qwen_provider.py # Qwen3-TTS implementation
 │   │   │   └── vibe_provider.py # VibeVoice implementation
 │   │   ├── tts_provider.py      # Multi-model orchestrator
+│   │   ├── device_utils.py      # get_default_device() — CUDA/MPS/CPU selection
 │   │   ├── queue_manager.py     # Async task queue with SSE
 │   │   ├── aligner.py           # Audio timestamp alignment
 │   │   ├── parser.py            # SRT/VTT/Script parsing
@@ -203,6 +207,18 @@ nispa-voiceover/
 - **SSE Streaming**: Real-time progress updates via Server-Sent Events
 - **Incremental Persistence**: Each audio segment is saved to SQLite the moment it's generated
 - **Dynamic Batching**: GPU VRAM is queried before each batch to determine optimal size
+
+---
+
+## 📖 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Full user guide (EN) — installation, workflows, FAQ |
+| [docs/GUIDA_UTENTE.md](docs/GUIDA_UTENTE.md) | Guida utente completa (IT) — installazione, workflow, FAQ |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Backend REST API reference |
+| [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) | Architecture & internals |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
 
@@ -252,10 +268,9 @@ cd frontend && npm run dev
 
 ### Areas Where Help Is Needed
 
-- 🐛 Frontend refactoring (see [REFACTORING_PLAN.md](REFACTORING_PLAN.md))
 - 🧪 Test coverage expansion (target: >60%)
 - 🌍 UI internationalization (i18n)
-- 🍎 macOS Apple Silicon (MPS) optimization
+- 🍎 macOS MPS batching — VRAM-aware batch sizing for Apple Silicon (currently fixed at 1)
 - 📖 Documentation improvements
 
 ---

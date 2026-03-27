@@ -10,6 +10,8 @@ import shutil
 from pathlib import Path
 from core.tts_provider import tts_engine
 from core.config import MODELS_DIR, config_manager
+from core.gpu_manager import gpu_manager
+from core.vram_config import recommended_batch as vram_recommended_batch
 from core.audio_storage import AUDIO_RENDERING_ROOT
 from db.database import DB_PATH, get_all_jobs
 
@@ -42,25 +44,10 @@ def get_vram_info():
         except Exception:
             pass
 
-    # Per-model config (mirrors tasks.py logic)
-    MODEL_VRAM_CONFIG = {
-        "1.7B": {"cost_gb": 1.8, "peak_multiplier": 2.5, "max_batch": 6},
-        "0.6B": {"cost_gb": 1.0, "peak_multiplier": 2.0, "max_batch": 8},
-    }
-    DEFAULT_VRAM_CONFIG = {"cost_gb": 1.5, "peak_multiplier": 2.0, "max_batch": 8}
-
     def recommended_batch(model_name: str) -> int:
         if vram_free_gb is None:
             return 1
-        cfg = DEFAULT_VRAM_CONFIG
-        for key, c in MODEL_VRAM_CONFIG.items():
-            if key in model_name:
-                cfg = c
-                break
-        usable = vram_free_gb * 0.60
-        effective_cost = cfg["cost_gb"] * cfg["peak_multiplier"]
-        calculated = int(usable // effective_cost)
-        return max(1, min(calculated, cfg["max_batch"]))
+        return vram_recommended_batch(model_name, vram_free_gb)
 
     overrides = config_manager.settings.get("tts", {}).get("batch_overrides", {})
 
@@ -97,6 +84,43 @@ def set_batch_override(model_id: str = Body(...), batch_size: int | None = Body(
         settings["tts"]["batch_overrides"][model_id] = batch_size
     config_manager.save_settings(settings)
     return {"ok": True, "overrides": settings["tts"]["batch_overrides"]}
+
+@router.get("/system/multi-gpu")
+def get_multi_gpu():
+    """
+    Returns all detected CUDA GPUs with current VRAM and the list of
+    user-disabled device indices from settings.json.
+    """
+    devices = gpu_manager.get_devices()
+    disabled = config_manager.settings.get("tts", {}).get("multi_gpu", {}).get("disabled_devices", [])
+    return {
+        "gpu_count": len(devices),
+        "devices": [
+            {
+                "index": d.index,
+                "device_str": d.device_str,
+                "name": d.name,
+                "total_gb": round(d.total_gb, 1),
+                "free_gb": round(d.free_gb, 1),
+            }
+            for d in devices
+        ],
+        "enabled": True,
+        "disabled_devices": disabled,
+    }
+
+
+@router.post("/system/multi-gpu")
+def set_multi_gpu(
+    enabled: bool = Body(default=True),
+    disabled_devices: list[int] = Body(default=[]),
+):
+    """Saves the list of disabled GPU device indices to settings.json."""
+    settings = config_manager.settings
+    settings.setdefault("tts", {})["multi_gpu"] = {"disabled_devices": disabled_devices}
+    config_manager.save_settings(settings)
+    return {"ok": True, "disabled_devices": disabled_devices}
+
 
 @router.get("/system/check-tools")
 def check_tools():
@@ -168,7 +192,7 @@ def read_health():
     Returns:
         dict: A simple status message indicating the API is operational.
     """
-    return {"status": "ok", "ready": tts_engine.is_ready}
+    return {"status": "ok", "ready": True}
 
 @router.get("/status")
 def get_status():
@@ -176,8 +200,6 @@ def get_status():
     Returns the readiness status of the backend.
     Used by the frontend to determine when to stop showing the loading spinner.
     """
-    if not tts_engine.is_ready:
-        return {"status": "loading"}
     return {"status": "ready"}
 
 @router.post("/system/test-qwen")
