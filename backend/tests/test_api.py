@@ -146,8 +146,9 @@ def test_translate_segment_missing_text_returns_422(client):
 
 def test_translate_batch(client):
     segments = [{"index": 1, "text": "Hello"}, {"index": 2, "text": "World"}]
-    with patch("api.routers.generation.translator") as mock_tr:
-        mock_tr.translate_batch.return_value = ["Ciao", "Mondo"]
+    mock_tr = MagicMock()
+    mock_tr.translate_batch.return_value = ["Ciao", "Mondo"]
+    with patch("api.routers.translation.get_translator", return_value=mock_tr):
         r = client.post(
             "/api/translate-batch",
             data={

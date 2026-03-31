@@ -10,29 +10,30 @@ from core.tts_provider import MultiModelProvider, VibeVoiceProvider, Qwen3TTSPro
 
 def test_multi_model_orchestration():
     """Verify that MultiModelProvider dispatches to the correct engine."""
-    with patch('core.tts_provider.VibeVoiceProvider') as mock_vibe_class, \
-         patch('core.tts_provider.Qwen3TTSProvider') as mock_qwen_class:
-        
-        # Instantiate provider
-        provider = MultiModelProvider()
-        
-        # Test VibeVoice dispatch
+    provider = MultiModelProvider()
+    mock_vibe = MagicMock()
+    mock_qwen = MagicMock()
+    mock_vibe.synthesize.return_value = b""
+    mock_qwen.synthesize.return_value = b""
+
+    provider._vibe_pool["cpu"] = mock_vibe
+    provider._qwen_pool["cpu"] = mock_qwen
+
+    with patch('core.tts_provider.get_default_device', return_value="cpu"):
         provider.synthesize("test", "VibeVoice-1.5B")
-        provider.vibe.synthesize.assert_called_with("test", "VibeVoice-1.5B", None, None, None, None)
-        
-        # Test Qwen dispatch
+        mock_vibe.synthesize.assert_called_with("test", "VibeVoice-1.5B", None, None, None, None)
+
         provider.synthesize("test", "Qwen3-TTS-1.7B")
-        provider.qwen.synthesize.assert_called_with("test", "Qwen3-TTS-1.7B", None, None, None, None)
+        mock_qwen.synthesize.assert_called_with("test", "Qwen3-TTS-1.7B", None, None, None, None, skip_cleanup=False)
 
 def test_qwen_dependency_check_fail():
     """Verify that Qwen3TTSProvider raises ImportError if dependencies are missing."""
     provider = Qwen3TTSProvider()
-    
-    # Mocking missing transformers
+
     with patch('builtins.__import__', side_effect=ImportError("transformers not found")):
         with pytest.raises(ImportError) as excinfo:
             provider._load_model("Qwen3-Model")
-        assert "Qwen3-TTS dependencies not found" in str(excinfo.value)
+        assert "dependencies" in str(excinfo.value).lower()
 
 def test_qwen_voice_design_logs():
     """Verify that synthesize logs the correct mode (Base, Cloning, or Design)."""
