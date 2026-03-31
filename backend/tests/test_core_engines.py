@@ -17,16 +17,21 @@ from core.tts_provider import MultiModelProvider, VibeVoiceProvider, Qwen3TTSPro
 def test_multimodel_dispatching():
     """Verify that MultiModelProvider dispatches to the correct engine based on name."""
     provider = MultiModelProvider()
-    provider.vibe = MagicMock()
-    provider.qwen = MagicMock()
-    
-    # Test VibeVoice
-    provider.synthesize("Hello", "VibeVoice-1.5B")
-    provider.vibe.synthesize.assert_called_once()
-    
-    # Test Qwen
-    provider.synthesize("Hello", "Qwen3-TTS-1.7B-Base")
-    provider.qwen.synthesize.assert_called_once()
+    mock_vibe = MagicMock()
+    mock_qwen = MagicMock()
+    mock_vibe.synthesize.return_value = b""
+    mock_qwen.synthesize.return_value = b""
+
+    # Inject mocks into the internal pools (vibe/qwen are read-only properties)
+    provider._vibe_pool["cpu"] = mock_vibe
+    provider._qwen_pool["cpu"] = mock_qwen
+
+    with patch('core.tts_provider.get_default_device', return_value="cpu"):
+        provider.synthesize("Hello", "VibeVoice-1.5B")
+        mock_vibe.synthesize.assert_called_once()
+
+        provider.synthesize("Hello", "Qwen3-TTS-1.7B-Base")
+        mock_qwen.synthesize.assert_called_once()
 
 # --- 2. GPU Auto-Selection Tests ---
 

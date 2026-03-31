@@ -8,6 +8,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from api.routers import system, voices, generation, jobs, translation, tasks
 
 app = FastAPI(title="Nispa Voiceover API")
+# Startup checks
+try:
+    from pydub.utils import which
+    _ffmpeg = which("ffmpeg")
+    if _ffmpeg:
+        print(f"[Startup] ffmpeg found: {_ffmpeg}")
+    else:
+        print("[Startup] WARNING: ffmpeg NOT found in PATH.")
+        print("[Startup] MP3 export will produce silent files. Install: brew install ffmpeg")
+except Exception:
+    pass
+
 
 _audio_rendering_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "audio-rendering"))
 os.makedirs(_audio_rendering_dir, exist_ok=True)

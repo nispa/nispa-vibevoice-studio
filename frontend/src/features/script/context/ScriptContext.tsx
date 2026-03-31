@@ -53,7 +53,7 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         { id: '1', name: 'Speaker1', voiceId: '' }
     ]);
     const [detectedSpeakers, setDetectedSpeakers] = useState<string[]>([]);
-    const [selectedModel, setSelectedModel] = useState<string>('VibeVoice-1.5B');
+    const [selectedModel, setSelectedModel] = useState<string>('Qwen3-TTS-12Hz-1.7B-Base');
     const [selectedLanguage, setSelectedLanguage] = useState<string>('Italian');
     const [voiceDescription, setVoiceDescription] = useState<string>('');
     const [errorMsg, setErrorMsg] = useState('');

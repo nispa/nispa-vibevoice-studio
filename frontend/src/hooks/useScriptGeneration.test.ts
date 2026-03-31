@@ -75,7 +75,7 @@ describe('useScriptGeneration', () => {
 
         expect(mockSetIsProcessing).toHaveBeenCalledWith(true);
         expect(mockSetIsProcessing).toHaveBeenCalledWith(false);
-        expect(mockSetAudioUrl).toHaveBeenCalledWith('blob:url');
+        expect(mockSetAudioUrl).toHaveBeenCalledWith('http://127.0.0.1:8000/outputs/test.mp3');
         expect(result.current.progressValue).toBe(100);
     });
 

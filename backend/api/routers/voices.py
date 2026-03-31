@@ -15,16 +15,32 @@ def list_models():
     """
     models_metadata = []
     if MODELS_DIR.exists():
-        for entry in os.listdir(MODELS_DIR):
+        for entry in sorted(os.listdir(MODELS_DIR)):
             if os.path.isdir(MODELS_DIR / entry):
+                # Exclude tokenizer — not a synthesis model
+                if "Tokenizer" in entry:
+                    continue
                 is_qwen = "Qwen" in entry
                 supports_voice_design = "VoiceDesign" in entry
-                
+                is_base = "Base" in entry
+                is_custom = "CustomVoice" in entry
+
+                # Human-readable label
+                label = entry
+                if is_qwen:
+                    if is_base:
+                        label = entry + " (Voice Cloning)"
+                    elif is_custom:
+                        label = entry + " (Built-in Voices)"
+                    elif supports_voice_design:
+                        label = entry + " (Voice Design)"
+
                 models_metadata.append({
                     "id": entry,
-                    "name": entry,
+                    "name": label,
                     "engine": "qwen" if is_qwen else "vibevoice",
-                    "supports_voice_design": supports_voice_design
+                    "supports_voice_design": supports_voice_design,
+                    "requires_reference": is_base and not is_custom,
                 })
     return {"models": models_metadata}
 

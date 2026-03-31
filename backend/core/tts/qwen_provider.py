@@ -125,16 +125,24 @@ class Qwen3TTSProvider(TTSProvider):
         return buf.getvalue()
 
     def _wav_from_tensor(self, audio_data, sr: int) -> bytes:
-        """Converts model output to WAV bytes and frees GPU memory."""
+        """Converts model output to WAV bytes. Handles MPS sync to avoid silent output."""
         if not torch.is_tensor(audio_data):
             audio_tensor = torch.from_numpy(audio_data).float()
         else:
+            # On MPS, synchronize before moving to CPU —
+            # otherwise the tensor may be all-zeros (silent audio)
+            if hasattr(audio_data, 'device') and str(audio_data.device) == 'mps':
+                torch.mps.synchronize()
             audio_tensor = audio_data.detach().cpu().float()
         if audio_tensor.dim() == 1:
             audio_tensor = audio_tensor.unsqueeze(0)
+        arr = audio_tensor.squeeze(0).numpy()
+        if arr.size == 0 or (arr.max() == 0.0 and arr.min() == 0.0):
+            print(f"[Qwen-TTS] WARNING: silent audio tensor (size={arr.size}, sr={sr})")
         buf = io.BytesIO()
         import soundfile as sf
-        sf.write(buf, audio_tensor.squeeze(0).numpy(), sr, format="WAV")
+        sf.write(buf, arr, sr, format="WAV")
+        buf.seek(0)
         return buf.getvalue()
 
     @functools.lru_cache(maxsize=64)
@@ -194,8 +202,8 @@ class Qwen3TTSProvider(TTSProvider):
                 _locals["wavs"], sr = self.model.generate_voice_design(
                     text=text, description=voice_description, language=language
                 )
-            elif reference_audio_path and is_base_model:
-                print(f"[Qwen-TTS] Mode: 3s Voice Clone [tx={'yes' if ref_text else 'no'}] ({language})")
+            elif reference_audio_path and (is_base_model or is_custom_model or not is_design_model):
+                print(f"[Qwen-TTS] Mode: Voice Clone [tx={'yes' if ref_text else 'no'}] ({language})")
                 try:
                     _locals["wavs"], sr = self.model.generate_voice_clone(
                         text=text, ref_audio=reference_audio_path, ref_text=ref_text,
@@ -203,35 +211,39 @@ class Qwen3TTSProvider(TTSProvider):
                     )
                 except Exception as e:
                     if "sox" in str(e).lower():
-                        print("[Qwen-TTS] ERROR: SoX is required for Voice Cloning.")
+                        print("[Qwen-TTS] ERROR: SoX is required for Voice Cloning. Install: brew install sox")
                     raise
-            else:
-                if reference_audio_path and is_custom_model:
-                    print(f"[Qwen-TTS] Warning: {model_name} does not support cloning. Using built-in voice.")
+            elif is_custom_model:
                 speaker = "Vivian"
                 if voice_id:
                     potential = voice_id.split('-')[-1].capitalize()
                     if potential in ["Vivian", "Ryan", "Daisy", "Bella"]:
                         speaker = potential
-                print(f"[Qwen-TTS] Mode: Custom/Built-in [Speaker: {speaker}] ({language})")
+                print(f"[Qwen-TTS] Mode: Custom Built-in [Speaker: {speaker}] ({language})")
                 _locals["wavs"], sr = self.model.generate_custom_voice(
                     text=text, language=language, speaker=speaker
                 )
+            elif is_base_model:
+                raise ValueError(
+                    f"Model '{model_name}' is a Base model and requires a reference audio (Voice Cloning). "
+                    f"Select a voice in the dropdown or install a CustomVoice model."
+                )
+            else:
+                raise ValueError(f"Unsupported configuration for model '{model_name}'.")
 
             return self._wav_from_tensor(_locals["wavs"][0], sr)
 
         except Exception as e:
-            print(f"[Qwen-TTS] ✗ Synthesis error: {e}")
+            print(f"[Qwen-TTS] Synthesis error: {e}")
             import traceback; traceback.print_exc()
             raise RuntimeError(f"Qwen3-TTS inference failed: {e}")
         finally:
             if not skip_cleanup:
                 self._vram_cleanup(_locals)
 
-    def _call_model_batch(self, model_name: str, texts: list[str], language: str,
+    def _call_model_batch(self, model_name: str, texts: list, language: str,
                           reference_audio_path: Optional[str], ref_text: Optional[str],
                           voice_id: Optional[str], voice_description: Optional[str]) -> tuple:
-        """Issues a single model call for a list of texts with the same language. Returns (wavs, sr)."""
         is_design_model = "VoiceDesign" in model_name
         is_custom_model = "CustomVoice" in model_name
         is_base_model = "Base" in model_name
@@ -240,14 +252,12 @@ class Qwen3TTSProvider(TTSProvider):
             return self.model.generate_voice_design(
                 text=texts, description=voice_description, language=language
             )
-        elif reference_audio_path and is_base_model:
+        elif reference_audio_path and (is_base_model or is_custom_model or not is_design_model):
             return self.model.generate_voice_clone(
                 text=texts, ref_audio=reference_audio_path, ref_text=ref_text,
                 language=language, x_vector_only_mode=not bool(ref_text)
             )
-        else:
-            if reference_audio_path and is_custom_model:
-                print(f"[Qwen-TTS] Warning: {model_name} does not support cloning. Using built-in voice.")
+        elif is_custom_model:
             speaker = "Vivian"
             if voice_id:
                 potential = voice_id.split('-')[-1].capitalize()
@@ -256,8 +266,12 @@ class Qwen3TTSProvider(TTSProvider):
             return self.model.generate_custom_voice(
                 text=texts, language=language, speaker=speaker
             )
+        else:
+            raise ValueError(
+                f"Model '{model_name}' is a Base model and requires a reference audio."
+            )
 
-    def synthesize_batch(self, texts: list[str], model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> list[bytes]:
+    def synthesize_batch(self, texts: list, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> list:
         if not texts:
             return []
 
@@ -276,15 +290,14 @@ class Qwen3TTSProvider(TTSProvider):
         # to issue one model call per language group
         per_text_lang = [self._detect_language(t, language) for t in texts]
 
-        # Build groups: list of (lang, [(orig_idx, text), ...])
-        groups: list[tuple[str, list[tuple[int, str]]]] = []
+        groups = []
         for i, (t, lang) in enumerate(zip(texts, per_text_lang)):
             if groups and groups[-1][0] == lang:
                 groups[-1][1].append((i, t))
             else:
                 groups.append((lang, [(i, t)]))
 
-        results: list[bytes] = [b""] * len(texts)
+        results = [b""] * len(texts)
         _locals: dict = {}
 
         try:
@@ -307,7 +320,7 @@ class Qwen3TTSProvider(TTSProvider):
             return results
 
         except Exception as e:
-            print(f"[Qwen-TTS] ✗ Batch Synthesis error: {e}")
+            print(f"[Qwen-TTS] Batch Synthesis error: {e}")
             import traceback; traceback.print_exc()
             raise RuntimeError(f"Qwen3-TTS batch inference failed: {e}")
         finally:
