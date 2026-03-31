@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api")
 async def create_subtitle_task(
     subtitle_file: Optional[UploadFile] = File(None),
     voice_id: str = Form(...),
-    model_name: str = Form("VibeVoice-1.5B"),
+    model_name: str = Form("Qwen3-TTS-12Hz-1.7B-Base"),
     group_by_punctuation: bool = Form(False),
     subtitle_segments: Optional[str] = Form(None),
     output_format: str = Form("mp3"),
@@ -418,7 +418,7 @@ async def create_generation_task(
     script_file: Optional[UploadFile] = File(None),
     script_text: Optional[str] = Form(None),
     speaker_voice_map: str = Form("{}"),
-    model_name: str = Form("VibeVoice-1.5B"),
+    model_name: str = Form("Qwen3-TTS-12Hz-1.7B-Base"),
     voice_description: Optional[str] = Form(None),
     language: Optional[str] = Form(None)
 ):

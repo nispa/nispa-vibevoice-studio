@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-03-31
+
+> Contributed by **Auro M.** — macOS compatibility fixes tested on Apple Silicon.
+
+### Fixed
+- **Silent audio on MPS (Apple Silicon)**: Added `torch.mps.synchronize()` before moving the tensor to CPU in `_wav_from_tensor()`. Without this sync, the tensor was all-zeros on Mac M1/M2/M3/M4, producing completely silent output.
+- **WAV buffer not rewound**: Added `buf.seek(0)` after `sf.write()` in `_wav_from_tensor()`. The buffer was not reset to the beginning before being read, potentially causing corrupted output.
+- **Missing ffmpeg not reported**: Added a startup check that verifies `ffmpeg` is in PATH and prints a warning with `brew install ffmpeg` instructions if absent. Prevents silent MP3 export failures with no error message.
+
+### Changed
+- **Cleaner model list** (`voices.py`): Qwen3 models now display a readable suffix (`Voice Cloning`, `Built-in Voices`, `Voice Design`). `Tokenizer` entries are excluded from the list. Added `requires_reference` field to the API response to guide the frontend.
+- **Dynamic model auto-selection** (`useTtsSelection.ts`): The default model is no longer hardcoded to `VibeVoice-1.5B`. It is now picked from the actually installed models with priority: Qwen3 Base > Qwen3 CustomVoice > any Qwen3 > others.
+- **Voice cloning logic extended**: The `generate_voice_clone` branch now activates for non-Base models too when a reference audio is present, making cloning more robust regardless of model naming.
+- **Explicit error for Base model without reference**: Using a Base model without a reference audio now raises a clear `ValueError` instead of failing silently.
+- **SoX error message updated**: Now includes `brew install sox` as the installation hint for macOS.
+- **Python 3.8 compatibility**: `list[str]` / `list[bytes]` type hints in public methods changed to plain `list` to avoid errors on Python < 3.9.
+
 ## [0.7.1] - 2026-03-27
 
 ### Added
