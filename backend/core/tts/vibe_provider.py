@@ -1,6 +1,5 @@
 import os
 import torch
-import torchaudio
 import io
 import gc
 from typing import Optional, Union
@@ -77,8 +76,10 @@ class VibeVoiceProvider(TTSProvider):
         
         # Add backend and vendors to sys.path
         import sys
-        core_dir = os.path.dirname(os.path.abspath(__file__))
-        backend_dir = os.path.dirname(core_dir)
+        # __file__ is backend/core/tts/vibe_provider.py
+        current_dir = os.path.dirname(os.path.abspath(__file__)) # backend/core/tts
+        core_dir = os.path.dirname(current_dir) # backend/core
+        backend_dir = os.path.dirname(core_dir) # backend
         vendors_dir = os.path.join(backend_dir, "vendors")
         
         # IMPORTANT: Force Python to find our vendored version first
@@ -88,7 +89,7 @@ class VibeVoiceProvider(TTSProvider):
             del sys.modules["vibevoice"]
             
         for d in [backend_dir, vendors_dir]:
-            if d not in sys.path:
+            if os.path.exists(d) and d not in sys.path:
                 sys.path.insert(0, d)
                 print(f"[TTS] Added to sys.path: {d}")
             
@@ -287,16 +288,17 @@ class VibeVoiceProvider(TTSProvider):
     def _wav_bytes_from_tensor(self, audio_data, sample_rate: int) -> bytes:
         """Converts a model output tensor or numpy array to WAV bytes."""
         if torch.is_tensor(audio_data):
-            audio_np = audio_data.cpu().numpy()
+            # Move to CPU and convert to float32 numpy array
+            audio_np = audio_data.detach().cpu().float().numpy()
         else:
             audio_np = audio_data
+        
         if len(audio_np.shape) > 1:
             audio_np = audio_np.squeeze()
-        audio_tensor = torch.from_numpy(audio_np).float()
-        if audio_tensor.dim() == 1:
-            audio_tensor = audio_tensor.unsqueeze(0)
+            
         buf = io.BytesIO()
-        torchaudio.save(buf, audio_tensor, sample_rate, format="wav")
+        import soundfile as sf
+        sf.write(buf, audio_np, sample_rate, format="WAV")
         buf.seek(0)
         return buf.getvalue()
 

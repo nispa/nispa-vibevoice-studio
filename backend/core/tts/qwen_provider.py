@@ -2,7 +2,6 @@ import os
 import io
 import torch
 import gc
-import torchaudio
 import numpy as np
 import functools
 from typing import Optional, Union, List
