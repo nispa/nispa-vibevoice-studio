@@ -113,6 +113,7 @@ export function useJobArchive() {
         const a = document.createElement('a');
         a.href = url;
         a.download = `${job.original_filename.replace(/\.[^/.]+$/, "")}_translated.srt`;
+        a.target = '_blank';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

@@ -166,6 +166,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
             const a = document.createElement('a');
             a.href = url;
             a.download = `final_voiceover_${jobId}.mp3`;
+            a.target = '_blank';
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);

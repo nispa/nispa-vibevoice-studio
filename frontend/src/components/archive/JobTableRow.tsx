@@ -101,8 +101,12 @@ export const JobTableRow = memo(({
                                 e.stopPropagation();
                                 const a = document.createElement('a');
                                 a.href = job.audio_url!;
-                                a.download = `job_${job.id}.mp3`;
+                                const ext = job.audio_url!.split('.').pop()?.split('?')[0] || 'mp3';
+                                a.download = `job_${job.id}.${ext}`;
+                                a.target = '_blank';
+                                document.body.appendChild(a);
                                 a.click();
+                                document.body.removeChild(a);
                             }}
                             title="Download audio"
                             className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition"

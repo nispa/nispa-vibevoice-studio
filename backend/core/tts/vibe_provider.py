@@ -2,6 +2,7 @@ import os
 import torch
 import io
 import gc
+import re
 from typing import Optional, Union
 from core.tts.base import TTSProvider
 
@@ -160,7 +161,7 @@ class VibeVoiceProvider(TTSProvider):
                     self.model.to("mps")
             
             self.model.eval()
-            self.model.set_ddpm_inference_steps(num_steps=10)
+            self.model.set_ddpm_inference_steps(num_steps=20)
             self.loaded_model_name = model_name
             print(f"[TTS] Model '{model_name}' loaded successfully")
             
@@ -244,7 +245,9 @@ class VibeVoiceProvider(TTSProvider):
         
         try:
             # Prepare inputs for VibeVoice
-            formatted_text = f"Speaker 0: {text}"
+            # Remove any existing Speaker X: prefix to avoid nesting which causes hallucinations
+            clean_text = re.sub(r'^Speaker\s+\d+:\s*', '', text, flags=re.IGNORECASE).strip()
+            formatted_text = f"Speaker 0: {clean_text}"
             
             inputs = self.processor(
                 text=[formatted_text],
@@ -264,7 +267,7 @@ class VibeVoiceProvider(TTSProvider):
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=None,
-                    cfg_scale=1.3,
+                    cfg_scale=2.0, # Increased for better stability
                     tokenizer=self.processor.tokenizer,
                     generation_config={'do_sample': True, 'temperature': 0.1},
                     verbose=False,
@@ -347,7 +350,9 @@ class VibeVoiceProvider(TTSProvider):
 
         # Attempt true batched inference
         try:
-            formatted_texts = [f"Speaker 0: {t}" for t in active_texts]
+            # Sanitize texts to avoid nested Speaker tags
+            clean_active_texts = [re.sub(r'^Speaker\s+\d+:\s*', '', t, flags=re.IGNORECASE).strip() for t in active_texts]
+            formatted_texts = [f"Speaker 0: {t}" for t in clean_active_texts]
             voice_samples = [[reference_audio_path]] * len(active_texts)
 
             inputs = self.processor(
@@ -366,7 +371,7 @@ class VibeVoiceProvider(TTSProvider):
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=None,
-                    cfg_scale=1.3,
+                    cfg_scale=2.0, # Increased for better stability
                     tokenizer=self.processor.tokenizer,
                     generation_config={'do_sample': True, 'temperature': 0.1},
                     verbose=False,

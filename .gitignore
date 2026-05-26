@@ -98,3 +98,6 @@ logs/
 
 # Planning (local only)
 planning/
+
+# AI
+.claude

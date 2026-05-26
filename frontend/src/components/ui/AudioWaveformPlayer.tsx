@@ -158,7 +158,9 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
     const handleDownload = () => {
         const a = document.createElement('a');
         a.href = audioUrl;
-        a.download = `${downloadFilename}_${Date.now()}.wav`;
+        const ext = audioUrl.split('.').pop()?.split('?')[0] || 'wav';
+        a.download = `${downloadFilename}_${Date.now()}.${ext}`;
+        a.target = '_blank';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

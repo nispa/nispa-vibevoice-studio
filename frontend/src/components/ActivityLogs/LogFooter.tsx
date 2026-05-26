@@ -38,7 +38,9 @@ export const LogFooter: React.FC<LogFooterProps> = ({
                             onClick={() => {
                                 const a = document.createElement('a');
                                 a.href = audioUrl;
-                                a.download = `generated_audio_${new Date().getTime()}`;
+                                const ext = audioUrl.split('.').pop()?.split('?')[0] || 'mp3';
+                                a.download = `generated_audio_${new Date().getTime()}.${ext}`;
+                                a.target = '_blank';
                                 document.body.appendChild(a);
                                 a.click();
                                 document.body.removeChild(a);

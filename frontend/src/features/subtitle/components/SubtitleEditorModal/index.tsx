@@ -60,7 +60,11 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `audio_segments_${new Date().getTime()}.zip`;
+                a.target = '_blank';
+                document.body.appendChild(a);
                 a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
         } catch (err) {
             console.error(err);

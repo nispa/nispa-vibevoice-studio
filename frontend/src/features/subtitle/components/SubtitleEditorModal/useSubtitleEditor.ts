@@ -98,7 +98,11 @@ export const useSubtitleEditor = (initialSegments: Segment[], onSegmentsSave: (s
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `final_voiceover_${new Date().getTime()}.mp3`;
+                a.target = '_blank';
+                document.body.appendChild(a);
                 a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
                 
                 showToast(`Successfully joined ${approvedSegments.length} segments!`, 'success');
             }
