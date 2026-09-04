@@ -99,7 +99,7 @@ export const useVoicesManagement = () => {
                 setIsUploading(false);
                 setTempFile(null);
             }
-        } catch (err) {
+        } catch {
             setUploadError("Network error during upload");
             setIsUploading(false);
             setTempFile(null);

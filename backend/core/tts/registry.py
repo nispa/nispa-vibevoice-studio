@@ -70,6 +70,8 @@ class ProviderRegistry:
         for (pid, dev), provider in list(self._pool.items()):
             try:
                 provider.unload()
+                if hasattr(provider, "shutdown"):
+                    provider.shutdown()
             except Exception as e:
                 print(f"[TTS Registry] Warning unloading {pid} on {dev}: {e}")
 

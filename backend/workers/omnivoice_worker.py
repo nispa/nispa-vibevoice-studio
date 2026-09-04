@@ -21,11 +21,32 @@ from pydantic import BaseModel
 # Global state
 app = FastAPI(title="OmniVoice Local Worker", docs_url=None, redoc_url=None)
 
+_backend_dir = Path(__file__).resolve().parent.parent
+_repo_dir = _backend_dir.parent
+_data_dir = (_repo_dir / "data").resolve()
+
 _model = None
 _auth_token: str = ""
 _model_dir: Path = Path()
 _device: str = "cuda" if torch.cuda.is_available() else "cpu"
 _loaded_prompts: Dict[str, object] = {}
+
+
+def _validate_data_path(raw_path: str, must_exist: bool = False, label: str = "Path") -> Path:
+    """Ensures raw_path resolves strictly within the authorized data/ directory."""
+    if not raw_path or not raw_path.strip():
+        raise HTTPException(status_code=400, detail=f"{label} cannot be empty.")
+    try:
+        resolved = Path(raw_path).resolve()
+        resolved.relative_to(_data_dir)
+    except (ValueError, Exception):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Security violation: {label} '{raw_path}' is outside authorized data directory."
+        )
+    if must_exist and not resolved.exists():
+        raise HTTPException(status_code=404, detail=f"{label} not found: {raw_path}")
+    return resolved
 
 
 class PromptRequest(BaseModel):
@@ -82,7 +103,7 @@ def create_or_load_prompt(req: PromptRequest, x_session_token: Optional[str] = H
     verify_token(x_session_token)
     global _loaded_prompts
 
-    cache_path = Path(req.cache_prompt_path)
+    cache_path = _validate_data_path(req.cache_prompt_path, must_exist=False, label="Cache prompt path")
     if cache_path.exists() and cache_path.stat().st_size > 0:
         # Load from disk cache
         from omnivoice import VoiceClonePrompt
@@ -94,9 +115,7 @@ def create_or_load_prompt(req: PromptRequest, x_session_token: Optional[str] = H
     if not req.ref_text or not req.ref_text.strip():
         raise HTTPException(status_code=400, detail="Non-empty reference transcript is strictly required for OmniVoice cloning.")
 
-    ref_audio = Path(req.ref_audio_path)
-    if not ref_audio.exists():
-        raise HTTPException(status_code=404, detail=f"Reference audio not found: {ref_audio}")
+    ref_audio = _validate_data_path(req.ref_audio_path, must_exist=True, label="Reference audio path")
 
     model = _get_model()
     prompt = model.create_voice_clone_prompt(
@@ -117,28 +136,40 @@ def synthesize(req: SynthesizeRequest, x_session_token: Optional[str] = Header(N
     verify_token(x_session_token)
     global _loaded_prompts
 
-    model = _get_model()
     prompt = None
-
     if req.prompt_path:
-        p_path = str(Path(req.prompt_path))
+        p_path_obj = _validate_data_path(req.prompt_path, must_exist=False, label="Prompt path")
+        p_path = str(p_path_obj)
         if p_path in _loaded_prompts:
             prompt = _loaded_prompts[p_path]
-        elif Path(p_path).exists():
+        elif p_path_obj.exists():
             from omnivoice import VoiceClonePrompt
             prompt = VoiceClonePrompt.load(p_path)
             _loaded_prompts[p_path] = prompt
 
+    ref_audio = None
     if prompt is None and req.ref_audio_path:
         if not req.ref_text or not req.ref_text.strip():
             raise HTTPException(status_code=400, detail="Non-empty reference transcript required for OmniVoice.")
+        ref_audio = _validate_data_path(req.ref_audio_path, must_exist=True, label="Reference audio path")
+
+    model = _get_model()
+    if prompt is None and ref_audio is not None:
         prompt = model.create_voice_clone_prompt(
-            ref_audio=str(req.ref_audio_path),
+            ref_audio=str(ref_audio),
             ref_text=req.ref_text.strip()
         )
 
-    # Generate speech
-    wavs = model.generate(text=req.text, voice_clone_prompt=prompt)
+    # Generate speech with explicit language and prompt
+    try:
+        wavs = model.generate(text=req.text, language=req.language, voice_clone_prompt=prompt)
+    except torch.cuda.OutOfMemoryError:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        raise HTTPException(status_code=507, detail="GPU out of memory during OmniVoice generation.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OmniVoice synthesis error: {e}")
+
     if isinstance(wavs, (list, tuple)):
         raw_audio = wavs[0] if len(wavs) > 0 else np.array([], dtype=np.float32)
     else:
@@ -151,6 +182,11 @@ def synthesize(req: SynthesizeRequest, x_session_token: Optional[str] = Header(N
         audio_data = raw_audio.squeeze().astype(np.float32)
     else:
         raise HTTPException(status_code=500, detail=f"Unexpected audio element type {type(raw_audio)} from OmniVoice model")
+
+    if audio_data.size == 0:
+        raise HTTPException(status_code=502, detail="OmniVoice produced empty audio output.")
+    if np.isnan(audio_data).any() or np.isinf(audio_data).any():
+        raise HTTPException(status_code=502, detail="OmniVoice produced NaN or Inf audio output.")
 
     buf = io.BytesIO()
     sf.write(buf, audio_data, 24000, format="WAV", subtype="PCM_16")

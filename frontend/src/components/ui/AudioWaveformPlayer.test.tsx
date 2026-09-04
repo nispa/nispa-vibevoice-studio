@@ -13,7 +13,7 @@ const mockContext = {
     fillStyle: '',
 };
 
-HTMLCanvasElement.prototype.getContext = vi.fn(() => mockContext as unknown as CanvasRenderingContext2D);
+(HTMLCanvasElement.prototype as unknown as { getContext: unknown }).getContext = vi.fn(() => mockContext);
 
 // Mock AudioContext
 class MockAudioContext {
@@ -40,9 +40,9 @@ const mockAudioPause = vi.spyOn(HTMLAudioElement.prototype, 'pause').mockImpleme
 describe('AudioWaveformPlayer', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        global.fetch = vi.fn().mockResolvedValue({
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             arrayBuffer: async () => new ArrayBuffer(8)
-        });
+        }));
     });
 
     it('renders with default state', () => {

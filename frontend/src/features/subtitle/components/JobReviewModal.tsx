@@ -4,7 +4,6 @@ import { AudioWaveformPlayer } from '../../../components/ui/AudioWaveformPlayer'
 import { AudioTrimmer } from '../../../components/ui/AudioTrimmer';
 import { useSubtitleContext } from '../context/SubtitleContext';
 import type { SubtitleSegment } from '../context/SubtitleContext';
-import { useGlobalContext } from '../../../context/GlobalContext';
 import { ttsApi } from '../../../services/ttsApi';
 import { serializeAudioUrl, filePathToHttpUrl } from '../../../utils/audio';
 

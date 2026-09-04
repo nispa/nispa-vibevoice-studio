@@ -1,6 +1,6 @@
 # Planning - OmniVoice locale e refactoring dei provider TTS
 
-> Stato: **DA IMPLEMENTARE**. Bozza aggiornata: 2026-09-04.
+> Stato: **COMPLETATO**. Versione: 2026-09-04 (v0.8.0).
 > Obiettivo: integrare OmniVoice come terzo provider TTS locale e rifattorizzare l'architettura provider in modo data-driven.
 > Uso principale: dialoghi untimed in inglese con accento UK e voice cloning da reference autorizzati.
 > Vincolo non negoziabile: offline durante l'inferenza. WAV, trascrizioni, prompt vocali, modelli e output restano sul computer dell'utente; nessuna API o servizio cloud.

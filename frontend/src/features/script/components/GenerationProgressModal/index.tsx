@@ -26,19 +26,13 @@ export const GenerationProgressModal: React.FC<GenerationProgressModalProps> = (
         logsEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }, [logs]);
 
-    // Reset confirmation state when modal opens/closes
-    useEffect(() => {
-        if (!isOpen) {
-            setShowConfirmClose(false);
-        }
-    }, [isOpen]);
-
     if (!isOpen) return null;
 
     const handleCloseClick = () => {
         if (progress < 100) {
             setShowConfirmClose(true);
         } else {
+            setShowConfirmClose(false);
             onClose();
         }
     };

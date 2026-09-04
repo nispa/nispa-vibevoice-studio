@@ -29,8 +29,26 @@ def check_tool(name, version_cmd, install_help):
         print(f"    {install_help}")
         return False
 
+import argparse
+
+
 def main():
-    print_header("Nispa Studio Environment Optimizer")
+    parser = argparse.ArgumentParser(description="Nispa Studio Environment Optimizer")
+    parser.add_argument(
+        "--engines",
+        type=str,
+        default="all",
+        help="Comma-separated list of engines to check (e.g. 'vibevoice,qwen,omnivoice' or 'all')"
+    )
+    args = parser.parse_args()
+    
+    raw_engines = args.engines.strip().lower()
+    if raw_engines == "all":
+        selected_engines = {"vibevoice", "qwen", "omnivoice"}
+    else:
+        selected_engines = {e.strip() for e in raw_engines.split(",") if e.strip()}
+
+    print_header(f"Nispa Studio Environment Optimizer (Engines: {', '.join(sorted(selected_engines))})")
     
     # 1. Check Hardware
     print(f"[i] OS: {sys.platform}")
@@ -62,12 +80,34 @@ def main():
             except Exception as e:
                 print(f"[!] Flash Attention installation attempt failed: {e}")
 
-    # 4. Check VibeVoice Utils
-    print("\n[+] Checking VibeVoice utilities...")
-    try:
-        subprocess.check_call([sys.executable, os.path.join(os.path.dirname(__file__), "install_vibevoice_utils.py")])
-    except Exception as e:
-        print(f"[!] VibeVoice utils setup failed: {e}")
+    # 4. Check Engine-Specific Dependencies
+    if "vibevoice" in selected_engines:
+        print("\n[+] Checking VibeVoice utilities...")
+        try:
+            subprocess.check_call([sys.executable, os.path.join(os.path.dirname(__file__), "install_vibevoice_utils.py")])
+        except Exception as e:
+            print(f"[!] VibeVoice utils setup failed: {e}")
+
+    if "omnivoice" in selected_engines:
+        print("\n[+] Checking OmniVoice worker environment...")
+        root_dir = Path(__file__).resolve().parent.parent.parent
+        worker_py = root_dir / "venv_omnivoice" / "Scripts" / "python.exe"
+        if not worker_py.exists():
+            worker_py = root_dir / "venv_omnivoice" / "bin" / "python"
+        
+        if worker_py.exists():
+            try:
+                res = subprocess.run(
+                    [str(worker_py), "-c", "import torch, omnivoice; print('OmniVoice venv ready')"],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                print(f"[✓] OmniVoice isolated environment verified ({res.stdout.strip()})")
+            except Exception as e:
+                print(f"[!] OmniVoice isolated environment check failed: {e}")
+        else:
+            print(f"[i] venv_omnivoice not found. It will be created when OmniVoice is installed.")
 
     print_header("Optimization Check Complete")
     print("If all tools are [✓], Nispa Studio is ready for high-performance synthesis.")

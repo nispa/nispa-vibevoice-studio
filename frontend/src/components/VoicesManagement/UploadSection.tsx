@@ -6,7 +6,7 @@ interface UploadSectionProps {
     isUploading: boolean;
     tempFile: File | null;
     handleFileChange: (file: File | null) => void;
-    fileInputRef: React.RefObject<HTMLInputElement>;
+    fileInputRef: React.RefObject<HTMLInputElement | null>;
     transcription: string;
     setTranscription: (text: string) => void;
     uploadError: string | null;
@@ -51,7 +51,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                                 try {
                                     const text = await navigator.clipboard.readText();
                                     setTranscription(text);
-                                } catch (err) {
+                                } catch {
                                     console.error("Failed to read clipboard");
                                 }
                             }}

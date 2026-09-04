@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo =======================================
-echo    Nispa Studio Installer (v0.7.0)
+echo    Nispa Studio Installer (v0.8.0)
 echo =======================================
 
 :: Step 1: Virtual Environment Setup
@@ -22,29 +22,35 @@ echo SELECT TTS ENGINES TO INSTALL
 echo =======================================
 echo [1] VibeVoice only (Zero-shot cloning)
 echo [2] Qwen3-TTS only (Voice Design, High-fidelity)
-echo [3] OmniVoice only (Fast Voice Cloning & Design)
+echo [3] OmniVoice only (Voice Cloning, UK English)
 echo [4] VibeVoice + Qwen3-TTS
 echo [5] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice - Recommended)
 echo.
 set /p ENGINE_CHOICE="Enter your choice (1/2/3/4/5): "
 
+set OPT_ENGINES=vibevoice,qwen,omnivoice
 if "%ENGINE_CHOICE%"=="1" (
+    set OPT_ENGINES=vibevoice
     echo [3/5] Installing VibeVoice dependencies...
     pip install -r backend\requirements-vibevoice.txt
 ) else if "%ENGINE_CHOICE%"=="2" (
+    set OPT_ENGINES=qwen
     echo [3/5] Installing Qwen3-TTS dependencies...
     pip install -r backend\requirements-qwen.txt
 ) else if "%ENGINE_CHOICE%"=="3" (
+    set OPT_ENGINES=omnivoice
     echo [3/5] Installing OmniVoice worker in isolated environment...
     if not exist "venv_omnivoice\" (
         python -m venv venv_omnivoice
     )
     venv_omnivoice\Scripts\pip install -r backend\requirements-omnivoice.txt
 ) else if "%ENGINE_CHOICE%"=="4" (
+    set OPT_ENGINES=vibevoice,qwen
     echo [3/5] Installing VibeVoice and Qwen3-TTS dependencies...
     pip install -r backend\requirements-vibevoice.txt
     pip install -r backend\requirements-qwen.txt
 ) else (
+    set OPT_ENGINES=vibevoice,qwen,omnivoice
     echo [3/5] Installing ALL dependencies...
     pip install -r backend\requirements-vibevoice.txt
     pip install -r backend\requirements-qwen.txt
@@ -66,7 +72,7 @@ if errorlevel 1 (
 :: System Checks and Optimizations
 echo.
 echo [4/5] Environment Optimization...
-venv\Scripts\python backend\scripts\optimize_env.py
+venv\Scripts\python backend\scripts\optimize_env.py --engines !OPT_ENGINES!
 
 :: Step 4: Final Directory Checks
 echo.
@@ -76,6 +82,7 @@ if not exist "data\\model-translation" mkdir data\\model-translation
 if not exist "data\\voices" mkdir data\\voices
 if not exist "data\\outputs" mkdir data\\outputs
 if not exist "data\\audio-rendering" mkdir data\\audio-rendering
+if not exist "data\\voice-prompts\\omnivoice" mkdir data\\voice-prompts\\omnivoice
 
 :: Step 5: Frontend Setup
 echo.

@@ -91,18 +91,19 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
      * Synchronizes detected speakers into the speakers list whenever 
      * the parser identifies new names in the script content, preserving existing voice assignments.
      */
-    useEffect(() => {
-        if (detectedSpeakers.length > 0) {
+    const handleSetDetectedSpeakers = useCallback((newDetected: string[]) => {
+        setDetectedSpeakers(newDetected);
+        if (newDetected.length > 0) {
             setSpeakers(prev => {
                 const existingMap = new Map(prev.map(s => [s.name, s.voiceId]));
-                return detectedSpeakers.map(name => ({
+                return newDetected.map(name => ({
                     id: `${name}-${Date.now()}-${Math.random()}`,
                     name,
                     voiceId: existingMap.get(name) || ''
                 }));
             });
         }
-    }, [detectedSpeakers]);
+    }, []);
 
     /**
      * Auto-save draft to localStorage whenever relevant state changes.
@@ -146,7 +147,7 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 const parsed = JSON.parse(job.notes);
                 rawText = parsed.raw_script || '';
                 speakerMap = parsed.speaker_voice_map || {};
-            } catch (e) {
+            } catch {
                 // Ignore parse errors
             }
         }
@@ -171,7 +172,7 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const restoredSpeakers: Speaker[] = Object.entries(speakerMap).map(([name, voiceId]) => ({
                 id: `${name}-${Date.now()}-${Math.random()}`,
                 name,
-                voiceId,
+                voiceId
             }));
             setSpeakers(restoredSpeakers);
         }
@@ -183,7 +184,7 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         scriptFile, setScriptFile,
         scriptText, setScriptText,
         speakers, setSpeakers,
-        detectedSpeakers, setDetectedSpeakers,
+        detectedSpeakers, setDetectedSpeakers: handleSetDetectedSpeakers,
         selectedModel, setSelectedModel,
         selectedLanguage, setSelectedLanguage,
         voiceDescription, setVoiceDescription,
@@ -196,6 +197,7 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         scriptText,
         speakers,
         detectedSpeakers,
+        handleSetDetectedSpeakers,
         selectedModel,
         selectedLanguage,
         voiceDescription,

@@ -14,8 +14,10 @@ describe('useScriptGeneration', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        global.fetch = vi.fn();
-        global.URL.createObjectURL = vi.fn(() => 'blob:url');
+        vi.stubGlobal('fetch', vi.fn());
+        if (typeof window !== 'undefined') {
+            window.URL.createObjectURL = vi.fn(() => 'blob:url');
+        }
 
         vi.mocked(useScriptContext).mockReturnValue({
             scriptFile: null,
@@ -23,7 +25,7 @@ describe('useScriptGeneration', () => {
             speakers: [{ name: 'Speaker1', voiceId: 'voice1' }],
             selectedModel: 'model1',
             setErrorMsg: mockSetErrorMsg
-        } as ReturnType<typeof useScriptContext>);
+        } as unknown as ReturnType<typeof useScriptContext>);
 
         vi.mocked(useGlobalContext).mockReturnValue({
             setIsProcessing: mockSetIsProcessing,
@@ -35,8 +37,11 @@ describe('useScriptGeneration', () => {
     });
 
     it('should handle successful generation stream', async () => {
+        const mockFetch = vi.fn();
+        vi.stubGlobal('fetch', mockFetch);
+
         // Mock task creation response
-        vi.mocked(global.fetch).mockResolvedValueOnce({
+        mockFetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({ task_id: 'task123' })
         } as Response);
@@ -63,7 +68,7 @@ describe('useScriptGeneration', () => {
             }
         };
 
-        vi.mocked(global.fetch).mockResolvedValueOnce({
+        mockFetch.mockResolvedValueOnce({
             ok: true,
             body: mockStream
         } as Response);
@@ -81,7 +86,10 @@ describe('useScriptGeneration', () => {
     });
 
     it('should handle errors in task creation', async () => {
-        vi.mocked(global.fetch).mockResolvedValueOnce({
+        const mockFetch = vi.fn();
+        vi.stubGlobal('fetch', mockFetch);
+
+        mockFetch.mockResolvedValueOnce({
             ok: false,
             status: 500,
             json: async () => ({ detail: 'Server Error' })

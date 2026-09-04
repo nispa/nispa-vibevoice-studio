@@ -23,6 +23,8 @@ from core.tts.capabilities import (
     VoiceNotFoundError,
     ModelNotFoundError,
     TTSError,
+    OutOfMemoryError,
+    InvalidAudioOutputError,
 )
 from core.tts.prompt_cache import (
     compute_prompt_cache_key,
@@ -199,7 +201,13 @@ class OmniVoiceProvider(TTSProvider):
             "ref_text": ref_text,
             "cache_prompt_path": str(prompt_path),
         }
-        res_prompt = self._client.post(f"{self.base_url}/prompt", json=prompt_req)
+        try:
+            res_prompt = self._client.post(f"{self.base_url}/prompt", json=prompt_req)
+        except httpx.TimeoutException:
+            raise TTSError("OmniVoice prompt creation timed out.")
+        except Exception as e:
+            raise TTSError(f"OmniVoice prompt connection error: {e}")
+
         if res_prompt.status_code != 200:
             raise TTSError(f"OmniVoice prompt creation failed: {res_prompt.text}")
 
@@ -209,9 +217,22 @@ class OmniVoiceProvider(TTSProvider):
             "prompt_path": str(prompt_path),
             "language": language or "en",
         }
-        res_synth = self._client.post(f"{self.base_url}/synthesize", json=synth_req)
-        if res_synth.status_code != 200:
+        try:
+            res_synth = self._client.post(f"{self.base_url}/synthesize", json=synth_req)
+        except httpx.TimeoutException:
+            raise TTSError("OmniVoice synthesis timed out.")
+        except Exception as e:
+            raise TTSError(f"OmniVoice synthesis connection error: {e}")
+
+        if res_synth.status_code == 507:
+            raise OutOfMemoryError(f"OmniVoice GPU OOM: {res_synth.text}")
+        elif res_synth.status_code == 502:
+            raise InvalidAudioOutputError(f"OmniVoice invalid audio output: {res_synth.text}")
+        elif res_synth.status_code != 200:
             raise TTSError(f"OmniVoice synthesis failed: {res_synth.text}")
+
+        if not res_synth.content:
+            raise InvalidAudioOutputError("OmniVoice produced empty audio content.")
 
         return res_synth.content
 
@@ -239,12 +260,14 @@ class OmniVoiceProvider(TTSProvider):
         return results
 
     def unload(self):
-        """Unloads weights from GPU memory."""
-        if self._client and self.base_url and self.worker_process and self.worker_process.poll() is None:
-            try:
-                self._client.post(f"{self.base_url}/unload", timeout=5.0)
-            except Exception as e:
-                print(f"[OmniVoice] Failed to call unload on worker: {e}")
+        """Unloads weights and shuts down the isolated worker process to reclaim memory."""
+        self.shutdown()
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception:
+            pass
 
     def shutdown(self):
         """Terminates the worker process cleanly."""

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { LogHeader } from './LogHeader';
 import { ActivityFeed } from './ActivityFeed';
 import { SegmentPreviews } from './SegmentPreviews';

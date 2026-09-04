@@ -4,7 +4,7 @@ export interface Segment {
     end_ms: number;
     text: string;
     is_translated?: boolean;
-    original_text?: string;
+    original_text?: string | null;
     audioUrl?: string;
     isApproved?: boolean;
 }

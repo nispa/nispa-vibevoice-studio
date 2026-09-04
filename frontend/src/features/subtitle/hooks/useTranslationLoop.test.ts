@@ -25,8 +25,8 @@ describe('useTranslationLoop', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        global.fetch = vi.fn();
-        global.alert = vi.fn();
+        vi.stubGlobal('fetch', vi.fn());
+        vi.stubGlobal('alert', vi.fn());
         mockIsPausedRef.current = false;
 
         vi.mocked(useSubtitleContext).mockReturnValue({
@@ -38,7 +38,7 @@ describe('useTranslationLoop', () => {
             subtitleFile: { name: 'test.srt' } as File,
             setSubtitleFile: mockSetSubtitleFile,
             saveJobDraft: mockSaveJobDraft
-        } as ReturnType<typeof useSubtitleContext>);
+        } as unknown as ReturnType<typeof useSubtitleContext>);
 
         vi.mocked(useTranslationContext).mockReturnValue({
             targetLanguage: 'Italian',
@@ -54,7 +54,7 @@ describe('useTranslationLoop', () => {
             setPreviousTranslatedText: mockSetPreviousTranslatedText,
             setCurrentOriginalText: mockSetCurrentOriginalText,
             setCurrentTranslatedText: mockSetCurrentTranslatedText
-        } as ReturnType<typeof useTranslationContext>);
+        } as unknown as ReturnType<typeof useTranslationContext>);
     });
 
     it('should translate segments in batch', async () => {
@@ -63,10 +63,11 @@ describe('useTranslationLoop', () => {
             { index: 1, text: 'Ciao', is_translated: true },
             { index: 2, text: 'Mondo', is_translated: true }
         ];
-        vi.mocked(global.fetch).mockResolvedValue({
+        const mockFetch = vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({ segments: mockTranslatedSegments })
         } as Response);
+        vi.stubGlobal('fetch', mockFetch);
 
         const { result } = renderHook(() => useTranslationLoop());
 
@@ -82,7 +83,7 @@ describe('useTranslationLoop', () => {
         await promise!;
 
         // Verify batch fetch
-        expect(global.fetch).toHaveBeenCalledWith(
+        expect(mockFetch).toHaveBeenCalledWith(
             expect.stringContaining('api/translate-batch'),
             expect.any(Object)
         );

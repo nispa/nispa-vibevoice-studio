@@ -86,7 +86,9 @@ export const ScriptArchiveModal: React.FC<ScriptArchiveModalProps> = ({
                                 try {
                                     const parsed = JSON.parse(job.notes);
                                     detectedSpeakers = parsed.detected_speakers || Object.keys(parsed.speaker_voice_map || {});
-                                } catch {}
+                                } catch {
+                                    // Ignore JSON parse errors for non-JSON notes
+                                }
                             }
 
                             return (

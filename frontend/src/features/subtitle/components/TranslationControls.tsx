@@ -40,16 +40,6 @@ export const TranslationControls: React.FC = () => {
     // Detect if already translated
     const isTranslated = subtitleSegments.length > 0 && subtitleSegments.some(s => s.is_translated);
 
-    // Extract code if it's in the format "Language (code)"
-    const getEffectiveCode = (lang: string, custom: string) => {
-        if (lang === 'Other (Custom Code)') return custom;
-        const match = lang.match(/\(([^)]+)\)/);
-        return match ? match[1] : lang;
-    };
-
-    const effectiveTarget = getEffectiveCode(targetLanguage, customTargetCode);
-    const effectiveSource = getEffectiveCode(sourceLanguage, customSourceCode);
-
     const handleStartTranslation = async () => {
         if (!subtitleFile || isTranslating) return;
         
@@ -96,7 +86,7 @@ export const TranslationControls: React.FC = () => {
                 notes: `Translated using ${selectedOllamaModel} to ${targetLanguage}`
             });
             alert("Translated segments saved to job archive!");
-        } catch (err) {
+        } catch {
             alert("Failed to save translated draft.");
         } finally {
             setIsSaving(false);

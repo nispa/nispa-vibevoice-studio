@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, RotateCcw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, RotateCcw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SubtitleSegmentRow } from './SubtitleSegmentRow';
 import type { SubtitleEditorModalProps } from './types';
 import { useSubtitleEditor } from './useSubtitleEditor';
@@ -16,17 +16,13 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
 }) => {
     const {
         segments,
-        isFinalizing,
         handleTextChange,
-        handleAudioUpdated,
-        handleApprovalToggle,
         handleStartTimeChange,
         handleEndTimeChange,
         handleDeleteSegment,
         handleSegmentTranslated,
         handleAddSegment,
         handleSave,
-        handleFinalizeAudio,
         handleReset
     } = useSubtitleEditor(initialSegments, onSegmentsSave, onClose);
 
@@ -34,7 +30,6 @@ export const SubtitleEditorModal: React.FC<SubtitleEditorModalProps> = ({
 
     if (!isOpen) return null;
 
-    const approvedCount = segments.filter(s => s.isApproved).length;
     const totalPages = Math.ceil(segments.length / ITEMS_PER_PAGE);
     
     // Pagination logic

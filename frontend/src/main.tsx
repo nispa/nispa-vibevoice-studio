@@ -7,11 +7,13 @@ import { UIProvider } from './context/UIContext.tsx'
 import { ErrorBoundary } from './components/ui/ErrorBoundary.tsx'
 
 createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <GlobalProvider>
-      <UIProvider>
-        <App />
-      </UIProvider>
-    </GlobalProvider>
-  </ErrorBoundary>,
+  <StrictMode>
+    <ErrorBoundary>
+      <GlobalProvider>
+        <UIProvider>
+          <App />
+        </UIProvider>
+      </GlobalProvider>
+    </ErrorBoundary>
+  </StrictMode>,
 )

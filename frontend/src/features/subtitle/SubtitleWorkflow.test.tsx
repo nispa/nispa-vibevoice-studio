@@ -19,14 +19,14 @@ describe('SubtitleMode Workflow', () => {
             setAudioUrl: vi.fn(),
             fetchSystemInfo: vi.fn(),
             refreshTtsData: vi.fn()
-        } as ReturnType<typeof useGlobalContext>);
+        } as unknown as ReturnType<typeof useGlobalContext>);
 
         vi.mocked(useJobArchive).mockReturnValue({
             jobs: [],
             loading: false,
             loadJobs: vi.fn(),
             saveJobDraft: vi.fn()
-        } as ReturnType<typeof useJobArchive>);
+        } as unknown as ReturnType<typeof useJobArchive>);
     });
 
     it('should only show Step 1 initially', () => {

@@ -6,7 +6,6 @@ import SystemFooter from './components/SystemFooter';
 import AppHeader from './components/AppHeader';
 import AppModeToggle from './components/AppModeToggle';
 import AppAudioResult from './components/AppAudioResult';
-import LoadingOverlay from './components/ui/LoadingOverlay';
 import { VoicesManagementModal } from './components/VoicesManagement';
 import { useGlobalContext } from './context/GlobalContext';
 

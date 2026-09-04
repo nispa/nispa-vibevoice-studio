@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
-import { Loader2, Globe, Clock, CheckCircle } from 'lucide-react';
-import { CustomPromptEditor } from '../../../../components/translation/CustomPromptEditor';
+import React from 'react';
+import { Loader2, Globe, CheckCircle } from 'lucide-react';
 import { TranslationFeed } from '../../../../components/translation/TranslationFeed';
-import { ExecutionLogs } from '../../../../components/translation/ExecutionLogs';
 import { useTranslationContext } from '../../context/TranslationContext';
 import { useTranslationLoop } from '../../hooks/useTranslationLoop';
 
@@ -10,14 +8,6 @@ interface TranslationProgressModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
-
-const formatTime = (seconds: number | null) => {
-    if (seconds === null) return 'Calculating...';
-    if (seconds < 60) return `${Math.ceil(seconds)}s remain`;
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.ceil(seconds % 60);
-    return `${mins}m ${secs}s remain`;
-};
 
 export const TranslationProgressModal: React.FC<TranslationProgressModalProps> = ({
     isOpen,
@@ -27,16 +17,14 @@ export const TranslationProgressModal: React.FC<TranslationProgressModalProps> =
         translationProgress: progress,
         translationLogs: logs,
         isTranslating,
-        isPausing,
         hasStartedTranslation: hasStarted,
         sourceLanguage,
         targetLanguage,
-        selectedOllamaModel
     } = useTranslationContext();
 
     const { runTranslationLoop } = useTranslationLoop();
 
-    const [customPrompt, setCustomPrompt] = useState(`NLLB-200 Internal engine. Automated batch translation.`);
+    const customPrompt = 'NLLB-200 Internal engine. Automated batch translation.';
 
     // Re-calculating codes for the loop call
     const getEffectiveCode = (lang: string) => {

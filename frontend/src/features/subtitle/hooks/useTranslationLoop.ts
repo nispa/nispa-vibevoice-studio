@@ -21,7 +21,6 @@ export const useTranslationLoop = () => {
     } = useSubtitleContext();
 
     const {
-        targetLanguage,
         selectedOllamaModel,
         setIsTranslating,
         setHasStartedTranslation,
@@ -50,11 +49,11 @@ export const useTranslationLoop = () => {
      * Iterates through segments, calls the backend translation API, updates progress,
      * and handles auto-saving to the job archive.
      * 
-     * @param {string} customPrompt - The user-defined prompt template for translation.
+     * @param {string} _customPrompt - The user-defined prompt template for translation.
      * @param {string} sourceCode - NLLB source language code.
      * @param {string} targetCode - NLLB target language code.
      */
-    const runTranslationLoop = async (customPrompt: string, sourceCode: string = 'eng_Latn', targetCode: string = 'ita_Latn') => {
+    const runTranslationLoop = async (_customPrompt: string, sourceCode: string = 'eng_Latn', targetCode: string = 'ita_Latn') => {
         setIsTranslating(true);
         setHasStartedTranslation(true);
         setIsPausing(false);
@@ -74,7 +73,7 @@ export const useTranslationLoop = () => {
             const totalSegments = subtitleSegments.length;
             const CHUNK_SIZE = 10;
             let processedSegments = 0;
-            let updatedSegments = [...subtitleSegments];
+            const updatedSegments = [...subtitleSegments];
 
             for (let i = 0; i < totalSegments; i += CHUNK_SIZE) {
                 // Check if user paused

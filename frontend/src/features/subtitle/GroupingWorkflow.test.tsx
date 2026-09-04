@@ -30,7 +30,6 @@ const TestWrapper = () => {
         subtitleSegments, 
         setSubtitleFile, 
         previewData, 
-        setPreviewData,
         showPreview,
         setShowPreview,
         setSubtitleSegments
@@ -39,7 +38,7 @@ const TestWrapper = () => {
     // Force set a file so controls are visible
     React.useEffect(() => {
         setSubtitleFile(new File(['test'], 'test.srt', { type: 'text/plain' }));
-    }, []);
+    }, [setSubtitleFile]);
 
     return (
         <div>
@@ -51,7 +50,7 @@ const TestWrapper = () => {
                 segments={previewData?.segments || []}
                 originalCount={previewData?.original_count || 0}
                 finalCount={previewData?.final_count || 0}
-                onUseAsInput={(file) => {
+                onUseAsInput={() => {
                     // This mirrors the logic I added to SubtitleMode.tsx
                     if (previewData?.segments) {
                         setSubtitleSegments(previewData.segments);
@@ -120,9 +119,10 @@ const ConsumerComponent = ({ mockSegments }: { mockSegments: SubtitleSegment[] }
             final_count: 1
         });
         setShowPreview(true);
-    }, []);
+    }, [setSubtitleFile, setPreviewData, setShowPreview, mockSegments]);
 
-    const handleUseAsInput = (file: File) => {
+    const handleUseAsInput = (_file?: File) => {
+        void _file;
         // Implementation from SubtitleMode.tsx
         if (previewData?.segments) {
             setSubtitleSegments(previewData.segments);

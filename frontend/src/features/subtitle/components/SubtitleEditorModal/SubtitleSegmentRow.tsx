@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { Globe, Loader2, Trash2, CheckCircle2, Scissors } from 'lucide-react';
+import { Globe, Loader2, Trash2 } from 'lucide-react';
 import { useTranslationContext } from '../../context/TranslationContext';
 import type { Segment } from './types';
 import { formatMsToTime } from './utils';
-import { AudioWaveformPlayer } from '../../../../components/ui/AudioWaveformPlayer';
-import { AudioTrimmer } from '../../../../components/ui/AudioTrimmer';
 import { ttsApi } from '../../../../services/ttsApi';
 
 interface SubtitleSegmentRowProps {

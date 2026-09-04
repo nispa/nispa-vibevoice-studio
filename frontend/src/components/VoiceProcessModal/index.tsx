@@ -37,7 +37,7 @@ export const VoiceProcessModal: React.FC<VoiceProcessModalProps> = ({ isOpen, on
             } else {
                 setStatus('error');
             }
-        } catch (err) {
+        } catch {
             setStatus('error');
         } finally {
             setIsProcessing(false);

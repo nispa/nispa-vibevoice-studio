@@ -14,6 +14,11 @@ export interface Segment {
     is_translated?: boolean;
     original_text?: string | null;
     audioUrl?: string;
+    voice_id?: string;
+    model_name?: string;
+    language?: string;
+    isApproved?: boolean;
+    duration_sec?: number;
 }
 
 /**

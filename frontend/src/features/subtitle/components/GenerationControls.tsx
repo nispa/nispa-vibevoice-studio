@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Loader2, Activity, Music } from 'lucide-react';
+import { Settings, Activity, Music, XCircle } from 'lucide-react';
 import VoiceSelector from '../../../components/ui/VoiceSelector';
 import ModelSelector from '../../../components/ui/ModelSelector';
 import LanguageSelector from '../../../components/ui/LanguageSelector';
@@ -42,7 +42,6 @@ export const GenerationControls: React.FC = () => {
         selectedLanguage,
         setSelectedLanguage,
         activityLogs,
-        showLogsModal,
         setShowLogsModal,
         addLog,
         clearLogs,
@@ -53,11 +52,8 @@ export const GenerationControls: React.FC = () => {
         subtitleSegments,
         setSubtitleSegments,
         saveJobDraft,
-        generationProgress: progress,
         setGenerationProgress: setProgress,
-        generatedSegments,
         setGeneratedSegments,
-        currentTaskId,
         setCurrentTaskId,
         cancelGeneration,
         updateItemProgress,
@@ -136,7 +132,7 @@ export const GenerationControls: React.FC = () => {
             if (data.type === 'error') {
                 eventSource.close(); eventSourceRef.current = null;
                 setCurrentTaskId(null); clearPersistedTask();
-                setErrorMsg(data.message); addLog(`✗ Error: ${data.message}`); setIsProcessing(false);
+                setErrorMsg(data.message || 'Generation error'); addLog(`✗ Error: ${data.message || 'Generation error'}`); setIsProcessing(false);
             }
         };
         eventSource.onerror = () => {
@@ -225,7 +221,8 @@ export const GenerationControls: React.FC = () => {
         } else if (subtitleSegments && subtitleSegments.length > 0) {
             // Fallback: send segments, but strip heavy base64 to avoid 1MB limits
             const strippedSegments = subtitleSegments.map(s => {
-                const { audioBase64, ...rest } = s;
+                const rest = { ...s };
+                delete rest.audioBase64;
                 return rest;
             });
             formData.append('subtitle_segments', JSON.stringify(strippedSegments));
@@ -335,8 +332,8 @@ export const GenerationControls: React.FC = () => {
                     eventSourceRef.current = null;
                     setCurrentTaskId(null);
                     clearPersistedTask();
-                    setErrorMsg(data.message);
-                    addLog(`✗ Error: ${data.message}`);
+                    setErrorMsg(data.message || 'Generation error');
+                    addLog(`✗ Error: ${data.message || 'Generation error'}`);
                     setIsProcessing(false);
                 }
             };
@@ -498,14 +495,24 @@ export const GenerationControls: React.FC = () => {
                     </button>
                 )}
 
-                <button
-                    onClick={handleGenerate}
-                    disabled={!subtitleFile || !selectedVoiceId || isProcessing}
-                    className="btn-primary w-full md:w-auto px-8"
-                >
-                    <Settings size={18} />
-                    Generate Voice-over
-                </button>
+                {isProcessing ? (
+                    <button
+                        onClick={handleCancel}
+                        className="px-6 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+                    >
+                        <XCircle size={18} />
+                        Cancel
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleGenerate}
+                        disabled={!subtitleFile || !selectedVoiceId || isProcessing}
+                        className="btn-primary w-full md:w-auto px-8"
+                    >
+                        <Settings size={18} />
+                        Generate Voice-over
+                    </button>
+                )}
             </div>
         </>
     );

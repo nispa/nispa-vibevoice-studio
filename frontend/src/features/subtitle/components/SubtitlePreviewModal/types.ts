@@ -3,7 +3,7 @@ export interface SubtitleSegment {
     start_ms: number;
     end_ms: number;
     text: string;
-    duration_sec: number;
+    duration_sec?: number;
 }
 
 export interface SubtitlePreviewModalProps {

@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Download, Copy, Trash2, Music } from 'lucide-react';
 import type { Job } from '../../hooks/useJobArchive';
 import { AudioWaveformPlayer } from '../ui/AudioWaveformPlayer';

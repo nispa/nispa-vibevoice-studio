@@ -1,6 +1,6 @@
 # Tasks — Integrazione locale OmniVoice e refactoring provider TTS
 
-> Stato: **DA IMPLEMENTARE**
+> Stato: **COMPLETATO**
 > Data: 2026-09-04
 > Scopo: integrare OmniVoice come terzo provider TTS locale, indipendentemente dal risultato del confronto qualitativo con Qwen3-TTS.
 > Uso principale: dialoghi untimed in inglese con accento UK e voice cloning da reference autorizzati.

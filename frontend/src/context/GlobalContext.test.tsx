@@ -31,7 +31,7 @@ describe('GlobalContext', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         // Global fetch mock to avoid real network calls
-        vi.stubGlobal('fetch', vi.fn().mockImplementation((url) => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation((_url) => {
             return Promise.resolve({
                 ok: true,
                 json: () => Promise.resolve({ voices: [], models: [], status: 'ready' }),

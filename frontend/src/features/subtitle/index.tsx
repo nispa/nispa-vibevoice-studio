@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FC } from 'react';
 import { FileUp, Settings, AudioWaveform, X, ChevronDown, ChevronRight, Database } from 'lucide-react';
 import FileUploadArea from '../../components/ui/FileUploadArea';
@@ -45,23 +45,17 @@ const SubtitleModeContent: FC = () => {
         showTranslationModal, setShowTranslationModal
     } = useTranslationContext();
 
-    // UI state for collapse
-    const [isRefiningCollapsed, setIsRefiningCollapsed] = useState(false);
-
-    // Auto-collapse if a job is loaded
-    useEffect(() => {
-        if (loadedJobId) {
-            setIsRefiningCollapsed(true);
-        } else {
-            setIsRefiningCollapsed(false);
-        }
-    }, [loadedJobId]);
+    // UI state for collapse — derived from loadedJobId, allowing user manual toggle
+    const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
+    const isRefiningCollapsed = userCollapsed !== null ? userCollapsed : Boolean(loadedJobId);
+    const setIsRefiningCollapsed = (collapsed: boolean) => setUserCollapsed(collapsed);
 
     const handleReset = () => {
         setSubtitleFile(null);
         setLoadedJobId(null);
         setSubtitleSegments([]);
         setErrorMsg('');
+        setUserCollapsed(null);
     };
 
     return (

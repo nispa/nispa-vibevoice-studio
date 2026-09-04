@@ -36,6 +36,7 @@ export interface Model {
     name: string;
     engine: 'vibevoice' | 'qwen' | 'omnivoice' | string;
     supports_voice_design: boolean;
+    supports_voice_clone?: boolean;
     requires_reference?: boolean;
     requires_transcript?: boolean;
     max_speakers?: number;
@@ -129,7 +130,6 @@ export function GlobalProvider({ children, skipPolling = false }: { children: Re
         if (skipPolling) return;
 
         let isMounted = true;
-        let pollInterval: ReturnType<typeof setInterval> | undefined;
         let isChecking = false;
 
         const checkStatus = async () => {
@@ -139,9 +139,9 @@ export function GlobalProvider({ children, skipPolling = false }: { children: Re
                 const data = await systemApi.getStatus();
                 if (data.status === 'ready' && isMounted) {
                     setIsBackendReady(true);
-                    if (pollInterval) clearInterval(pollInterval);
+                    clearInterval(pollInterval);
                 }
-            } catch (e) {
+            } catch {
                 if (isMounted) setIsBackendReady(false);
             } finally {
                 isChecking = false;
@@ -149,7 +149,7 @@ export function GlobalProvider({ children, skipPolling = false }: { children: Re
         };
 
         checkStatus(); 
-        pollInterval = setInterval(checkStatus, 3000); // Relaxed to 3s
+        const pollInterval = setInterval(checkStatus, 3000); // Relaxed to 3s
 
         return () => {
             isMounted = false;

@@ -20,7 +20,7 @@ describe('VoicesManagementModal', () => {
         vi.mocked(useGlobalContext).mockReturnValue({
             voices: mockVoices,
             refreshTtsData: mockRefreshTtsData
-        } as ReturnType<typeof useGlobalContext>);
+        } as unknown as ReturnType<typeof useGlobalContext>);
     });
 
     it('renders voices list when open', () => {

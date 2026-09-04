@@ -29,14 +29,25 @@ def list_models(include_all: bool = False):
     By default returns only models currently installed and verified on disk.
     If include_all=True, returns all catalog models with their installed status.
     """
-    models_metadata = []
     installed_folders = set()
     if MODELS_DIR.exists():
         installed_folders = {entry for entry in os.listdir(MODELS_DIR) if os.path.isdir(MODELS_DIR / entry)}
 
+    # Map verified installed folders to their canonical model IDs
+    installed_canonical_ids = set()
+    for entry in installed_folders:
+        if "Tokenizer" in entry or not _is_model_installed(entry):
+            continue
+        try:
+            caps = resolve_model_capabilities(entry)
+            installed_canonical_ids.add(caps.model_id)
+        except ModelNotFoundError:
+            continue
+
+    models_metadata = []
     if include_all:
         for caps in list_supported_models():
-            installed = any(_is_model_installed(f) for f in installed_folders if f.lower() in [caps.model_id.lower(), caps.display_name.lower()])
+            installed = caps.model_id in installed_canonical_ids
             models_metadata.append({
                 "id": caps.model_id,
                 "name": caps.display_name,
@@ -50,13 +61,10 @@ def list_models(include_all: bool = False):
                 "installed": installed,
             })
     else:
-        for entry in sorted(installed_folders):
-            if "Tokenizer" in entry or not _is_model_installed(entry):
-                continue
-            try:
-                caps = resolve_model_capabilities(entry)
+        for caps in list_supported_models():
+            if caps.model_id in installed_canonical_ids:
                 models_metadata.append({
-                    "id": entry,
+                    "id": caps.model_id,
                     "name": caps.display_name,
                     "engine": caps.provider_id,
                     "supports_voice_design": caps.supports_voice_design,
@@ -67,8 +75,6 @@ def list_models(include_all: bool = False):
                     "execution": caps.execution,
                     "installed": True,
                 })
-            except ModelNotFoundError:
-                continue
 
     return {"models": models_metadata}
 

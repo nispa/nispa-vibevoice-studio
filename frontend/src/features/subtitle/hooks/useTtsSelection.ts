@@ -1,51 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Voice, Model } from '../../../context/GlobalContext';
 import { useGlobalContext } from '../../../context/GlobalContext';
 
 /**
  * Hook that manages voice, model, and language selection for generation.
- * The default model is picked dynamically from installed models,
- * with priority: Qwen3 Base > Qwen3 CustomVoice > any Qwen3 > VibeVoice.
+ * Priorities are capability-driven (voice-clone capable > general models).
  */
 export const useTtsSelection = (voices: Voice[]) => {
     const { models } = useGlobalContext();
-    const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
-    const [selectedModel, setSelectedModel] = useState<string>('');
+    const [userVoiceId, setSelectedVoiceId] = useState<string>('');
+    const [userModel, setSelectedModel] = useState<string>('');
     const [selectedLanguage, setSelectedLanguage] = useState<string>('Italian');
 
-    // Auto-select the first available model with Qwen3 priority
-    useEffect(() => {
-        if (models.length === 0) return;
-        if (selectedModel && models.find(m => m.id === selectedModel)) return;
-
-        const priority = [
-            (m: Model) => m.id.includes('Qwen') && m.id.includes('Base'),
-            (m: Model) => m.id.includes('Qwen') && m.id.includes('CustomVoice'),
-            (m: Model) => m.id.includes('Qwen'),
-            (m: Model) => !m.id.includes('Tokenizer'),
-            (_: Model) => true,
-        ];
-
-        for (const check of priority) {
-            const found = models.find(check);
-            if (found) {
-                setSelectedModel(found.id);
-                break;
-            }
+    // Resolve active model based on user selection or capability priority
+    const resolvedModel = (() => {
+        if (userModel && models.some(m => m.id === userModel)) {
+            return userModel;
         }
-    }, [models, selectedModel]);
+        if (models.length === 0) return '';
+        // Capability-driven priority: voice cloning capable > first available installed model
+        const best = models.find((m: Model) => m.supports_voice_clone) || models[0];
+        return best ? best.id : '';
+    })();
 
-    // Auto-select the first available voice
-    useEffect(() => {
-        if (voices.length > 0 && !selectedVoiceId) {
-            setSelectedVoiceId(voices[0].id);
+    // Resolve active voice based on user selection or first available voice
+    const resolvedVoiceId = (() => {
+        if (userVoiceId && voices.some(v => v.id === userVoiceId)) {
+            return userVoiceId;
         }
-    }, [voices, selectedVoiceId]);
+        return voices[0] ? voices[0].id : '';
+    })();
 
     return {
-        selectedVoiceId,
+        selectedVoiceId: resolvedVoiceId,
         setSelectedVoiceId,
-        selectedModel,
+        selectedModel: resolvedModel,
         setSelectedModel,
         selectedLanguage,
         setSelectedLanguage,

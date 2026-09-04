@@ -5,7 +5,7 @@ import { useTtsSelection } from '../hooks/useTtsSelection';
 import { useJobPersistence } from '../hooks/useJobPersistence';
 import type { ReactNode, RefObject, Dispatch, SetStateAction, FC } from 'react';
 import { useGlobalContext } from '../../../context/GlobalContext';
-import type { Job } from '../../../hooks/useJobArchive';
+import type { Job, Segment } from '../../../hooks/useJobArchive';
 import { ttsApi } from '../../../services/ttsApi';
 import { serializeAudioUrl, filePathToHttpUrl } from '../../../utils/audio';
 import { API_BASE_URL } from '../../../services/apiClient';
@@ -23,12 +23,14 @@ export interface SubtitleSegment {
     end_ms: number;
     text: string;
     is_translated?: boolean;
-    original_text?: string;
+    original_text?: string | null;
     audioUrl?: string;
+    audioBase64?: string;
     voice_id?: string;
     model_name?: string;
     language?: string;
     isApproved?: boolean;
+    duration_sec?: number;
 }
 
 /**
@@ -83,7 +85,7 @@ interface SubtitleContextProps {
     setLoadingPreview: (b: boolean) => void;
 
     subtitleSegments: SubtitleSegment[];
-    setSubtitleSegments: (s: SubtitleSegment[]) => void;
+    setSubtitleSegments: Dispatch<SetStateAction<SubtitleSegment[]>>;
     loadedJobId: number | null;
     setLoadedJobId: (id: number | null) => void;
     showEditor: boolean;
@@ -132,7 +134,7 @@ const SubtitleContext = createContext<SubtitleContextProps | undefined>(undefine
  * @param {ReactNode} props.children - Child components to be wrapped.
  */
 export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
-    const { voices, models } = useGlobalContext();
+    const { voices } = useGlobalContext();
     const { loadedJobId, setLoadedJobId, saveJobAction, updateJob } = useJobPersistence();
 
     // 1. Core State
@@ -223,7 +225,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
      * Saves the current subtitle configuration and segments as a draft job.
      * If segments are not yet loaded, it attempts to parse them from the file first.
      */
-    const saveJobDraft = async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent = false) => {
+    const saveJobDraft = useCallback(async (customNote?: string, customSegments?: SubtitleSegment[], customFilename?: string, silent = false) => {
         // Use provided segments, or the latest segments from our Ref, or the state as fallback
         let segmentsToSave = customSegments || segmentsRef.current || subtitleSegments;
         const fileToSave = customFilename || (subtitleFile ? subtitleFile.name : 'Unknown');
@@ -243,7 +245,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
         if (segmentsToSave.length === 0) {
             if (!silent) showToast('Please load subtitles first', 'info');
-            return;
+            return null;
         }
 
         // If we are updating an existing job
@@ -302,7 +304,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
 
         return null;
-    };
+    }, [subtitleSegments, subtitleFile, groupByPunctuation, loadedJobId, updateJob, selectedLanguage, selectedVoiceId, selectedModel, voices, saveJobAction, setLoadedJobId, setSubtitleSegments]);
 
     /**
      * Loads a specific job from the archive into the current context.
@@ -315,7 +317,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         // Use modified_segments as the primary source, ensuring audio fields are preserved.
         // audioUrl in the DB is now a relative file path (data/audio-rendering/...)
         // which we convert to an HTTP URL for playback.
-        const segments = (job.modified_segments || job.subtitle_segments || []).map((s: SubtitleSegment) => {
+        const segments: SubtitleSegment[] = (job.modified_segments || job.subtitle_segments || []).map((s: Segment) => {
             let audioUrl = s.audioUrl || null;
 
             if (audioUrl && audioUrl.startsWith('data/audio-rendering/')) {
@@ -324,7 +326,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
             return {
                 ...s,
-                audioUrl: audioUrl,
+                audioUrl: audioUrl || undefined,
                 voice_id: s.voice_id,
                 model_name: s.model_name,
                 language: s.language,
@@ -405,6 +407,7 @@ export const SubtitleProvider: FC<{ children: ReactNode }> = ({ children }) => {
         showEditor,
         showArchive,
         generationProgress,
+        setGenerationProgress,
         generatedSegments,
         showReviewModal,
         totalItems,

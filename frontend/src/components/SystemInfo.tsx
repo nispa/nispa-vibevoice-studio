@@ -22,7 +22,6 @@ export const SystemInfo = ({ isOpen, onClose }: SystemInfoProps) => {
     useEffect(() => {
         if (isOpen) {
             fetchSystemInfo();
-            setActiveTab('system');
         }
     }, [isOpen, fetchSystemInfo]);
 

@@ -100,7 +100,7 @@ export const SubtitlePreviewModal: React.FC<SubtitlePreviewModalProps> = ({
                                                     {formatTime(seg.start_ms)} → {formatTime(seg.end_ms)}
                                                 </span>
                                                 <span className="text-xs text-slate-500">
-                                                    ({seg.duration_sec.toFixed(2)}s)
+                                                    ({(seg.duration_sec ?? 0).toFixed(2)}s)
                                                 </span>
                                             </div>
                                             <p className="text-slate-200 text-sm leading-relaxed">

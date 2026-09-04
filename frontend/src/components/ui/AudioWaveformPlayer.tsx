@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Play, Pause, Loader2, Download } from 'lucide-react';
 
 interface AudioWaveformPlayerProps {
@@ -22,7 +22,6 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [audioData, setAudioData] = useState<AudioBuffer | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [currentTime, setCurrentTime] = useState(0);
 
     // Close AudioContext on unmount to prevent resource leak
     useEffect(() => {
@@ -35,12 +34,47 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
     useEffect(() => {
         setAudioData(null);
         setIsPlaying(false);
-        setCurrentTime(0);
         if (audioRef.current) {
             audioRef.current.pause();
             audioRef.current.src = audioUrl;
         }
     }, [audioUrl]);
+
+    const drawWaveform = useCallback((buffer: AudioBuffer, progress: number = 0) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const data = buffer.getChannelData(0);
+        const step = Math.ceil(data.length / canvas.width);
+        const amp = canvas.height / 2;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw static bars
+        for (let i = 0; i < canvas.width; i++) {
+            let min = 1.0;
+            let max = -1.0;
+            for (let j = 0; j < step; j++) {
+                const datum = data[(i * step) + j];
+                if (datum < min) min = datum;
+                if (datum > max) max = datum;
+            }
+            
+            // Highlight played part vs remaining
+            const isPlayed = (i / canvas.width) <= progress;
+            ctx.fillStyle = isPlayed ? barColor : '#334155'; // barColor or slate-700
+            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
+        }
+
+        // Draw Playhead (Red Line)
+        if (progress >= 0) {
+            const x = progress * canvas.width;
+            ctx.fillStyle = '#f43f5e'; // Rose-500 (Red)
+            ctx.fillRect(x - 1, 0, 2, canvas.height);
+        }
+    }, [barColor]);
 
     // Animation loop for playback head
     useEffect(() => {
@@ -49,7 +83,6 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
         const updateProgress = () => {
             if (audioRef.current && isPlaying) {
                 const now = audioRef.current.currentTime;
-                setCurrentTime(now);
                 if (audioData) {
                     drawWaveform(audioData, now / audioRef.current.duration);
                 }
@@ -62,7 +95,7 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
         }
 
         return () => cancelAnimationFrame(animationFrame);
-    }, [isPlaying, audioData]);
+    }, [isPlaying, audioData, drawWaveform]);
 
     const loadAndPlay = async () => {
         if (isPlaying) {
@@ -100,42 +133,6 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
         }
     };
 
-    const drawWaveform = (buffer: AudioBuffer, progress: number = 0) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const data = buffer.getChannelData(0);
-        const step = Math.ceil(data.length / canvas.width);
-        const amp = canvas.height / 2;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw static bars
-        for (let i = 0; i < canvas.width; i++) {
-            let min = 1.0;
-            let max = -1.0;
-            for (let j = 0; j < step; j++) {
-                const datum = data[(i * step) + j];
-                if (datum < min) min = datum;
-                if (datum > max) max = datum;
-            }
-            
-            // Highlight played part vs remaining
-            const isPlayed = (i / canvas.width) <= progress;
-            ctx.fillStyle = isPlayed ? barColor : '#334155'; // barColor or slate-700
-            ctx.fillRect(i, (1 + min) * amp, 1, Math.max(1, (max - min) * amp));
-        }
-
-        // Draw Playhead (Red Line)
-        if (progress >= 0) {
-            const x = progress * canvas.width;
-            ctx.fillStyle = '#f43f5e'; // Rose-500 (Red)
-            ctx.fillRect(x - 1, 0, 2, canvas.height);
-        }
-    };
-
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (!audioData || !audioRef.current) return;
         
@@ -149,7 +146,6 @@ export const AudioWaveformPlayer: React.FC<AudioWaveformPlayerProps> = ({
         // Update audio time
         const newTime = progress * audioRef.current.duration;
         audioRef.current.currentTime = newTime;
-        setCurrentTime(newTime);
         
         // Redraw immediately
         drawWaveform(audioData, progress);

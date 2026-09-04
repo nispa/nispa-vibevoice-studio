@@ -28,14 +28,14 @@ describe('ScriptMode - Voice Design Visibility', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        (useGlobalContext as any).mockReturnValue({
+        vi.mocked(useGlobalContext).mockReturnValue({
             isProcessing: false,
             models: mockModels,
             voices: []
-        });
+        } as unknown as ReturnType<typeof useGlobalContext>);
     });
 it('hides Voice Design field when model does not support it', () => {
-    (useScriptContext as any).mockReturnValue({
+    vi.mocked(useScriptContext).mockReturnValue({
         scriptFile: null,
         scriptText: 'Speaker1: Hello',
         speakers: [{ id: 's1', name: 'Speaker1', voiceId: 'voice1' }],
@@ -46,7 +46,7 @@ it('hides Voice Design field when model does not support it', () => {
         voiceDescription: '',
         setVoiceDescription: vi.fn(),
         errorMsg: ''
-    });
+    } as unknown as ReturnType<typeof useScriptContext>);
 
     render(<ScriptMode />);
     // The title 'Voice Design' as a heading should not be there
@@ -56,7 +56,7 @@ it('hides Voice Design field when model does not support it', () => {
 });
 
 it('shows Voice Design field when model supports it', () => {
-    (useScriptContext as any).mockReturnValue({
+    vi.mocked(useScriptContext).mockReturnValue({
         scriptFile: null,
         scriptText: 'Speaker1: Hello',
         speakers: [{ id: 's1', name: 'Speaker1', voiceId: 'voice1' }],
@@ -67,7 +67,7 @@ it('shows Voice Design field when model supports it', () => {
         voiceDescription: '',
         setVoiceDescription: vi.fn(),
         errorMsg: ''
-    });
+    } as unknown as ReturnType<typeof useScriptContext>);
 
     render(<ScriptMode />);
 
