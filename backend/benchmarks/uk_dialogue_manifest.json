@@ -1,0 +1,152 @@
+[
+  {
+    "id": "uk_01_question",
+    "category": "Questions & Rising Intonation",
+    "text": "Are you absolutely certain we're meant to turn left after the cathedral?",
+    "target_aspect": "Rising intonation on enquiry and natural vowel length in 'cathedral'."
+  },
+  {
+    "id": "uk_02_irony",
+    "category": "Irony, Sarcasm & Understatement",
+    "text": "Splendid, another torrential downpour right in the middle of our July picnic.",
+    "target_aspect": "Subtle British sarcastic inflection on 'Splendid'."
+  },
+  {
+    "id": "uk_03_hesitation",
+    "category": "Hesitations & Conversational Fillers",
+    "text": "Well, erm... to be completely honest, I hadn't really considered that possibility.",
+    "target_aspect": "Handling of pauses, conversational disfluency 'erm', and natural phrasing."
+  },
+  {
+    "id": "uk_04_short_turn_a",
+    "category": "Rapid Dialogue & Short Turns",
+    "text": "Did you lock the back door?",
+    "target_aspect": "Snappy, crisp turn articulation without truncation."
+  },
+  {
+    "id": "uk_05_short_turn_b",
+    "category": "Rapid Dialogue & Short Turns",
+    "text": "Of course I did, mate. Twice.",
+    "target_aspect": "Colloquial cadence and sentence-final emphasis."
+  },
+  {
+    "id": "uk_06_long_narrative",
+    "category": "Long Narrative & Complex Clauses",
+    "text": "The committee spent three exhausting hours debating whether the proposed railway expansion through Surrey would disrupt local heritage sites or merely cause minor traffic diversions.",
+    "target_aspect": "Prosodic consistency, breath pacing, and absence of pitch drift across long clauses."
+  },
+  {
+    "id": "uk_07_currency_pounds",
+    "category": "British Currency & Quantities",
+    "text": "That'll be £45.50 for the train fare, plus an extra £3.20 for the return voucher.",
+    "target_aspect": "Correct pronunciation of '£' as pounds and decimal amounts."
+  },
+  {
+    "id": "uk_08_large_currency",
+    "category": "British Currency & Quantities",
+    "text": "The vintage sports car was auctioned off for an astonishing £124,500.",
+    "target_aspect": "Handling of large sums in GBP."
+  },
+  {
+    "id": "uk_09_dates_british",
+    "category": "British Dates & Times",
+    "text": "The inquest is scheduled for the 14th of July, shortly before quarter to four in the afternoon.",
+    "target_aspect": "British date format and typical time phrasing ('quarter to four')."
+  },
+  {
+    "id": "uk_10_times_half_past",
+    "category": "British Dates & Times",
+    "text": "Meet me outside St Pancras station at half past seven tomorrow morning.",
+    "target_aspect": "British colloquial time expression 'half past seven'."
+  },
+  {
+    "id": "uk_11_toponyms_worcestershire",
+    "category": "British Place Names & Toponyms",
+    "text": "We drove through Gloucestershire, stopped in Worcestershire, and finished the journey near Leicester Square.",
+    "target_aspect": "Non-phonetic British place name pronunciation (/ˈwʊstəʃə/, /ˈglɒstəʃə/, /ˈlɛstə/). "
+  },
+  {
+    "id": "uk_12_toponyms_scotland_london",
+    "category": "British Place Names & Toponyms",
+    "text": "Her grandmother lives in Edinburgh, just a short stroll from the Royal Mile.",
+    "target_aspect": "Correct pronunciation of Edinburgh (/ˈɛdɪnbərə/). "
+  },
+  {
+    "id": "uk_13_abbreviations_titles",
+    "category": "Abbreviations & Proper Nouns",
+    "text": "Dr. Watson met Mrs. Higgins at No. 10 Downing Street before contacting the BBC.",
+    "target_aspect": "Expansion of titles and standard UK abbreviations."
+  },
+  {
+    "id": "uk_14_heteronyms",
+    "category": "Heteronyms & Contextual Reading",
+    "text": "The wind was strong enough to wind the ribbon tightly around the mast, and I read what he had lead me to.",
+    "target_aspect": "Disambiguation of 'wind' (/wɪnd/ vs /waɪnd/) and 'read' (/rɛd/ vs /riːd/)."
+  },
+  {
+    "id": "uk_15_emotional_relief",
+    "category": "Emotional & Expressive Dialogue",
+    "text": "Thank heavens for that! I genuinely thought we'd missed the last coach home.",
+    "target_aspect": "Emotional relief and expressive dynamics without screeching or clipping."
+  },
+  {
+    "id": "uk_16_emotional_irritation",
+    "category": "Emotional & Expressive Dialogue",
+    "text": "Honestly, could you not have warned me before making such an absurd blunder?",
+    "target_aspect": "Understated irritation and indignation."
+  },
+  {
+    "id": "uk_17_colloquial_phrasing",
+    "category": "British Idiomatic Expressions",
+    "text": "Don't get your knickers in a twist, it's not the end of the world, is it?",
+    "target_aspect": "Colloquial idiom, tag question ('is it?') intonation."
+  },
+  {
+    "id": "uk_18_non_verbal_tag",
+    "category": "Non-verbal & Paralinguistic Tags",
+    "text": "Well [laughter], that certainly didn't go according to plan.",
+    "target_aspect": "Handling of inline bracketed emotional cues if supported, or graceful preservation."
+  },
+  {
+    "id": "uk_19_postal_code",
+    "category": "British Addresses & Postcodes",
+    "text": "Please dispatch the parcel to Flat 4B, Kensington High Street, London W8 5SE.",
+    "target_aspect": "Alphanumeric alphanumeric postcode pronunciation (W-eight five-S-E)."
+  },
+  {
+    "id": "uk_20_rapid_alternation_a",
+    "category": "Conversational Interruption",
+    "text": "Wait a second, are you implying that—",
+    "target_aspect": "Sudden stop / cutoff pacing in dialogue."
+  },
+  {
+    "id": "uk_21_rapid_alternation_b",
+    "category": "Conversational Interruption",
+    "text": "Precisely. Exactly what you're thinking.",
+    "target_aspect": "Decisive, firm one-word opening."
+  },
+  {
+    "id": "uk_22_polite_request",
+    "category": "Formal British Etiquette",
+    "text": "Would you be so terribly kind as to pass the marmalade, if it's not too much trouble?",
+    "target_aspect": "Excessively polite British RP phrasing and softening intonation."
+  },
+  {
+    "id": "uk_23_numbers_measurement",
+    "category": "Numbers & Metric/Imperial Units",
+    "text": "The trail extends for 18.5 miles, rising about 450 metres above sea level.",
+    "target_aspect": "Decimal numbers and unit reading."
+  },
+  {
+    "id": "uk_24_celtic_british_names",
+    "category": "British & Celtic Names",
+    "text": "Alastair and Niamh agreed to meet Siobhan at the pub on Borough High Street.",
+    "target_aspect": "Phonetic rendering of traditional UK/Irish names (/ˈniːv/, /ʃɪˈvɔːn/). "
+  },
+  {
+    "id": "uk_25_concluding_remark",
+    "category": "Dialogue Closure",
+    "text": "Right then. Let's get cracking, shall we?",
+    "target_aspect": "Typical British conversational sign-off and tag question."
+  }
+]

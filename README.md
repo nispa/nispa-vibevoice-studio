@@ -42,12 +42,13 @@ Most AI voiceover tools send your data to remote APIs. Nispa VibeVoice Studio ru
 
 ## ✨ Key Features
 
-### 🧠 Dual TTS Engine Architecture
+### 🧠 Triple Local TTS Engine Architecture
 
-| Engine | Strengths | Voice Cloning | Voice Design |
-|--------|-----------|:---:|:---:|
-| **Qwen3-TTS** | State-of-the-art quality, multi-language | ✅ 3-second zero-shot | ✅ Text description |
-| **VibeVoice** | Stable long-form synthesis, multi-speaker | ✅ Reference audio | ❌ |
+| Engine | Strengths | Voice Cloning | Voice Design | Execution |
+|--------|-----------|:---:|:---:|:---:|
+| **OmniVoice** | Ultra-fast (RTF < 0.6), UK dialogue, natural conversational flow | ✅ Zero-shot (WAV + Transcript) | ❌ | Local isolated worker (`127.0.0.1`) |
+| **Qwen3-TTS** | State-of-the-art expressive quality (1.7B recommended), multi-language | ✅ 3-second zero-shot (x-vector / transcript) | ✅ Text description | Local in-process |
+| **VibeVoice** | Stable long-form synthesis, multi-speaker synchronised | ✅ Reference audio | ❌ | Local in-process |
 
 ### ⚡ Hardware-Aware Dynamic Batching
 The system queries your GPU's available VRAM in real-time and dynamically scales inference batch size (1–8 segments simultaneously). No more OOM crashes — the engine adapts to your hardware.
@@ -139,11 +140,18 @@ brew install ffmpeg
 
 | Model | Size | VRAM | Best For |
 |-------|------|------|----------|
+| **OmniVoice** | 3.0GB | ~3GB | Ultra-fast cloning (RTF < 0.6), UK dialogue, fast multi-speaker script iterations |
+| **Qwen3 1.7B** | Premium | ~6GB | Highest quality expressive cloning, voice design, zero-transcript cloning |
+| **Qwen3 0.6B** | Lightweight | ~2GB | Lightweight Qwen testing |
+| **VibeVoice 1.5B** | Standard | ~4GB | Production subtitle voiceover, synchronized multi-speaker (up to 4) |
+| **VibeVoice 7B** | Large | ~14GB | High fidelity subtitle synthesis |
 | **VibeVoice 0.5B** | Streaming | ~2GB | Real-time preview, single speaker |
-| **VibeVoice 1.5B** | Standard | ~4GB | Production voiceover, multi-speaker |
-| **VibeVoice 7B** | Large | ~14GB | Highest fidelity, large context |
-| **Qwen3 0.6B** | Lightweight | ~2GB | Fast cloning, low VRAM setups |
-| **Qwen3 1.7B** | Premium | ~6GB | Best quality, voice design |
+
+### 🔒 Privacy, Offline Operation & Biometric Voice Prompts
+
+- **100% Strict-Offline**: Network access is explicitly disabled during inference (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`). Model download is an explicit installation step; generation never triggers background downloads or remote API calls.
+- **Biometric Voice Clone Prompts**: OmniVoice creates derived acoustic prompts (`VoiceClonePrompt`), cached in `data/voice-prompts/omnivoice/`. These are treated as sensitive biometric derivatives, excluded from Git via `.gitignore`, keyed to cryptographic hashes of the reference audio and transcript, and can be invalidated or deleted at any time without deleting original voices.
+- **Worker Isolation**: The OmniVoice worker process operates in an isolated virtual environment (`venv_omnivoice`), binds exclusively to `127.0.0.1` with a per-session token, and terminates cleanly with the backend.
 
 ### Translation Models
 

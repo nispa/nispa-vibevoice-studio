@@ -34,9 +34,11 @@ echo "SELECT TTS ENGINES TO INSTALL"
 echo "======================================="
 echo "[1] VibeVoice only (Zero-shot cloning)"
 echo "[2] Qwen3-TTS only (Voice Design, High-fidelity)"
-echo "[3] BOTH (Recommended)"
+echo "[3] OmniVoice only (Fast Voice Cloning & Design)"
+echo "[4] VibeVoice + Qwen3-TTS"
+echo "[5] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice - Recommended)"
 echo ""
-read -p "Enter your choice (1/2/3): " ENGINE_CHOICE
+read -p "Enter your choice (1/2/3/4/5): " ENGINE_CHOICE
 
 if [ "$ENGINE_CHOICE" = "1" ]; then
     echo "[3/5] Installing VibeVoice dependencies..."
@@ -44,10 +46,25 @@ if [ "$ENGINE_CHOICE" = "1" ]; then
 elif [ "$ENGINE_CHOICE" = "2" ]; then
     echo "[3/5] Installing Qwen3-TTS dependencies..."
     pip install -r backend/requirements-qwen.txt
+elif [ "$ENGINE_CHOICE" = "3" ]; then
+    echo "[3/5] Installing OmniVoice worker in isolated environment..."
+    if [ ! -d "venv_omnivoice" ]; then
+        python3 -m venv venv_omnivoice
+    fi
+    venv_omnivoice/bin/pip install -r backend/requirements-omnivoice.txt
+elif [ "$ENGINE_CHOICE" = "4" ]; then
+    echo "[3/5] Installing VibeVoice and Qwen3-TTS dependencies..."
+    pip install -r backend/requirements-vibevoice.txt
+    pip install -r backend/requirements-qwen.txt
 else
     echo "[3/5] Installing ALL dependencies..."
     pip install -r backend/requirements-vibevoice.txt
     pip install -r backend/requirements-qwen.txt
+    echo "Installing OmniVoice worker in isolated environment..."
+    if [ ! -d "venv_omnivoice" ]; then
+        python3 -m venv venv_omnivoice
+    fi
+    venv_omnivoice/bin/pip install -r backend/requirements-omnivoice.txt
 fi
 
 # Flash Attention — macOS not supported, skip gracefully

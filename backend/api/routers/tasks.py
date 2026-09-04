@@ -443,12 +443,17 @@ async def create_generation_task(
     if not script_lines:
         raise HTTPException(status_code=400, detail="No valid speaker lines found in script")
 
-    # Enforce speaker limits
+    # Enforce data-driven speaker limits
     unique_speakers = list(set(l.speaker for l in script_lines))
-    if model_name == "VibeVoice-Streaming-0.5B" and len(unique_speakers) > 1:
-        raise HTTPException(status_code=400, detail="VibeVoice-0.5B model supports only 1 speaker.")
-    if len(unique_speakers) > 4:
-        raise HTTPException(status_code=400, detail=f"Maximum 4 speakers allowed for {model_name}. Detected: {len(unique_speakers)}")
+    from core.tts.catalog import resolve_model_capabilities
+    caps = resolve_model_capabilities(model_name)
+    if caps.provider_id == "vibevoice":
+        if caps.max_speakers == 1 and len(unique_speakers) > 1:
+            raise HTTPException(status_code=400, detail="VibeVoice-0.5B model supports only 1 speaker.")
+        if len(unique_speakers) > caps.max_speakers:
+            raise HTTPException(status_code=400, detail=f"Maximum {caps.max_speakers} speakers allowed for {model_name}. Detected: {len(unique_speakers)}")
+    elif len(unique_speakers) > 8:
+        raise HTTPException(status_code=400, detail=f"Maximum 8 speakers allowed in Script Mode. Detected: {len(unique_speakers)}")
 
     async def generation_job(task_id: str):
         import os

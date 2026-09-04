@@ -179,6 +179,14 @@ export const GenerationControls: React.FC = () => {
             return;
         }
 
+        if (selectedModelData?.requires_transcript) {
+            const voice = voices.find(v => v.id === selectedVoiceId);
+            if (!voice?.transcription?.trim()) {
+                setErrorMsg(`The selected model (${selectedModelData.name}) requires a voice with a verified transcript (.txt). Please add a transcript in Voice Management first.`);
+                return;
+            }
+        }
+
         // CONFIRM OVERWRITE
         if (currentAudioUrl) {
             const confirmOverwrite = await showConfirm({

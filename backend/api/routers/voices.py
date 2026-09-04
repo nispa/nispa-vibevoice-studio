@@ -8,41 +8,70 @@ from core.config import VOICES_DIR, MODELS_DIR
 
 router = APIRouter(prefix="/api")
 
+from core.tts.catalog import resolve_model_capabilities, list_supported_models, ModelNotFoundError
+
+def _is_model_installed(folder_name: str) -> bool:
+    """Verifies that a model directory exists and contains essential model weights/configs."""
+    model_path = MODELS_DIR / folder_name
+    if not model_path.is_dir():
+        return False
+    files = set(os.listdir(model_path))
+    if "config.json" in files or "model.safetensors" in files:
+        return True
+    if any(f.endswith(".safetensors") or f.endswith(".bin") or f.endswith(".pt") for f in files):
+        return True
+    return False
+
 @router.get("/models")
-def list_models():
+def list_models(include_all: bool = False):
     """
-    Lists all available TTS models with enhanced metadata.
+    Lists available TTS models with data-driven capabilities from the catalog.
+    By default returns only models currently installed and verified on disk.
+    If include_all=True, returns all catalog models with their installed status.
     """
     models_metadata = []
+    installed_folders = set()
     if MODELS_DIR.exists():
-        for entry in sorted(os.listdir(MODELS_DIR)):
-            if os.path.isdir(MODELS_DIR / entry):
-                # Exclude tokenizer — not a synthesis model
-                if "Tokenizer" in entry:
-                    continue
-                is_qwen = "Qwen" in entry
-                supports_voice_design = "VoiceDesign" in entry
-                is_base = "Base" in entry
-                is_custom = "CustomVoice" in entry
+        installed_folders = {entry for entry in os.listdir(MODELS_DIR) if os.path.isdir(MODELS_DIR / entry)}
 
-                # Human-readable label
-                label = entry
-                if is_qwen:
-                    if is_base:
-                        label = entry + " (Voice Cloning)"
-                    elif is_custom:
-                        label = entry + " (Built-in Voices)"
-                    elif supports_voice_design:
-                        label = entry + " (Voice Design)"
-
+    if include_all:
+        for caps in list_supported_models():
+            installed = any(_is_model_installed(f) for f in installed_folders if f.lower() in [caps.model_id.lower(), caps.display_name.lower()])
+            models_metadata.append({
+                "id": caps.model_id,
+                "name": caps.display_name,
+                "engine": caps.provider_id,
+                "supports_voice_design": caps.supports_voice_design,
+                "requires_reference": caps.requires_reference_audio,
+                "requires_transcript": caps.requires_reference_transcript,
+                "max_speakers": caps.max_speakers,
+                "sample_rate": caps.sample_rate,
+                "execution": caps.execution,
+                "installed": installed,
+            })
+    else:
+        for entry in sorted(installed_folders):
+            if "Tokenizer" in entry or not _is_model_installed(entry):
+                continue
+            try:
+                caps = resolve_model_capabilities(entry)
                 models_metadata.append({
                     "id": entry,
-                    "name": label,
-                    "engine": "qwen" if is_qwen else "vibevoice",
-                    "supports_voice_design": supports_voice_design,
-                    "requires_reference": is_base and not is_custom,
+                    "name": caps.display_name,
+                    "engine": caps.provider_id,
+                    "supports_voice_design": caps.supports_voice_design,
+                    "requires_reference": caps.requires_reference_audio,
+                    "requires_transcript": caps.requires_reference_transcript,
+                    "max_speakers": caps.max_speakers,
+                    "sample_rate": caps.sample_rate,
+                    "execution": caps.execution,
+                    "installed": True,
                 })
+            except ModelNotFoundError:
+                continue
+
     return {"models": models_metadata}
+
 
 @router.get("/voices")
 def list_voices():
@@ -115,6 +144,11 @@ def delete_voice(voice_id: str):
         os.remove(voice_path)
         if txt_path.exists():
             os.remove(txt_path)
+        
+        # Invalidate biometric prompt cache for this voice
+        from core.tts.prompt_cache import invalidate_voice_cache
+        invalidate_voice_cache(safe_voice_id)
+
         return {"status": "success", "message": f"Voice {voice_id} and its transcription deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete voice: {str(e)}")
@@ -231,9 +265,24 @@ def update_voice_transcription(voice_id: str, transcription: str = Body(..., emb
     try:
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcription.strip())
+        
+        # Invalidate biometric prompt cache because transcript changed
+        from core.tts.prompt_cache import invalidate_voice_cache
+        invalidate_voice_cache(safe_voice_id)
+
         return {"status": "success", "message": "Transcription updated"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update transcription: {str(e)}")
+
+
+@router.delete("/voices/cache/omnivoice")
+def clear_omnivoice_cache():
+    """
+    Clears all cached biometric voice clone prompts for OmniVoice.
+    """
+    from core.tts.prompt_cache import clear_all_omnivoice_prompts
+    removed = clear_all_omnivoice_prompts()
+    return {"status": "success", "removed_prompts": removed}
 
 @router.post("/voices/{voice_id}/reprocess")
 async def reprocess_voice(voice_id: str):

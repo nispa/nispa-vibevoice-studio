@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-04
+
+### Added
+- **OmniVoice Local TTS Provider**: Third local offline TTS provider integrated for high-speed voice cloning and English-UK dialogue synthesis.
+- **Isolated Local Worker Architecture**: Operates OmniVoice within a dedicated Python environment (`venv_omnivoice`) to safely isolate `transformers>=5.3.0` from `transformers 4.57.3` (used by Qwen3-TTS and VibeVoice). Communicates strictly over `127.0.0.1` with session token security, avoiding orphan processes.
+- **Biometric Voice Clone Prompt Caching**: `VoiceClonePrompt` artifacts are cached under `data/voice-prompts/omnivoice/` using cryptographic hashing of the reference audio and verified transcript. Fully gitignored with explicit invalidation and deletion hooks.
+- **Data-Driven Model Capabilities & Registry**: Replaced brittle substring-based model routing with `ModelCapabilities`, `ProviderRegistry`, and `ModelCatalog`.
+- **UK Dialogue Benchmark Suite**: Benchmark manifest with 25 diverse English-UK conversational items, automated runner script (`backend/scripts/run_benchmark_uk.py`), and blind A/B evaluation generator.
+- **Guided Multi-Engine Installer**: Updated `install.bat` and `install.sh` to support multi-engine selection and isolated virtual environment creation.
+
+### Fixed
+- **SoX Path Resolution on Windows**: Automatic detection of SoX across standard installation directories and PATH injection for Qwen3 voice cloning.
+- **Qwen Language Normalization**: Unified ISO 639-1 language codes (e.g. `en`, `it`) with Qwen's expected full language names (`english`, `italian`).
+- **Worker Pipe Buffer Deadlocks**: Replaced subprocess pipe buffers with dedicated non-blocking log files to prevent Windows pipe stalls during heavy generation.
+
+### Changed
+- **Recommended Voice Cloning Models**: Production documentation updated to highlight OmniVoice for rapid English-UK dialogue and Qwen3-TTS 1.7B Base for maximum expressive depth.
+
 ## [0.7.2] - 2026-03-31
 
 > Contributed by **Auro M.** — macOS compatibility fixes tested on Apple Silicon.

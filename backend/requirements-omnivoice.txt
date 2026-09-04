@@ -1,0 +1,15 @@
+# OmniVoice Dedicated Worker Requirements
+# cu130 for CUDA 13.x / sm_120+ Blackwell support
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.10.0
+torchaudio==2.11.0
+omnivoice==0.2.1
+transformers==5.16.1
+accelerate>=1.14.0
+safetensors>=0.8.0
+soundfile>=0.13.1
+numpy>=2.4.0
+fastapi>=0.135.0
+uvicorn>=0.34.0
+pydantic>=2.10.0
+requests>=2.32.0

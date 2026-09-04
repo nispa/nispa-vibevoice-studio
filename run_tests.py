@@ -19,8 +19,14 @@ def backend_tests():
     print("\n=== Backend tests ===")
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.join("backend")
+    py_exec = sys.executable
+    venv_py = os.path.join(os.path.dirname(__file__), "venv", "Scripts", "python.exe")
+    if not os.path.exists(venv_py):
+        venv_py = os.path.join(os.path.dirname(__file__), "venv", "bin", "python")
+    if os.path.exists(venv_py):
+        py_exec = venv_py
     return run(
-        [sys.executable, "-m", "pytest", "backend/tests", "-v", "--tb=short"],
+        [py_exec, "-m", "pytest", "backend/tests", "-v", "--tb=short"],
         env=env,
     )
 
@@ -31,7 +37,8 @@ def frontend_tests():
     if not os.path.exists(os.path.join(frontend_dir, "node_modules")):
         print("  node_modules not found — run 'npm install' in frontend/ first")
         return False
-    return run(["npm", "run", "test", "--", "--run"], cwd=frontend_dir)
+    npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
+    return run([npm_cmd, "run", "test", "--", "--run"], cwd=frontend_dir)
 
 
 if __name__ == "__main__":

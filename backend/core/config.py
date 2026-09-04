@@ -12,9 +12,11 @@ VOICES_DIR = DATA_DIR / "voices"
 MODELS_DIR = DATA_DIR / "model"
 TRANSLATION_MODELS_DIR = DATA_DIR / "model-translation"
 OUTPUTS_DIR = DATA_DIR / "outputs"
+VOICE_PROMPTS_DIR = DATA_DIR / "voice-prompts"
+OMNIVOICE_PROMPTS_DIR = VOICE_PROMPTS_DIR / "omnivoice"
 
 # Ensure directories exist
-for d in [VOICES_DIR, MODELS_DIR, TRANSLATION_MODELS_DIR, OUTPUTS_DIR]:
+for d in [VOICES_DIR, MODELS_DIR, TRANSLATION_MODELS_DIR, OUTPUTS_DIR, VOICE_PROMPTS_DIR, OMNIVOICE_PROMPTS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 SOX_SEARCH_PATHS = [
@@ -57,13 +59,15 @@ class ConfigManager:
             "theme": "dark"
         },
         "tts": {
-            "batch_overrides": {}
+            "batch_overrides": {},
+            "strict_offline": True
         }
     }
 
     def __init__(self):
         self.settings = self.load_settings()
         self._auto_detect_sox()
+        self.setup_offline_environment()
 
     def load_settings(self) -> Dict[str, Any]:
         if not SETTINGS_FILE.exists():
@@ -107,6 +111,23 @@ class ConfigManager:
             if detected != "sox":
                 self.settings.setdefault("paths", {})["sox"] = detected
                 self.save_settings(self.settings)
+                current = detected
+
+        if os.path.isabs(current) and os.path.isfile(current):
+            sox_dir = os.path.dirname(current)
+            if sox_dir not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = sox_dir + os.pathsep + os.environ.get("PATH", "")
+
+    def setup_offline_environment(self, force: bool = False):
+        """
+        Enforces strict offline environment variables for Hugging Face Hub,
+        Transformers, and Datasets to prevent accidental remote downloads or telemetry.
+        """
+        strict = force or self.settings.get("tts", {}).get("strict_offline", True)
+        if strict:
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            os.environ["TRANSFORMERS_OFFLINE"] = "1"
+            os.environ["HF_DATASETS_OFFLINE"] = "1"
 
     def get_path(self, key: str) -> str:
         return self.settings.get("paths", {}).get(key, key)
@@ -114,6 +135,7 @@ class ConfigManager:
 # Global instances
 config_manager = ConfigManager()
 
-# Export paths for convenience
+# Export paths and offline setup for convenience
 def get_sox_path(): return config_manager.get_path("sox")
 def get_ffmpeg_path(): return config_manager.get_path("ffmpeg")
+def setup_offline_environment(force: bool = False): return config_manager.setup_offline_environment(force=force)

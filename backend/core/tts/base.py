@@ -26,8 +26,17 @@ class TTSProvider(ABC):
                 pass
         return device
 
+    def unload(self) -> None:
+        """
+        Unloads loaded model weights from memory and releases GPU resources.
+        Subclasses should override this method to perform clean resource disposal.
+        """
+        pass
+
     @abstractmethod
-    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> bytes:
+    def synthesize(self, text: str, model_name: str, reference_audio_path: Optional[str] = None,
+                   voice_id: Optional[str] = None, voice_description: Optional[str] = None,
+                   language: Optional[str] = None) -> bytes:
         """
         Synthesizes text into audio bytes.
 
@@ -46,22 +55,35 @@ class TTSProvider(ABC):
         """
         pass
 
-    @abstractmethod
-    def synthesize_batch(self, texts: list[str], model_name: str, reference_audio_path: Optional[str] = None, voice_id: Optional[str] = None, voice_description: Optional[str] = None, language: Optional[str] = None) -> list[bytes]:
+    def synthesize_batch(self, texts: list[str], model_name: str,
+                         reference_audio_path: Optional[str] = None,
+                         voice_id: Optional[str] = None,
+                         voice_description: Optional[str] = None,
+                         language: Optional[str] = None) -> list[bytes]:
         """
         Synthesizes a batch of texts into a list of audio bytes.
-        Base fallback implementation should loop through texts.
-
-        Args:
-            texts (list[str]): List of texts to synthesize.
-            model_name (str): Model name.
-            reference_audio_path (str, optional): Path to reference audio.
-            voice_id (str, optional): Voice ID.
-            voice_description (str, optional): Voice description.
-            language (str, optional): Target language.
-
-        Returns:
-            list[bytes]: List of synthesized audio data in WAV format.
+        Default base implementation sequentially calls synthesize() for each text.
+        Providers supporting native batching should override this method.
         """
-        pass
+        return [
+            self.synthesize(
+                text=t,
+                model_name=model_name,
+                reference_audio_path=reference_audio_path,
+                voice_id=voice_id,
+                voice_description=voice_description,
+                language=language
+            )
+            for t in texts
+        ]
+
+    def synthesize_dialogue(self, turns: list, model_name: str, **kwargs) -> list[bytes]:
+        """
+        Optional contract for native multi-speaker dialogue generation.
+        Raises NotImplementedError if the provider does not support single-shot dialogue.
+        """
+        raise NotImplementedError(
+            f"Provider '{self.__class__.__name__}' does not support native dialogue synthesis."
+        )
+
 

@@ -43,23 +43,31 @@ class Qwen3TTSProvider(TTSProvider):
 
         print(f"[Qwen-TTS] Device: {self.device}, dtype: {self.dtype}")
 
+    def unload(self) -> None:
+        """Explicitly unloads the model, deletes references, and clears CUDA memory."""
+        if self.model is not None:
+            print(f"[Qwen-TTS] Unloading model '{self.loaded_model_name}' to free VRAM")
+            try:
+                if hasattr(self.model, "to"):
+                    self.model.to("cpu")
+            except Exception:
+                pass
+            self.model = None
+            self.processor = None
+            self.loaded_model_name = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
     def _load_model(self, model_name: str):
         if self.loaded_model_name == model_name and self.model is not None:
             return
         
         # Cleanup if we are switching engines or models to save VRAM
         if self.model is not None:
-            print(f"[Qwen-TTS] Unloading previous model {self.loaded_model_name} to free VRAM")
-            try:
-                if hasattr(self.model, "to"):
-                    self.model.to("cpu")
-            except:
-                pass
-            self.model = None
-            self.processor = None
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            self.unload()
+
         
         # Dependency Check
         try:
@@ -72,6 +80,15 @@ class Qwen3TTSProvider(TTSProvider):
             )
 
         model_dir = os.path.join(self.base_model_dir, model_name)
+        if not os.path.exists(model_dir):
+            from core.tts.catalog import _ALIASES
+            for folder, canonical in _ALIASES.items():
+                if canonical == model_name or folder.lower() == model_name.lower():
+                    candidate = os.path.join(self.base_model_dir, folder)
+                    if os.path.exists(candidate):
+                        model_dir = candidate
+                        break
+
         if not os.path.exists(model_dir):
             raise FileNotFoundError(f"Qwen3-TTS weights not found at: {model_dir}")
 
@@ -109,12 +126,36 @@ class Qwen3TTSProvider(TTSProvider):
             print(f"[Qwen-TTS] Error loading model: {e}")
             raise RuntimeError(f"Error loading Qwen3-TTS weights: {e}")
 
-    @staticmethod
-    def _detect_language(text: str, explicit: Optional[str] = None) -> str:
-        """Returns explicit language if provided, else heuristic detection."""
+    LANGUAGE_MAP = {
+        "en": "english",
+        "english": "english",
+        "it": "italian",
+        "italian": "italian",
+        "zh": "chinese",
+        "chinese": "chinese",
+        "ja": "japanese",
+        "japanese": "japanese",
+        "ko": "korean",
+        "korean": "korean",
+        "de": "german",
+        "german": "german",
+        "fr": "french",
+        "french": "french",
+        "es": "spanish",
+        "spanish": "spanish",
+        "pt": "portuguese",
+        "portuguese": "portuguese",
+        "ru": "russian",
+        "russian": "russian",
+        "auto": "auto",
+    }
+
+    @classmethod
+    def _detect_language(cls, text: str, explicit: Optional[str] = None) -> str:
+        """Returns normalized language name required by qwen_tts ('english', 'italian', etc.)."""
         if explicit:
-            return explicit
-        return "Italian" if any(c in text.lower() for c in "àèéìòù") else "English"
+            return cls.LANGUAGE_MAP.get(explicit.lower(), explicit.lower())
+        return "italian" if any(c in text.lower() for c in "àèéìòù") else "english"
 
     def _get_silent_wav(self, duration_ms: int = 500) -> bytes:
         """Returns silent WAV bytes."""
@@ -196,13 +237,9 @@ class Qwen3TTSProvider(TTSProvider):
             is_custom_model = "CustomVoice" in model_name
             is_base_model = "Base" in model_name
 
-            if voice_description and (is_design_model or is_base_model):
-                print(f"[Qwen-TTS] Mode: Voice Design ({language})")
-                _locals["wavs"], sr = self.model.generate_voice_design(
-                    text=text, description=voice_description, language=language
-                )
-            elif reference_audio_path and (is_base_model or is_custom_model or not is_design_model):
-                print(f"[Qwen-TTS] Mode: Voice Clone [tx={'yes' if ref_text else 'no'}] ({language})")
+            # Priority 1: Voice Cloning if reference audio is provided
+            if reference_audio_path and (is_base_model or is_custom_model or not is_design_model):
+                print(f"[Qwen-TTS] Mode: Voice Clone [voice_id={voice_id or 'unknown'}] [tx={'yes' if ref_text else 'no'}] ({language})")
                 try:
                     _locals["wavs"], sr = self.model.generate_voice_clone(
                         text=text, ref_audio=reference_audio_path, ref_text=ref_text,
@@ -212,6 +249,12 @@ class Qwen3TTSProvider(TTSProvider):
                     if "sox" in str(e).lower():
                         print("[Qwen-TTS] ERROR: SoX is required for Voice Cloning. Install: brew install sox")
                     raise
+            # Priority 2: Voice Design if text description is provided and no reference audio
+            elif voice_description and (is_design_model or is_base_model):
+                print(f"[Qwen-TTS] Mode: Voice Design [voice_id={voice_id or 'none'}] ({language})")
+                _locals["wavs"], sr = self.model.generate_voice_design(
+                    text=text, description=voice_description, language=language
+                )
             elif is_custom_model:
                 speaker = "Vivian"
                 if voice_id:
@@ -247,14 +290,16 @@ class Qwen3TTSProvider(TTSProvider):
         is_custom_model = "CustomVoice" in model_name
         is_base_model = "Base" in model_name
 
-        if voice_description and (is_design_model or is_base_model):
-            return self.model.generate_voice_design(
-                text=texts, description=voice_description, language=language
-            )
-        elif reference_audio_path and (is_base_model or is_custom_model or not is_design_model):
+        # Priority 1: Voice Cloning if reference audio is provided
+        if reference_audio_path and (is_base_model or is_custom_model or not is_design_model):
             return self.model.generate_voice_clone(
                 text=texts, ref_audio=reference_audio_path, ref_text=ref_text,
                 language=language, x_vector_only_mode=not bool(ref_text)
+            )
+        # Priority 2: Voice Design if text description is provided and no reference audio
+        elif voice_description and (is_design_model or is_base_model):
+            return self.model.generate_voice_design(
+                text=texts, description=voice_description, language=language
             )
         elif is_custom_model:
             speaker = "Vivian"
