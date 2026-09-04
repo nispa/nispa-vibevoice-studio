@@ -22,20 +22,37 @@ echo SELECT TTS ENGINES TO INSTALL
 echo =======================================
 echo [1] VibeVoice only (Zero-shot cloning)
 echo [2] Qwen3-TTS only (Voice Design, High-fidelity)
-echo [3] BOTH (Recommended)
+echo [3] OmniVoice only (Fast Voice Cloning & Design)
+echo [4] VibeVoice + Qwen3-TTS
+echo [5] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice - Recommended)
 echo.
-set /p ENGINE_CHOICE="Enter your choice (1/2/3): "
+set /p ENGINE_CHOICE="Enter your choice (1/2/3/4/5): "
 
 if "%ENGINE_CHOICE%"=="1" (
     echo [3/5] Installing VibeVoice dependencies...
-    pip install -r backend\\requirements-vibevoice.txt
+    pip install -r backend\requirements-vibevoice.txt
 ) else if "%ENGINE_CHOICE%"=="2" (
     echo [3/5] Installing Qwen3-TTS dependencies...
-    pip install -r backend\\requirements-qwen.txt
+    pip install -r backend\requirements-qwen.txt
+) else if "%ENGINE_CHOICE%"=="3" (
+    echo [3/5] Installing OmniVoice worker in isolated environment...
+    if not exist "venv_omnivoice\" (
+        python -m venv venv_omnivoice
+    )
+    venv_omnivoice\Scripts\pip install -r backend\requirements-omnivoice.txt
+) else if "%ENGINE_CHOICE%"=="4" (
+    echo [3/5] Installing VibeVoice and Qwen3-TTS dependencies...
+    pip install -r backend\requirements-vibevoice.txt
+    pip install -r backend\requirements-qwen.txt
 ) else (
     echo [3/5] Installing ALL dependencies...
-    pip install -r backend\\requirements-vibevoice.txt
-    pip install -r backend\\requirements-qwen.txt
+    pip install -r backend\requirements-vibevoice.txt
+    pip install -r backend\requirements-qwen.txt
+    echo Installing OmniVoice worker in isolated environment...
+    if not exist "venv_omnivoice\" (
+        python -m venv venv_omnivoice
+    )
+    venv_omnivoice\Scripts\pip install -r backend\requirements-omnivoice.txt
 )
 
 :: Flash Attention (compiled against installed torch/CUDA — requires MSVC + CUDA toolkit)

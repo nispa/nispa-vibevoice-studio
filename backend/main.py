@@ -6,6 +6,10 @@ from fastapi.responses import FileResponse, JSONResponse
 
 # Import routers (minimal impact because routers themselves use lazy imports now)
 from api.routers import system, voices, generation, jobs, translation, tasks
+from core.config import setup_offline_environment
+
+# Enforce strict offline execution for TTS models & privacy
+setup_offline_environment()
 
 app = FastAPI(title="Nispa Voiceover API")
 # Startup checks

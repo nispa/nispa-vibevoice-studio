@@ -58,6 +58,23 @@ class VibeVoiceProvider(TTSProvider):
 
         print(f"[VibeVoice] Device: {self.device}, dtype: {self.dtype}")
 
+    def unload(self) -> None:
+        """Explicitly unloads the model, deletes references, and clears CUDA memory."""
+        if self.model is not None:
+            print(f"[TTS] Unloading model '{self.loaded_model_name}' to free VRAM")
+            try:
+                if hasattr(self.model, "to"):
+                    self.model.to("cpu")
+            except Exception:
+                pass
+            self.model = None
+            self.processor = None
+            self.loaded_model_name = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
     def _load_model(self, model_name: str):
         """
         Loads the specified VibeVoice model into memory or retrieves it from cache.
@@ -67,13 +84,8 @@ class VibeVoiceProvider(TTSProvider):
         
         # Cleanup if we are switching engines or models to save VRAM
         if self.model is not None:
-            print(f"[TTS] Unloading previous model {self.loaded_model_name} to free VRAM")
-            self.model.to("cpu")
-            self.model = None
-            self.processor = None
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            self.unload()
+
         
         # Add backend and vendors to sys.path
         import sys

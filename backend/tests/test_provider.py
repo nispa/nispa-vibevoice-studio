@@ -110,3 +110,78 @@ class TestMultiGpuPool:
 
         mock_vibe_0.synthesize_batch.assert_called_once()
         mock_vibe_1.synthesize_batch.assert_called_once()
+
+
+class TestCatalogAndCapabilities:
+    def test_resolve_known_qwen_model(self):
+        from core.tts.catalog import resolve_model_capabilities
+        caps = resolve_model_capabilities("Qwen3-TTS-12Hz-0.6B-Base")
+        assert caps.provider_id == "qwen"
+        assert caps.supports_voice_clone is True
+        assert caps.requires_reference_audio is True
+
+    def test_resolve_known_vibe_model(self):
+        from core.tts.catalog import resolve_model_capabilities
+        caps = resolve_model_capabilities("VibeVoice-1.5B")
+        assert caps.provider_id == "vibevoice"
+        assert caps.max_speakers == 4
+
+    def test_resolve_omnivoice_model(self):
+        from core.tts.catalog import resolve_model_capabilities
+        caps = resolve_model_capabilities("OmniVoice")
+        assert caps.provider_id == "omnivoice"
+        assert caps.execution == "local_worker"
+        assert caps.requires_reference_transcript is True
+
+    def test_resolve_unknown_model_raises_model_not_found(self):
+        from core.tts.catalog import resolve_model_capabilities
+        from core.tts.capabilities import ModelNotFoundError
+        with pytest.raises(ModelNotFoundError) as exc_info:
+            resolve_model_capabilities("NonExistentTTS-Model")
+        assert "Unknown model" in str(exc_info.value)
+
+    def test_resolve_empty_model_raises(self):
+        from core.tts.catalog import resolve_model_capabilities
+        from core.tts.capabilities import ModelNotFoundError
+        with pytest.raises(ModelNotFoundError):
+            resolve_model_capabilities("")
+
+
+class TestProviderRegistry:
+    def test_registry_register_and_get(self):
+        from core.tts.registry import ProviderRegistry
+        reg = ProviderRegistry()
+        mock_p = make_mock_provider()
+        reg.register_factory("test_provider", lambda dev: mock_p)
+        assert reg.has_provider("test_provider") is True
+        p = reg.get_provider("test_provider", device="cpu")
+        assert p is mock_p
+
+    def test_registry_unknown_provider_raises_provider_not_found(self):
+        from core.tts.registry import ProviderRegistry
+        from core.tts.capabilities import ProviderNotFoundError
+        reg = ProviderRegistry()
+        with pytest.raises(ProviderNotFoundError):
+            reg.get_provider("unknown_engine")
+
+    def test_registry_clean_vram_calls_unload(self):
+        from core.tts.registry import ProviderRegistry
+        reg = ProviderRegistry()
+        mock_p = make_mock_provider()
+        reg.register_factory("test", lambda dev: mock_p)
+        _ = reg.get_provider("test", device="cuda:0")
+        assert len(reg.active_instances) == 1
+
+        reg.clean_vram()
+        mock_p.unload.assert_called_once()
+        assert len(reg.active_instances) == 0
+
+
+class TestNoDefaultFallback:
+    def test_synthesize_unknown_model_raises_model_not_found(self):
+        from core.tts_provider import MultiModelProvider
+        from core.tts.capabilities import ModelNotFoundError
+        engine = MultiModelProvider()
+        with pytest.raises(ModelNotFoundError):
+            engine.synthesize("Hello", "SomeRandomModelThatDoesNotExist")
+

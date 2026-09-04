@@ -33,8 +33,14 @@ export interface Voice {
 export interface Model {
     id: string;
     name: string;
-    engine: 'vibevoice' | 'qwen';
+    engine: 'vibevoice' | 'qwen' | 'omnivoice' | string;
     supports_voice_design: boolean;
+    requires_reference?: boolean;
+    requires_transcript?: boolean;
+    max_speakers?: number;
+    sample_rate?: number;
+    execution?: string;
+    installed?: boolean;
 }
 
 /**

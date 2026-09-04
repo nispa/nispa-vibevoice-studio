@@ -16,6 +16,7 @@
         "batch_overrides": {
             "Qwen3-TTS-12Hz-1.7B-Base": 4
         },
+        "strict_offline": true,
         "multi_gpu": {
             "disabled_devices": []
         }

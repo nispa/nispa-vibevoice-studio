@@ -29,8 +29,9 @@ describe('useScriptGeneration', () => {
             setIsProcessing: mockSetIsProcessing,
             setAudioUrl: mockSetAudioUrl,
             models: [{ id: 'model1', name: 'Model 1', supports_voice_design: false }],
+            voices: [{ id: 'voice1', name: 'Voice 1', transcription: 'Test transcript' }],
             selectedLanguage: 'English'
-        } as ReturnType<typeof useGlobalContext>);
+        } as unknown as ReturnType<typeof useGlobalContext>);
     });
 
     it('should handle successful generation stream', async () => {

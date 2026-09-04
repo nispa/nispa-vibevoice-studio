@@ -59,3 +59,26 @@ def test_script_limit_within_bounds():
         assert "supports only 1 speaker" not in detail
     else:
         assert response.status_code == 200
+
+
+def test_script_omnivoice_allows_more_than_4_speakers():
+    """Verify that OmniVoice (per-utterance provider) is not restricted by VibeVoice 4-speaker limit."""
+    script = (
+        "Speaker1: Line 1\n"
+        "Speaker2: Line 2\n"
+        "Speaker3: Line 3\n"
+        "Speaker4: Line 4\n"
+        "Speaker5: Line 5"
+    )
+    voice_map = '{"Speaker1": "v1", "Speaker2": "v2", "Speaker3": "v3", "Speaker4": "v4", "Speaker5": "v5"}'
+    data = {
+        "script_text": script,
+        "speaker_voice_map": voice_map,
+        "model_name": "omnivoice-0.2"
+    }
+    response = client.post("/api/tasks/generate", data=data)
+    # Validation should pass the speaker limit check (status 200 or task queued)
+    if response.status_code == 400:
+        assert "Maximum 4 speakers allowed" not in response.json()["detail"]
+    else:
+        assert response.status_code == 200

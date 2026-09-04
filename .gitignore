@@ -36,11 +36,13 @@ coverage.xml
 
 # Virtual Environments
 venv/
+venv*/
 env/
 ENV/
 env.bak/
 venv.bak/
 .venv
+.venv*
 
 # IDE
 .vscode/
@@ -89,6 +91,12 @@ data/**/*.flac
 
 # Generated segment audio files
 data/audio-rendering/*
+
+# Benchmark audio and reports
+data/benchmark/*
+
+# Biometric voice clone prompts and cache
+data/voice-prompts/*
 
 # Temp files
 *.log

@@ -61,3 +61,22 @@ def test_qwen_voice_design_logs():
 
     # If we got here without errors, the logic flow for param handling is verified
     assert provider._load_model.called
+
+
+def test_qwen_voice_clone_priority_over_design():
+    """Verify that when reference audio is present, voice cloning is called even if voice_description is set."""
+    provider = Qwen3TTSProvider()
+    provider._load_model = MagicMock()
+    provider.model = MagicMock()
+    import torch
+    provider.model.generate_voice_design.return_value = ([torch.zeros(1)], 16000)
+    provider.model.generate_voice_clone.return_value = ([torch.zeros(1)], 16000)
+    provider._get_silent_wav = MagicMock(return_value=b"mock_audio")
+
+    with patch('torch.no_grad'), patch('torchaudio.save'), patch('os.path.exists', return_value=True), patch('builtins.open'):
+        # Pass BOTH voice_id and voice_description to a Base model
+        provider.synthesize("test", "Qwen3-TTS-1.7B-Base", voice_id="en-uk-voice", voice_description="should be ignored in favor of clone")
+        
+        # Verify voice_clone was called, NOT voice_design
+        assert provider.model.generate_voice_clone.called
+        assert not provider.model.generate_voice_design.called

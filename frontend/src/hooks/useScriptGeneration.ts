@@ -19,7 +19,7 @@ export const useScriptGeneration = () => {
         selectedModel, selectedLanguage, 
         voiceDescription, setErrorMsg 
     } = useScriptContext();
-    const { setIsProcessing, setAudioUrl, models } = useGlobalContext();
+    const { setIsProcessing, setAudioUrl, models, voices } = useGlobalContext();
 
     const [showProgressModal, setShowProgressModal] = useState(false);
     const [progressMessages, setProgressMessages] = useState<string[]>([]);
@@ -85,6 +85,21 @@ export const useScriptGeneration = () => {
             return;
         }
 
+        const selectedModelData = models.find(m => m.id === selectedModel);
+        if (selectedModelData?.requires_transcript) {
+            const invalidVoices: string[] = [];
+            speakers.forEach(s => {
+                const v = voices.find(voice => voice.id === s.voiceId);
+                if (!v?.transcription?.trim()) {
+                    invalidVoices.push(s.name);
+                }
+            });
+            if (invalidVoices.length > 0) {
+                setErrorMsg(`The selected model (${selectedModelData.name}) requires verified transcripts for: ${invalidVoices.join(', ')}. Please add transcripts in Voice Management.`);
+                return;
+            }
+        }
+
         setErrorMsg('');
         setIsProcessing(true);
         setAudioUrl(null);
@@ -108,7 +123,6 @@ export const useScriptGeneration = () => {
         formData.append('language', selectedLanguage);
 
         // Voice Design support
-        const selectedModelData = models.find(m => m.id === selectedModel);
         if (selectedModelData?.supports_voice_design && voiceDescription) {
             formData.append('voice_description', voiceDescription);
         }
