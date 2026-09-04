@@ -4,7 +4,12 @@ import FileUploadArea from '../ui/FileUploadArea';
 import { useScriptContext } from '../../features/script/context/ScriptContext';
 
 export default function ScriptInputArea() {
-    const { scriptFile, setScriptFile, scriptText, setScriptText, setDetectedSpeakers, setErrorMsg } = useScriptContext();
+    const {
+        scriptFile, setScriptFile,
+        scriptText, setScriptText,
+        setDetectedSpeakers, setErrorMsg,
+        clearDraft, hasDraft
+    } = useScriptContext();
     const scriptInputRef = useRef<HTMLInputElement>(null);
 
     const extractSpeakersFromText = (text: string): string[] => {
@@ -18,7 +23,7 @@ export default function ScriptInputArea() {
 
             if (speakerName && dialogue && speakerName.length < 30 && speakerName.length > 0) {
                 uniqueSpeakers.add(speakerName);
-                if (uniqueSpeakers.size >= 4) break; // Maximum 4 speakers
+                if (uniqueSpeakers.size >= 8) break; // Maximum 8 speakers for script mode
             }
         }
 
@@ -65,15 +70,32 @@ export default function ScriptInputArea() {
             />
 
             <div className="bg-slate-800/30 rounded-lg p-5 border border-slate-700/50">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/50">
-                    <Clipboard size={18} className="text-indigo-400" />
-                    <h4 className="font-semibold text-slate-200">Or Paste Script Here</h4>
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-700/50">
+                    <div className="flex items-center gap-2">
+                        <Clipboard size={18} className="text-indigo-400" />
+                        <h4 className="font-semibold text-slate-200">Or Paste Script Here</h4>
+                    </div>
+                    {hasDraft && (
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-emerald-400 font-medium flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                Draft auto-saved
+                            </span>
+                            <button
+                                type="button"
+                                onClick={clearDraft}
+                                className="text-xs text-slate-400 hover:text-red-400 hover:underline transition-colors"
+                            >
+                                Clear Draft
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <textarea
                     value={scriptText}
                     onChange={(e) => handleScriptTextChange(e.target.value)}
-                    placeholder="Format: Speaker1: Dialogue. Max 4 speakers for 1.5B/Large models.&#10;&#10;Example:&#10;Speaker1: Hello, how are you?&#10;Speaker2: I'm doing great!&#10;Speaker1: That's wonderful!"
-                    className="input-style w-full h-32 resize-none bg-slate-900/50"
+                    placeholder="Format: Speaker1: Dialogue. Up to 8 speakers supported.&#10;&#10;Example:&#10;Speaker1: Hello, how are you?&#10;Speaker2: I'm doing great!&#10;Speaker1: That's wonderful!"
+                    className="input-style w-full h-36 resize-none bg-slate-900/50"
                 />
             </div>
         </div>

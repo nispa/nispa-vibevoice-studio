@@ -1,4 +1,4 @@
-# Technical Documentation — Nispa VibeVoice Studio (v0.7.1)
+# Technical Documentation — Nispa VibeVoice Studio (v0.8.1)
 
 ## 1. System Architecture
 
@@ -6,11 +6,12 @@ Nispa VibeVoice Studio follows a **Client-Server architecture** optimized for lo
 
 - **Frontend:** Single Page Application (SPA) built with React 19, TypeScript, and Tailwind CSS 4.
 - **Backend:** High-performance asynchronous API built with FastAPI (Python 3.10+).
-- **TTS Engine:** Modular, dual-provider architecture (`core/tts/`):
+- **TTS Engine:** Modular, triple-provider architecture (`core/tts/`):
+  - **OmniVoice:** Runs within an isolated local worker process (`workers/omnivoice_worker.py`) on loopback `127.0.0.1` with session token authentication. Enables ultra-fast zero-shot voice cloning (RTF < 0.6) and cryptographic prompt caching (`data/voice-prompts/omnivoice/`) while isolating modern `transformers>=5.3.0` dependencies.
   - **Qwen3-TTS:** Uses the official `qwen-tts` library. Supports Voice Cloning (3-second reference), Voice Design (text description), and Custom/Built-in voices.
   - **VibeVoice:** Vendored autoregressive generator (`backend/vendors/vibevoice/`) for multi-speaker long-form content with native batch inference.
 - **Translation:** Internal NLLB-200 engine (200+ languages, 100% offline), with optional Ollama integration.
-- **Persistence:** SQLite database (`db/database.py`) for job tracking; local filesystem (`data/audio-rendering/`) for WAV segment storage; `data/outputs/` for final exported audio.
+- **Persistence:** SQLite database (`db/database.py`) for job tracking with `workflow_type` separation (`subtitle` vs `script`); local filesystem (`data/audio-rendering/`) for WAV segment storage; `data/outputs/` for final exported audio.
 
 ---
 
@@ -20,21 +21,23 @@ Nispa VibeVoice Studio follows a **Client-Server architecture** optimized for lo
 
 | Router | Responsibility |
 |--------|---------------|
-| `tasks.py` | Long-running async generation via SSE; VRAM batching; multi-GPU orchestration |
+| `tasks.py` | Long-running async generation via SSE; VRAM batching; multi-GPU orchestration; script mode orchestration |
 | `system.py` | Health, hardware status, VRAM info, maintenance operations |
 | `generation.py` | Synchronous single-segment generation endpoint |
 | `translation.py` | NLLB-200 inference + Ollama proxy |
-| `jobs.py` | CRUD operations on the SQLite job archive |
-| `voices.py` | Voice file management (upload, list, delete, reprocess) |
+| `jobs.py` | CRUD operations on the SQLite job archive with workflow filtering |
+| `voices.py` | Voice file management (upload, list, delete, reprocess) and catalog-driven model discovery |
 
-### 2.2. TTS Core Engine (`core/tts/`)
+### 2.2. TTS Core Engine (`core/tts/` & `workers/`)
 
 An extensible Provider pattern:
 
 - **`base.py`** — `TTSProvider` abstract base class. `_get_best_gpu()` delegates to `device_utils.get_default_device()`.
+- **`omnivoice_provider.py`** — OmniVoice provider adapter. Manages lifecycle of the standalone background worker, sends synthesis requests via local HTTP over loopback `127.0.0.1`, and manages `VoiceClonePrompt` caching.
+- **`omnivoice_worker.py`** (`workers/`) — Dedicated FastAPI worker process running in `venv_omnivoice` for pinned OmniVoice dependencies.
 - **`qwen_provider.py`** — Qwen3-TTS implementation. Lazy model loading. `@functools.lru_cache` on `_get_voice_ref()` to read `.wav`/`.txt` voice files once per voice. Per-segment language detection; groups consecutive segments by language for minimal model calls. `soundfile.write()` for WAV output (no `torchaudio` dependency).
 - **`vibe_provider.py`** — VibeVoice implementation. Native batch inference: single `processor()` + `model.generate()` call for the entire batch. Device-specific model loading (CUDA `device_map`, MPS explicit `.to("mps")`, CPU).
-- **`tts_provider.py`** — `MultiModelProvider` orchestrator. Maintains per-device provider pools (`_vibe_pool`, `_qwen_pool`). Default device resolved via `get_default_device()` at runtime — never hardcoded.
+- **`tts_provider.py`** — `ProviderRegistry` & `MultiModelProvider` orchestrator. Maintains per-provider lifecycle, lazy loading, and device routing based on data-driven capabilities (`catalog.py`). Default device resolved via `get_default_device()` at runtime — never hardcoded.
 
 ### 2.3. Device & VRAM Utilities (`core/`)
 
@@ -95,11 +98,16 @@ Ensures generated audio matches original SRT/VTT timing:
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | INTEGER | Primary key |
-| `original_filename` | TEXT | Source filename |
+| `original_filename` | TEXT | Source filename / script title |
 | `subtitle_segments` | TEXT (JSON) | Original parsed segments |
 | `modified_segments` | TEXT (JSON) | Segments after editing; each has `audioUrl` (relative file path) |
 | `voice_id` | TEXT | Default reference voice |
+| `voice_name` | TEXT | Voice display name / speaker summary |
+| `model_name` | TEXT | TTS model used |
+| `workflow_type` | TEXT | `'subtitle'` (timed subtitle jobs) or `'script'` (untimed dialogue jobs) |
 | `status` | TEXT | `draft` · `processing` · `completed` · `failed` |
+
+> **Workflow Isolation**: The `workflow_type` column guarantees strict separation between Subtitle Mode (`workflow_type='subtitle'`) and Script Mode (`workflow_type='script'`). Subtitle Archive queries explicitly filter by `'subtitle'`, ensuring untimed dialogues never mix into the subtitle list.
 
 > `audioUrl` stores a relative path like `data/audio-rendering/{folder}/{index}.wav`. Legacy jobs with inline `audioBase64` are still read for backward compatibility (`extra="ignore"` on the Pydantic model) but are never written in current versions.
 

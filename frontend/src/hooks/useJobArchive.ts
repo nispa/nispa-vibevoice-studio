@@ -34,6 +34,7 @@ export interface Job {
     created_at: string;
     updated_at: string;
     status: string;
+    workflow_type?: string;
 }
 
 /**
@@ -41,26 +42,27 @@ export interface Job {
  * 
  * Provides functionality to load, delete, save drafts, and export jobs to SRT.
  * 
+ * @param {string} [workflowType='subtitle'] - Filter jobs by 'subtitle' or 'script'.
  * @returns {object} State and handlers for managing the job archive.
  */
-export function useJobArchive() {
+export function useJobArchive(workflowType: string = 'subtitle') {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(false);
 
     /**
-     * Fetches the list of all jobs from the backend (lightweight version).
+     * Fetches the list of all jobs from the backend.
      */
     const loadJobs = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await jobsApi.list();
+            const data = await jobsApi.list(100, workflowType);
             setJobs(data.jobs);
         } catch (err) {
             console.error('Failed to load jobs:', err);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [workflowType]);
 
     /**
      * Deletes a specific job by ID after user confirmation.

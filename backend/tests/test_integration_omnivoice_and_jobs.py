@@ -190,3 +190,55 @@ class TestProviderSwitchingAndVramCleanup:
         registry.clean_vram()
         mock_omni.unload.assert_called_once()
         assert len(registry.active_instances) == 0
+
+
+class TestWorkflowTypeIsolation:
+    """Verifies that script jobs and subtitle jobs remain cleanly separated in SQLite."""
+
+    def test_workflow_type_filtering(self, tmp_path):
+        from db.database import init_db, create_job, get_all_jobs
+        from db.models import JobCreate, SubtitleSegmentData
+        db_path = str(tmp_path / "test_workflows.db")
+
+        with patch("db.database.DB_PATH", db_path):
+            init_db()
+
+            # Create 1 subtitle job
+            sub_job = create_job(JobCreate(
+                original_filename="subtitles.srt",
+                subtitle_segments=[],
+                modified_segments=[],
+                voice_id="v1",
+                voice_name="Voice 1",
+                model_name="qwen3-1.7b-base",
+                workflow_type="subtitle",
+            ))
+
+            # Create 1 script job
+            script_job = create_job(JobCreate(
+                original_filename="Script: Scene 1 (2 speakers)",
+                subtitle_segments=[],
+                modified_segments=[],
+                voice_id="v2",
+                voice_name="2 speakers",
+                model_name="omnivoice-0.2",
+                workflow_type="script",
+            ))
+
+            # Filter: subtitle only
+            sub_jobs, sub_total = get_all_jobs(workflow_type="subtitle")
+            assert sub_total == 1
+            assert len(sub_jobs) == 1
+            assert sub_jobs[0].id == sub_job.id
+            assert sub_jobs[0].workflow_type == "subtitle"
+
+            # Filter: script only
+            sc_jobs, sc_total = get_all_jobs(workflow_type="script")
+            assert sc_total == 1
+            assert len(sc_jobs) == 1
+            assert sc_jobs[0].id == script_job.id
+            assert sc_jobs[0].workflow_type == "script"
+
+            # All jobs
+            all_jobs, all_total = get_all_jobs()
+            assert all_total == 2

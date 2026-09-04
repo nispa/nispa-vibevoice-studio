@@ -39,6 +39,12 @@ def init_db():
     except Exception:
         pass  # Column already exists
 
+    # Migration: add workflow_type column ('subtitle' or 'script')
+    try:
+        cursor.execute("ALTER TABLE subtitle_jobs ADD COLUMN workflow_type TEXT DEFAULT 'subtitle'")
+    except Exception:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -67,8 +73,8 @@ def create_job(job_data: JobCreate) -> JobResponse:
             INSERT INTO subtitle_jobs (
                 original_filename, subtitle_segments, modified_segments,
                 voice_id, voice_name, model_name, group_by_punctuation,
-                notes, created_at, updated_at, status, language
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                notes, created_at, updated_at, status, language, workflow_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             job_data.original_filename,
             serialize_segments(job_data.subtitle_segments),
@@ -82,6 +88,7 @@ def create_job(job_data: JobCreate) -> JobResponse:
             now,
             'draft',
             job_data.language,
+            getattr(job_data, "workflow_type", None) or "subtitle",
         ))
         
         job_id = cursor.lastrowid
@@ -117,13 +124,15 @@ def get_job(job_id: int) -> Optional[JobResponse]:
     
     return _row_to_job(row)
 
-def get_all_jobs(limit: int = 50, offset: int = 0) -> Tuple[List[JobResponse], int]:
+def get_all_jobs(limit: int = 50, offset: int = 0, workflow_type: Optional[str] = None) -> Tuple[List[JobResponse], int]:
     """
     Retrieves a paginated list of all jobs including their segments.
+    Optionally filters by workflow_type ('subtitle' or 'script').
 
     Args:
         limit (int, optional): Maximum number of jobs to return. Defaults to 50.
         offset (int, optional): Number of jobs to skip. Defaults to 0.
+        workflow_type (str, optional): Filter by 'subtitle' or 'script'.
 
     Returns:
         Tuple[List[JobResponse], int]: A tuple containing the list of jobs and the total count.
@@ -131,14 +140,25 @@ def get_all_jobs(limit: int = 50, offset: int = 0) -> Tuple[List[JobResponse], i
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute('SELECT COUNT(*) FROM subtitle_jobs')
-    total = cursor.fetchone()[0]
+    if workflow_type:
+        cursor.execute('SELECT COUNT(*) FROM subtitle_jobs WHERE workflow_type = ?', (workflow_type,))
+        total = cursor.fetchone()[0]
 
-    cursor.execute('''
-        SELECT * FROM subtitle_jobs
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-    ''', (limit, offset))
+        cursor.execute('''
+            SELECT * FROM subtitle_jobs
+            WHERE workflow_type = ?
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        ''', (workflow_type, limit, offset))
+    else:
+        cursor.execute('SELECT COUNT(*) FROM subtitle_jobs')
+        total = cursor.fetchone()[0]
+
+        cursor.execute('''
+            SELECT * FROM subtitle_jobs
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        ''', (limit, offset))
     rows = cursor.fetchall()
     conn.close()
 
@@ -181,6 +201,10 @@ def update_job(job_id: int, update_data: JobUpdate) -> JobResponse:
     if update_data.model_name is not None:
         updates.append('model_name = ?')
         params.append(update_data.model_name)
+
+    if getattr(update_data, "workflow_type", None) is not None:
+        updates.append('workflow_type = ?')
+        params.append(update_data.workflow_type)
 
     if updates:
         updates.append('updated_at = ?')
@@ -277,4 +301,5 @@ def _row_to_job(row: tuple) -> JobResponse:
         updated_at=row[11],
         status=row[12],
         language=row[13] if len(row) > 13 else None,
+        workflow_type=row[14] if len(row) > 14 and row[14] else "subtitle",
     )

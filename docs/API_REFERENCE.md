@@ -174,9 +174,9 @@ Create a background task for timed subtitle synthesis with incremental per-segme
 - **Response:** `{"status": "success", "task_id": "..."}`
 
 ### `POST /tasks/generate`
-Create a background task for untimed script synthesis.
+Create a background task for untimed script synthesis. Automatically persists a Job record in `jobs.db` with `workflow_type="script"` and saves individual line WAV files under `data/audio-rendering/script_{job_id}/`.
 - **Form Data:** Same fields as `/generate-script`.
-- **Response:** `{"status": "success", "task_id": "..."}`
+- **Response:** `{"status": "success", "task_id": "...", "job_id": int}`
 
 ### `GET /tasks/active`
 Returns the currently active task (status `QUEUED` or `PROCESSING`), if any. Used for session recovery after browser refresh.
@@ -200,22 +200,25 @@ Cancel a running task.
 ---
 
 ## 7. Job Archive
-
+ 
 ### `GET /jobs`
-List all jobs with pagination.
-- **Query Params:** `limit` (1–100, default 50), `offset` (default 0).
+List all jobs with pagination and optional workflow isolation filtering.
+- **Query Params:**
+  - `limit` (1–100, default 50)
+  - `offset` (default 0)
+  - `workflow_type` (optional string, e.g. `'subtitle'` or `'script'` to filter by workflow)
 - **Response:** `{"jobs": [...], "total": int}`
 
 ### `POST /jobs/create`
 Save a new job draft.
-- **Body (JSON):** `JobCreate` — `original_filename`, `subtitle_segments`, `modified_segments`, `voice_id`, `voice_name`, `model_name`, `language`, `group_by_punctuation`, `notes`.
+- **Body (JSON):** `JobCreate` — `original_filename`, `subtitle_segments`, `modified_segments`, `voice_id`, `voice_name`, `model_name`, `language`, `group_by_punctuation`, `notes`, `workflow_type` (default `'subtitle'`).
 
 ### `GET /jobs/{job_id}`
-Retrieve a specific job (includes full segment data).
+Retrieve a specific job (includes full segment data and `workflow_type`).
 
 ### `PUT /jobs/{job_id}`
-Update job segments, notes, language, voice, or model.
-- **Body (JSON):** `JobUpdate` — all fields optional: `modified_segments`, `notes`, `language`, `voice_id`, `model_name`.
+Update job segments, notes, language, voice, model, or workflow_type.
+- **Body (JSON):** `JobUpdate` — all fields optional: `modified_segments`, `notes`, `language`, `voice_id`, `model_name`, `workflow_type`.
 
 ### `PATCH /jobs/{job_id}/status`
 Update job status and optionally the audio URL.

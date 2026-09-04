@@ -1,6 +1,8 @@
-import { Settings, FileText, UserCheck, AudioWaveform } from 'lucide-react';
+import { useState } from 'react';
+import { Settings, FileText, UserCheck, AudioWaveform, History } from 'lucide-react';
 import SpeakerVoiceSelector from './components/SpeakerVoiceSelector';
 import GenerationProgressModal from './components/GenerationProgressModal';
+import { ScriptArchiveModal } from './components/ScriptArchiveModal';
 import ModelSelector from '../../components/ui/ModelSelector';
 import LanguageSelector from '../../components/ui/LanguageSelector';
 import { ScriptProvider, useScriptContext } from './context/ScriptContext';
@@ -20,6 +22,7 @@ import { useGlobalContext } from '../../context/GlobalContext';
  */
 function ScriptModeInner() {
     const { isProcessing, models } = useGlobalContext();
+    const [showArchiveModal, setShowArchiveModal] = useState(false);
     const {
         scriptFile, scriptText, speakers, setSpeakers,
         selectedModel, setSelectedModel, 
@@ -53,11 +56,27 @@ function ScriptModeInner() {
                 logs={progressMessages}
             />
 
+            <ScriptArchiveModal
+                isOpen={showArchiveModal}
+                onClose={() => setShowArchiveModal(false)}
+            />
+
             {/* SECTION 1: INPUT STAGE */}
             <div className="space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                    <FileText size={18} className="text-indigo-400" />
-                    <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Step 1: Script Input</h3>
+                <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                        <FileText size={18} className="text-indigo-400" />
+                        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Step 1: Script Input</h3>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowArchiveModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/60 transition shadow-sm"
+                        title="Open saved untimed script jobs"
+                    >
+                        <History size={14} className="text-indigo-400" />
+                        <span>Script Archive</span>
+                    </button>
                 </div>
                 <ScriptInputArea />
             </div>

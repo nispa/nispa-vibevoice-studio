@@ -6,7 +6,10 @@ export interface JobsResponse {
 }
 
 export const jobsApi = {
-    list: (limit = 100) => apiGet<JobsResponse>(`/api/jobs?limit=${limit}`),
+    list: (limit = 100, workflow_type?: string) => {
+        const query = workflow_type ? `/api/jobs?limit=${limit}&workflow_type=${encodeURIComponent(workflow_type)}` : `/api/jobs?limit=${limit}`;
+        return apiGet<JobsResponse>(query);
+    },
 
     create: (jobData: unknown, silent?: boolean) =>
         apiPostJson<Job>('/api/jobs/create', jobData).catch(err => {

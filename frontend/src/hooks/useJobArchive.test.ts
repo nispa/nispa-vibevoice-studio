@@ -29,7 +29,24 @@ describe('useJobArchive', () => {
             await result.current.loadJobs();
         });
 
-        expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/jobs?limit=100', undefined);
+        expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/jobs?limit=100&workflow_type=subtitle', undefined);
+        expect(result.current.jobs).toEqual(mockJobs);
+    });
+
+    it('fetches script jobs when workflow_type is script', async () => {
+        const mockJobs = [{ id: 2, original_filename: 'dialogue.txt', workflow_type: 'script' }];
+        vi.mocked(fetch).mockResolvedValue({
+            ok: true,
+            json: async () => ({ jobs: mockJobs })
+        } as Response);
+
+        const { result } = renderHook(() => useJobArchive('script'));
+
+        await act(async () => {
+            await result.current.loadJobs();
+        });
+
+        expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/api/jobs?limit=100&workflow_type=script', undefined);
         expect(result.current.jobs).toEqual(mockJobs);
     });
 

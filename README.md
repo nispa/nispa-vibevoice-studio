@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.7.1-blueviolet?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.8.1-blueviolet?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" alt="Python"/>
   <img src="https://img.shields.io/badge/react-19-61DAFB?style=flat-square&logo=react" alt="React"/>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"/>
@@ -66,8 +66,8 @@ Audio segments are saved to a local SQLite database **the instant they are gener
 - **Ollama Integration**: huihui_ai/hy-mt1.5-abliterated:7b for more advanced translation (but slower), or you can use any LLM for translation
 
 ### 🎬 Two Workflow Modes
-- **Subtitle Mode**: Upload `.srt`/`.vtt` → translate → generate timed voiceover → export aligned audio
-- **Script Mode**: Paste a multi-speaker script → map speakers to voices → generate combined audio
+- **Subtitle Mode**: Upload `.srt`/`.vtt` → translate → generate timed voiceover → export aligned audio with dedicated subtitle archive
+- **Script Mode**: Paste a multi-speaker script → map speakers to voices (up to 8 speakers) → auto-saved drafts → generate combined dialogue audio → dedicated Script Archive with one-click reload into editor
 
 ---
 
@@ -187,6 +187,7 @@ nispa-voiceover/
 │   ├── core/
 │   │   ├── tts/                 # TTS Provider pattern
 │   │   │   ├── base.py          # Abstract TTSProvider
+│   │   │   ├── omnivoice_provider.py # OmniVoice implementation (local worker proxy)
 │   │   │   ├── qwen_provider.py # Qwen3-TTS implementation
 │   │   │   └── vibe_provider.py # VibeVoice implementation
 │   │   ├── tts_provider.py      # Multi-model orchestrator
@@ -196,6 +197,8 @@ nispa-voiceover/
 │   │   ├── parser.py            # SRT/VTT/Script parsing
 │   │   ├── translator.py        # NLLB-200 engine
 │   │   └── config.py            # Settings & path management
+│   ├── workers/                 # Isolated background workers
+│   │   └── omnivoice_worker.py  # Standalone OmniVoice worker on loopback
 │   ├── db/
 │   │   ├── database.py          # SQLite operations
 │   │   └── models.py            # Pydantic data models
@@ -285,11 +288,21 @@ cd frontend && npm run dev
 
 ## 📋 Roadmap
 
-- [ ] Web-based voice recording directly in the browser
-- [ ] Timeline editor with visual waveform alignment
-- [ ] Plugin system for custom TTS providers
-- [ ] Docker containerization for one-click deployment
-- [ ] i18n support for the UI
+### 🎯 Next Priorities
+- [ ] **Additional Local TTS Engines**:
+  - **Chatterbox / Chatterbox Turbo**: lightweight MIT-licensed voice cloning with paralinguistic tag and exaggeration control
+  - **IndexTTS-2.5**: emotion/speed disentanglement and CMU phonemes
+- [ ] **LLM Emotion & Prosody Tagging**: Preprocessing dialogue lines via local Ollama models to insert inline emotional, stylistic, and paralinguistic markers
+- [ ] **Web-Based Voice Recording**: Record reference audio directly from the microphone in the browser Voice Library
+- [ ] **Visual Timeline Editor**: Interactive multitrack waveform timeline for precise manual adjustment of pauses, overlaps, and subtitle sync
+- [ ] **Docker & Headless Deployment**: Optional containerized profile for headless servers and developer workflows
+
+### ✅ Completed Milestones
+- [x] **Triple Local TTS Engine Architecture**: OmniVoice, Qwen3-TTS, and VibeVoice with strict-offline inference
+- [x] **Extensible Data-Driven Provider Registry & Model Catalog**: Dynamic capabilities routing replacing substring matching
+- [x] **Untimed Script Mode Persistence & Isolated Archive**: Continuous local draft auto-save and dedicated database archive separate from subtitle jobs
+- [x] **Hardware-Aware Dynamic Batching & Multi-GPU**: Real-time VRAM budget calculation and proportional CUDA distribution
+- [x] **Zero-Data-Loss Audio Persistence**: Instant SQLite & WAV disk saving during generation with session recovery
 
 ---
 

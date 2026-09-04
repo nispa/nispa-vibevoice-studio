@@ -25,6 +25,7 @@ export interface Voice {
     accent: string;
     name: string;
     gender: string;
+    transcription?: string;
 }
 
 /**

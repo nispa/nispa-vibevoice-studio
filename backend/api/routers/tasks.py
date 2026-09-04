@@ -18,8 +18,8 @@ from core.vram_config import get_model_config, recommended_batch as vram_recomme
 from core.aligner import align_subtitles_audio, align_script_audio
 from core.queue_manager import queue_manager, TaskStatus
 from core.audio_storage import save_segment_audio, load_segment_audio, is_file_path
-from db.database import get_job, update_job
-from db.models import JobUpdate
+from db.database import get_job, update_job, create_job, update_job_status
+from db.models import JobUpdate, JobCreate, SubtitleSegmentData
 
 router = APIRouter(prefix="/api")
 
@@ -455,6 +455,42 @@ async def create_generation_task(
     elif len(unique_speakers) > 8:
         raise HTTPException(status_code=400, detail=f"Maximum 8 speakers allowed in Script Mode. Detected: {len(unique_speakers)}")
 
+    # Initialize persistent Script Job in SQLite
+    segments_data: List[SubtitleSegmentData] = []
+    for idx, line in enumerate(script_lines):
+        v_id = speaker_voice_map_dict.get(line.speaker, "")
+        segments_data.append(SubtitleSegmentData(
+            index=idx + 1,
+            start_ms=0,
+            end_ms=0,
+            text=line.text,
+            original_text=line.speaker,  # Store speaker name in original_text
+            voice_id=v_id,
+            model_name=model_name,
+            language=language or "en"
+        ))
+
+    primary_voice = list(speaker_voice_map_dict.values())[0] if speaker_voice_map_dict else "multi"
+    first_snippet = script_lines[0].text[:35].strip() if script_lines else "Untimed Script"
+    job_create = JobCreate(
+        original_filename=f"Script: \"{first_snippet}...\" ({len(unique_speakers)} speakers)",
+        subtitle_segments=segments_data,
+        modified_segments=segments_data,
+        voice_id=primary_voice,
+        voice_name=f"{len(unique_speakers)} speakers",
+        model_name=model_name,
+        language=language,
+        workflow_type="script",
+        notes=json.dumps({
+            "speaker_voice_map": speaker_voice_map_dict,
+            "raw_script": content_str,
+            "detected_speakers": unique_speakers,
+        })
+    )
+    job = create_job(job_create)
+    job_id = job.id
+    update_job_status(job_id, status="processing")
+
     async def generation_job(task_id: str):
         import os
         from datetime import datetime
@@ -479,6 +515,10 @@ async def create_generation_task(
         while i < total_items:
             task_state = queue_manager.get_task(task_id)
             if task_state.get("status") == TaskStatus.CANCELLED:
+                try:
+                    update_job_status(job_id, status="cancelled")
+                except Exception:
+                    pass
                 if task_state.get("finalize_on_cancel"):
                     break
                 return
@@ -514,6 +554,11 @@ async def create_generation_task(
                 )
                 for k, wav_bytes in zip(batch_indices, wav_list):
                     lines_with_audio[k] = wav_bytes
+                    try:
+                        seg_path = save_segment_audio(f"script_{job_id}", k + 1, wav_bytes)
+                        segments_data[k].audioUrl = seg_path
+                    except Exception as se:
+                        print(f"[Tasks] Warning saving script segment audio: {se}")
             except Exception as e:
                 print(f"[TTS] generation_job batch failed, falling back to sequential: {e}")
                 for k in batch_indices:
@@ -522,6 +567,11 @@ async def create_generation_task(
                             tts_engine.synthesize, script_lines[k].text, model_name, None, voice_id, voice_description, language
                         )
                         lines_with_audio[k] = wav_bytes
+                        try:
+                            seg_path = save_segment_audio(f"script_{job_id}", k + 1, wav_bytes)
+                            segments_data[k].audioUrl = seg_path
+                        except Exception as se:
+                            pass
                     except Exception as inner_e:
                         print(f"[TTS] Sequential fallback failed for line {k}: {inner_e}")
                         from pydub import AudioSegment as _AS
@@ -556,14 +606,23 @@ async def create_generation_task(
         except Exception as e:
             print(f"[Output] Failed to save output file: {e}")
 
+        # Update persistent Script Job in database
+        try:
+            audio_url = f"/outputs/{audio_filename}" if audio_filename else None
+            update_job_status(job_id, status="completed", audio_url=audio_url)
+            update_job(job_id, JobUpdate(modified_segments=segments_data))
+        except Exception as je:
+            print(f"[Tasks] Warning updating script job on completion: {je}")
+
         yield {
             "progress": 100,
             "message": "Completed!",
             "audio_url": f"/outputs/{audio_filename}" if audio_filename else None,
+            "job_id": job_id,
         }
         
     task_id = queue_manager.submit_task(generation_job)
-    return {"status": "success", "task_id": task_id}
+    return {"status": "success", "task_id": task_id, "job_id": job_id}
 
 
 @router.get("/tasks/active")

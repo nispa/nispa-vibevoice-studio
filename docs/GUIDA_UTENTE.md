@@ -1,4 +1,4 @@
-# Guida Utente — Nispa VibeVoice Studio (v0.7.1)
+# Guida Utente — Nispa VibeVoice Studio (v0.8.1)
 
 > Questa guida presuppone che il programma sia già installato e avviato. Per l'installazione, consulta il `README.md`.
 >
@@ -145,9 +145,9 @@ Se vuoi tornare all'editor per ulteriori modifiche prima di finalizzare, clicca 
 
 ## Modalità Untimed Script
 
-Usa questa modalità quando hai un copione con più personaggi e vuoi generare un audio unico dove ogni speaker parla con una voce diversa, senza vincoli di timing.
+Usa questa modalità quando hai un copione con più personaggi e vuoi generare un audio unico dove ogni speaker parla con una voce diversa, senza vincoli di timing. Tutti i motori supportati (OmniVoice, Qwen e VibeVoice) possono essere utilizzati.
 
-### Formato dello Script
+### Formato dello Script e Salvataggio Automatico
 
 Lo script deve avere questo formato:
 ```
@@ -158,16 +158,17 @@ Speaker1: Altra battuta.
 
 Puoi caricare un file `.txt` o `.md` tramite l'area di upload, oppure incollare il testo direttamente nella textarea.
 
-> I modelli VibeVoice 1.5B e Large supportano fino a 4 speaker contemporaneamente. Con più speaker, usa un modello che li supporti.
-Qwen non supportano più speaker.
+- **Salvataggio automatico continuo (Auto-Save)**: Il testo digitato o incollato, la lista degli speaker, le voci assegnate, il modello e la lingua selezionati vengono salvati costantemente nel browser locale (`localStorage`). Se ricarichi la pagina o chiudi la scheda, ritrovi immediatamente il tuo lavoro intatto.
+- **Pulsante Clear**: Un pulsante "Clear" in basso a destra nell'area di input permette di azzerare la bozza con un clic.
+- **Script Archive dedicato**: In cima allo Step 1 trovi il pulsante **"Script Archive"**. Aprendo il modale puoi consultare tutti i dialoghi untimed generati in precedenza, ascoltare il player audio del dialogo completo, eliminare vecchi lavori o cliccare **"Load into Editor"** per ricaricare istantaneamente nell'editor il testo originale, gli speaker e le voci già assegnate. L'archivio script è completamente separato dall'archivio dei sottotitoli.
 
 ---
 
 ### Step 2 — Speaker Voice Mapping
 
-Dopo aver caricato lo script, i speaker vengono rilevati automaticamente. Per ogni speaker seleziona una voce dal dropdown.
+Dopo aver caricato o incollato lo script, i parlanti (fino a 8) vengono rilevati automaticamente. Per ogni speaker seleziona una voce dal dropdown.
 
-- **"Add Speaker"** — aggiunge manualmente uno speaker (massimo 4)
+- **"Add Speaker"** — aggiunge manualmente uno speaker (fino a 8 speaker supportati)
 - **Icona X** accanto allo speaker — rimuove uno speaker dalla mappa
 
 ---
@@ -181,7 +182,7 @@ Durante la generazione si apre automaticamente una finestra con il log di avanza
 - **"Run in Background"** — chiudere la finestra ma lasciare girare la generazione in background
 - **"Keep Open"** — tenere aperta la finestra
 
-Una volta completata, il pulsante cambia in **"Generating in Background... (View)"** (se è in background) o mostra il player audio con il risultato.
+Una volta completata, il lavoro viene salvato automaticamente nel database e archiviato nello **Script Archive**, e compare il player audio con il risultato pronto all'ascolto o al download.
 
 ---
 

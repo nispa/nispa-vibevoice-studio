@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
-from typing import List
+from typing import List, Optional
 import io
 import base64
 import asyncio
@@ -178,18 +178,23 @@ async def get_job_by_id(job_id: int):
     return job
 
 @router.get("", response_model=JobListResponse)
-async def list_jobs(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
+async def list_jobs(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    workflow_type: Optional[str] = Query(None)
+):
     """
-    Lists all voiceover jobs with pagination support.
+    Lists all voiceover jobs with pagination support, optionally filtered by workflow_type.
 
     Args:
         limit (int, optional): Maximum number of jobs to return. Defaults to 50.
         offset (int, optional): Number of jobs to skip. Defaults to 0.
+        workflow_type (str, optional): Filter by 'subtitle' or 'script'.
 
     Returns:
         JobListResponse: A list of jobs and the total count.
     """
-    jobs, total = get_all_jobs(limit=limit, offset=offset)
+    jobs, total = get_all_jobs(limit=limit, offset=offset, workflow_type=workflow_type)
     return JobListResponse(jobs=jobs, total=total)
 
 @router.put("/{job_id}", response_model=JobResponse)

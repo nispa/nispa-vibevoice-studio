@@ -59,6 +59,7 @@ class JobCreate(BaseModel):
     language: Optional[str] = None
     group_by_punctuation: bool = False
     notes: Optional[str] = None
+    workflow_type: Optional[str] = "subtitle"
 
 class JobUpdate(BaseModel):
     """
@@ -76,6 +77,7 @@ class JobUpdate(BaseModel):
     language: Optional[str] = None
     voice_id: Optional[str] = None
     model_name: Optional[str] = None
+    workflow_type: Optional[str] = None
 
 class JobResponse(BaseModel):
     """
@@ -90,11 +92,12 @@ class JobResponse(BaseModel):
         voice_name (str): Voice name.
         model_name (str): TTS model name.
         group_by_punctuation (bool): Grouping status.
-        notes (Optional[str]): Job notes.
+        notes: Optional[str]): Job notes.
         audio_url (Optional[str]): URL to the generated audio file.
         created_at (str): ISO timestamp of creation.
         updated_at (str): ISO timestamp of last update.
         status (str): Current status ('draft', 'processing', 'completed', 'failed').
+        workflow_type (Optional[str]): 'subtitle' or 'script'.
     """
     id: int
     original_filename: str
@@ -110,6 +113,7 @@ class JobResponse(BaseModel):
     created_at: str
     updated_at: str
     status: str
+    workflow_type: Optional[str] = "subtitle"
 
 class JobLiteResponse(BaseModel):
     """
@@ -127,6 +131,7 @@ class JobLiteResponse(BaseModel):
     created_at: str
     updated_at: str
     status: str
+    workflow_type: Optional[str] = "subtitle"
     has_audio: bool = False
     is_translated: bool = False
 

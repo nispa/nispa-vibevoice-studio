@@ -1,4 +1,4 @@
-# User Guide — Nispa VibeVoice Studio (v0.7.1)
+# User Guide — Nispa VibeVoice Studio (v0.8.1)
 
 > This guide assumes the application is already installed and running. For installation, refer to `README.md`.
 >
@@ -145,9 +145,9 @@ To return to the editor for further changes before finalizing, click **"Back to 
 
 ## Untimed Script Mode
 
-Use this mode when you have a multi-character script and want to generate a single audio file where each speaker uses a different voice, with no timing constraints.
+Use this mode when you have a multi-character script and want to generate a single audio file where each speaker uses a different voice, with no timing constraints. All supported engines (OmniVoice, Qwen, and VibeVoice) can be used.
 
-### Script Format
+### Script Format & Auto-Save
 
 The script must follow this format:
 ```
@@ -158,15 +158,17 @@ SpeakerName1: Another line.
 
 Upload a `.txt` or `.md` file via the upload area, or paste the text directly into the textarea.
 
-> VibeVoice 1.5B and Large models support up to 4 simultaneous speakers. Plan your speaker count accordingly when choosing a model.
+- **Local Draft Auto-Save**: Any script text, speaker list, model selection, or voice mappings are continuously auto-saved to your browser's local storage (`nispa_script_draft_v1`). If you reload or close the tab, your work is restored automatically.
+- **Clear Draft**: Click the "Clear" button at the bottom right of the input area to reset the text and speaker mappings.
+- **Dedicated Script Archive**: Click the **"Script Archive"** button at the top of Step 1 to open previous untimed script generations. From this modal you can preview combined dialogue audio, check speaker metadata, delete old jobs, or click **"Load into Editor"** to restore the entire script and voice assignments back into the active workspace. Script jobs are isolated and never mixed with timed subtitle jobs.
 
 ---
 
 ### Step 2 — Speaker Voice Mapping
 
-After loading the script, speakers are detected automatically. For each speaker, select a voice from the dropdown.
+After loading or pasting the script, speakers (up to 8) are detected automatically. For each speaker, select a voice from the dropdown.
 
-- **"Add Speaker"** — manually adds a speaker entry (maximum 4)
+- **"Add Speaker"** — manually adds a speaker entry (maximum 8 speakers)
 - **X icon** next to a speaker — removes it from the map
 
 ---
@@ -180,7 +182,7 @@ A progress window opens automatically during generation. If you close it while g
 - **"Run in Background"** — close the window but keep generation running
 - **"Keep Open"** — leave the window open
 
-When complete, the button label changes to **"Generating in Background... (View)"** (if running in background) or the audio player appears with the result.
+When complete, the generated script job is automatically persisted in the database and saved to the **Script Archive**, and the audio player appears with the result.
 
 ---
 

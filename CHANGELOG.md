@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-09-04
+
+### Added
+- **Untimed Script Persistence & Isolated Archive**:
+  - Automatic, continuous draft persistence in `localStorage` (`nispa_script_draft_v1`) ensuring script text, speaker mappings, and settings are preserved across reloads.
+  - Added `workflow_type` column (`'subtitle'` vs `'script'`) to `jobs.db` with database-level isolation preventing script jobs from appearing in Subtitle Mode archives.
+  - Dedicated "Script Archive" modal in Script Mode with audio preview, line-by-line inspection, and one-click "Load into Editor" restoration.
+  - Extended speaker detection and management in Script Mode to support up to 8 simultaneous speakers across all engines.
+
+### Changed
+- **Documentation & Roadmap Alignment**: Updated `README.md`, `USER_GUIDE.md`, `GUIDA_UTENTE.md`, `TECHNICAL_DOCUMENTATION.md`, and `API_REFERENCE.md` with complete details on multi-speaker script workflows, OmniVoice capabilities, updated milestones, and revised future priorities (Chatterbox, IndexTTS, LLM emotion tagging, in-browser recording, timeline editor).
+
 ## [0.8.0] - 2026-09-04
 
 ### Added
