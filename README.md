@@ -46,7 +46,7 @@ Most AI voiceover tools send your data to remote APIs. Nispa VibeVoice Studio ru
 
 | Engine | Strengths | Voice Cloning | Voice Design | Execution |
 |--------|-----------|:---:|:---:|:---:|
-| **OmniVoice** | Ultra-fast (RTF < 0.6), UK dialogue, natural conversational flow | ✅ Zero-shot (WAV + Transcript) | ❌ | Local isolated worker (`127.0.0.1`) |
+| **OmniVoice** | Ultra-fast (RTF < 0.6), high throughput, natural conversational flow | ✅ Zero-shot (WAV + Transcript) | ❌ | Local isolated worker (`127.0.0.1`) |
 | **Qwen3-TTS** | State-of-the-art expressive quality (1.7B recommended), multi-language | ✅ 3-second zero-shot (x-vector / transcript) | ✅ Text description | Local in-process |
 | **VibeVoice** | Stable long-form synthesis, multi-speaker synchronised | ✅ Reference audio | ❌ | Local in-process |
 
@@ -140,7 +140,7 @@ brew install ffmpeg
 
 | Model | Size | VRAM | Best For |
 |-------|------|------|----------|
-| **OmniVoice** | 3.0GB | ~3GB | Ultra-fast cloning (RTF < 0.6), UK dialogue, fast multi-speaker script iterations |
+| **OmniVoice** | 3.0GB | ~3GB | Ultra-fast cloning (RTF < 0.6), fast multi-speaker dialogue & rapid script iterations |
 | **Qwen3 1.7B** | Premium | ~6GB | Highest quality expressive cloning, voice design, zero-transcript cloning |
 | **Qwen3 0.6B** | Lightweight | ~2GB | Lightweight Qwen testing |
 | **VibeVoice 1.5B** | Standard | ~4GB | Production subtitle voiceover, synchronized multi-speaker (up to 4) |
@@ -301,6 +301,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 | Component | License | Repository |
 |-----------|---------|------------|
+| OmniVoice | Apache 2.0 (code) / CC-BY-NC 4.0 (model) | [k2-fsa/OmniVoice](https://github.com/k2-fsa/OmniVoice) |
 | Qwen3-TTS | Apache 2.0 | [Qwen/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) |
 | VibeVoice | MIT | [vibevoice/VibeVoice](https://github.com/vibevoice) |
 | NLLB-200 | CC-BY-NC-4.0 | [facebookresearch/NLLB](https://github.com/facebookresearch/fairseq) |
@@ -311,6 +312,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 ## 🙏 Acknowledgements
 
+- [k2-fsa Team](https://github.com/k2-fsa) for the OmniVoice TTS model and framework
 - [Qwen Team (Alibaba Cloud)](https://github.com/QwenLM) for the Qwen3-TTS models
 - [VibeVoice Team](https://github.com/vibevoice) for the VibeVoice TTS engine
 - [Facebook Research](https://github.com/facebookresearch) for NLLB-200 translation
