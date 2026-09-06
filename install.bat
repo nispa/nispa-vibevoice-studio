@@ -10,7 +10,8 @@ if not exist "venv\\" (
     echo [1/5] Creating virtual environment...
     python -m venv venv
 )
-call venv\\Scripts\\activate.bat
+call venv\Scripts\activate.bat
+setlocal enabledelayedexpansion
 
 echo [2/5] Installing Core dependencies...
 pip install -r backend\\requirements.txt
@@ -62,7 +63,7 @@ if "%ENGINE_CHOICE%"=="1" (
     echo [3/5] Installing ALL dependencies...
     pip install -r backend\requirements-vibevoice.txt
     pip install -r backend\requirements-qwen.txt
-    echo Installing Modern Engines worker (OmniVoice + Higgs) in isolated environment...
+    echo Installing Modern Engines worker [OmniVoice + Higgs] in isolated environment...
     if not exist "venv_omnivoice\" (
         python -m venv venv_omnivoice
     )

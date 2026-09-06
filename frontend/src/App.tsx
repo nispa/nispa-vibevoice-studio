@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SubtitleMode from './features/subtitle';
 import ScriptMode from './features/script';
 import SystemInfo from './components/SystemInfo';
@@ -7,12 +7,25 @@ import AppHeader from './components/AppHeader';
 import AppModeToggle from './components/AppModeToggle';
 import AppAudioResult from './components/AppAudioResult';
 import { VoicesManagementModal } from './components/VoicesManagement';
+import { ModelsManagerModal } from './features/models/ModelsManagerModal';
 import { useGlobalContext } from './context/GlobalContext';
 
 function App() {
   const { appMode, setAppMode, systemInfo, isProcessing, audioUrl } = useGlobalContext();
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [showVoicesModal, setShowVoicesModal] = useState(false);
+  const [showModelsModal, setShowModelsModal] = useState(false);
+  const [targetModelId, setTargetModelId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const handleOpen = (e: Event) => {
+      const customEvent = e as CustomEvent<{ modelId?: string }>;
+      setTargetModelId(customEvent.detail?.modelId);
+      setShowModelsModal(true);
+    };
+    window.addEventListener('open-models-manager', handleOpen);
+    return () => window.removeEventListener('open-models-manager', handleOpen);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-50 flex flex-col items-center py-12 px-4 selection:bg-blue-500/30">
@@ -22,10 +35,21 @@ function App() {
       {/* Voices Manager Modal */}
       <VoicesManagementModal isOpen={showVoicesModal} onClose={() => setShowVoicesModal(false)} />
 
+      {/* Models & Engines Manager Modal */}
+      <ModelsManagerModal 
+        isOpen={showModelsModal} 
+        onClose={() => {
+          setShowModelsModal(false);
+          setTargetModelId(undefined);
+        }}
+        targetModelId={targetModelId}
+      />
+
       {/* Header Container */}
       <AppHeader 
         onShowSystemInfo={() => setShowSystemInfo(true)} 
         onShowVoiceLibrary={() => setShowVoicesModal(true)}
+        onShowModelsManager={() => setShowModelsModal(true)}
       />
 
       {/* Main Glass Panel Card */}

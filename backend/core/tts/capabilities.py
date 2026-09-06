@@ -25,6 +25,16 @@ class ModelCapabilities(BaseModel):
         default="local_in_process",
         description="Runtime execution model: in-process PyTorch or isolated local worker process"
     )
+    upstream_repo: Optional[str] = Field(default=None, description="HuggingFace hub repository identifier")
+    pinned_revision: Optional[str] = Field(default=None, description="Pinned commit SHA for deterministic offline verification")
+    essential_files: List[str] = Field(default_factory=lambda: ["config.json"], description="Files required for valid installation")
+    folder_name: Optional[str] = Field(default=None, description="Local folder name under data/ (defaults to display folder name)")
+    destination_folder: str = Field(default="model", description="Destination directory under data/ ('model' or 'model-translation')")
+    disk_size_gb: float = Field(default=0.0, description="Approximate disk size in GB when installed")
+    vram_cost_gb: float = Field(default=1.5, description="Estimated VRAM cost per segment in GB")
+    vram_peak_multiplier: float = Field(default=2.0, description="Overhead factor during model.generate()")
+    max_batch_size: int = Field(default=8, description="Hard cap on batch size")
+    description: Optional[str] = Field(default=None, description="Short human-readable description")
 
 
 @dataclass

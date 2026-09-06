@@ -104,4 +104,73 @@ describe('useScriptGeneration', () => {
         expect(mockSetErrorMsg).toHaveBeenCalledWith('Server Error');
         expect(mockSetIsProcessing).toHaveBeenCalledWith(false);
     });
+
+    it('should parse new_segments and strip redundant timestamps', async () => {
+        const mockFetch = vi.fn();
+        vi.stubGlobal('fetch', mockFetch);
+
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ task_id: 'task456' })
+        } as Response);
+
+        const mockStream = {
+            getReader: () => {
+                let count = 0;
+                return {
+                    read: async () => {
+                        if (count === 0) {
+                            count++;
+                            const payload = {
+                                type: 'progress',
+                                progress: 50,
+                                current_item: 1,
+                                total_items: 2,
+                                status: '[16:02:04] [TTS] Line #1/2 [Alice • en-emma]: "Hello world"',
+                                new_segments: [
+                                    {
+                                        index: 1,
+                                        text: 'Hello world',
+                                        audio_b64: 'UklGRg==',
+                                        voice_id: 'Alice (en-emma)',
+                                        model_name: 'model1',
+                                        language: 'en'
+                                    }
+                                ]
+                            };
+                            const data = `data: ${JSON.stringify(payload)}\n`;
+                            return { value: new TextEncoder().encode(data), done: false };
+                        }
+                        if (count === 1) {
+                            count++;
+                            const data = 'data: {"type": "complete", "audioUrl": "/outputs/test.mp3"}\n';
+                            return { value: new TextEncoder().encode(data), done: false };
+                        }
+                        return { value: undefined, done: true };
+                    }
+                };
+            }
+        };
+
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            body: mockStream
+        } as Response);
+
+        const { result } = renderHook(() => useScriptGeneration());
+
+        await act(async () => {
+            await result.current.handleGenerate();
+        });
+
+        // Verify segments were parsed
+        expect(result.current.generatedSegments).toHaveLength(1);
+        expect(result.current.generatedSegments[0].text).toBe('Hello world');
+        expect(result.current.generatedSegments[0].voice_id).toBe('Alice (en-emma)');
+
+        // Verify no duplicate timestamp like [16:02:04] [16:02:04]
+        const progressMsg = result.current.progressMessages[0];
+        expect(progressMsg).toMatch(/^\[\d{1,2}:\d{2}:\d{2}\] \[TTS\] Line #1\/2/);
+        expect(progressMsg).not.toMatch(/^\[\d{1,2}:\d{2}:\d{2}\] \[\d{1,2}:\d{2}:\d{2}\]/);
+    });
 });

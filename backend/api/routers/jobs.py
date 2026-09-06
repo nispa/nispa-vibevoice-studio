@@ -80,9 +80,15 @@ async def finalize_job_audio(job_id: int, output_format: str = Query("mp3")):
         
     try:
         # Join audio segments
-        final_audio_bytes = await asyncio.to_thread(
-            align_subtitles_audio, segments_with_audio, output_format
-        )
+        if getattr(job, "workflow_type", "subtitle") == "script":
+            from core.aligner import align_script_audio
+            final_audio_bytes = await asyncio.to_thread(
+                align_script_audio, [wav for _, wav in segments_with_audio], output_format
+            )
+        else:
+            final_audio_bytes = await asyncio.to_thread(
+                align_subtitles_audio, segments_with_audio, output_format
+            )
         
         filename = f"job_{job_id}_final.{output_format.lower()}"
         media_type = "audio/mpeg" if output_format.lower() == "mp3" else "audio/wav"

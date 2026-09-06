@@ -128,6 +128,9 @@ it('shows Tag Palette and inserts tag when model supports emotion tags', async (
     render(<ScriptMode />);
 
     expect(screen.getByText(/Tag Palette:/i)).toBeInTheDocument();
+    const toggleBtn = screen.getByRole('button', { name: /Tag Palette:/i });
+    await userEvent.click(toggleBtn);
+
     const angerBtn = screen.getByRole('button', { name: /Anger/i });
     expect(angerBtn).toBeInTheDocument();
 

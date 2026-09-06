@@ -75,8 +75,22 @@ def _get_model():
         _model = AutoModelForCausalLM.from_pretrained(
             str(_model_dir),
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16
+            dtype=torch.bfloat16
         ).to(_device).eval()
+
+        # Locate local audio codec tokenizer directory to prevent network calls
+        local_tok_candidates = [
+            _model_dir.parent / "Higgs-Audio-v2-Tokenizer",
+            _model_dir / "Higgs-Audio-v2-Tokenizer",
+            _data_dir / "model" / "Higgs-Audio-v2-Tokenizer"
+        ]
+        local_tok = next((p for p in local_tok_candidates if p.exists()), None)
+        if local_tok:
+            _model.config.audio_tokenizer_id = str(local_tok.resolve())
+            print(f"[Higgs Worker] Configured local audio codec from: {local_tok.resolve()}")
+        else:
+            print("[Higgs Worker] Warning: Local Higgs-Audio-v2-Tokenizer directory not found.")
+
         print("[Higgs Worker] Model and tokenizer loaded successfully.")
     return _model, _tokenizer
 
@@ -120,7 +134,11 @@ def synthesize(req: SynthesizeRequest, x_session_token: Optional[str] = Header(N
     if req.ref_audio_path:
         ref_audio = _validate_data_path(req.ref_audio_path, must_exist=True, label="Reference audio path")
         try:
-            ref_tensor, ref_sr = torchaudio.load(str(ref_audio))
+            audio_np, ref_sr = sf.read(str(ref_audio), dtype="float32")
+            if audio_np.ndim > 1:
+                # Downmix multichannel/stereo audio to mono for reference cloning
+                audio_np = np.mean(audio_np, axis=-1)
+            ref_tensor = torch.from_numpy(audio_np).float()
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to read reference audio: {e}")
 

@@ -88,5 +88,13 @@ export function showToast(message: string, type: ToastType = 'info', duration = 
     toastListener({ id: toastCounter, message, type, duration });
 }
 
+/**
+ * Dispatch an event to open the Models & Engines Manager modal, optionally highlighting a specific model.
+ */
+export function openModelsManager(modelId?: string): void {
+    window.dispatchEvent(new CustomEvent('open-models-manager', { detail: { modelId } }));
+}
+
 // Re-export PendingConfirm so UIProvider can type-annotate its state
 export type { PendingConfirm };
+

@@ -2,118 +2,28 @@ import os
 import sys
 import json
 import datetime
+from pathlib import Path
 from huggingface_hub import snapshot_download
 
-# Mapping of models to their official repositories and pinned revisions
-MODELS = {
-    "1": {
-        "name": "VibeVoice-Realtime-0.5B",
-        "repo": "microsoft/VibeVoice-Realtime-0.5B",
-        "description": "VibeVoice 0.5B (Streaming, 1 speaker)",
-        "essential_files": ["config.json"]
-    },
-    "2": {
-        "name": "VibeVoice-1.5B",
-        "repo": "vibevoice/VibeVoice-1.5B",
-        "description": "VibeVoice 1.5B (Stable, 64K context)",
-        "essential_files": ["config.json"]
-    },
-    "3": {
-        "name": "VibeVoice-7B",
-        "repo": "vibevoice/VibeVoice-7B",
-        "description": "VibeVoice Large 7B (High Fidelity)",
-        "essential_files": ["config.json"]
-    },
-    "4": {
-        "name": "Qwen3-TTS-Tokenizer-12Hz",
-        "repo": "Qwen/Qwen3-TTS-Tokenizer-12Hz",
-        "description": "CRITICAL: Required for all Qwen3 models",
-        "essential_files": ["config.json"]
-    },
-    "5": {
-        "name": "Qwen3-TTS-12Hz-1.7B-Base",
-        "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-        "description": "Qwen3 1.7B Base (Best for Voice Cloning)",
-        "essential_files": ["config.json", "model.safetensors"]
-    },
-    "6": {
-        "name": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
-        "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-        "description": "Qwen3 1.7B Custom (High-quality built-in voices)",
-        "essential_files": ["config.json", "model.safetensors"]
-    },
-    "7": {
-        "name": "Qwen3-TTS-12Hz-1.7B-VoiceDesign",
-        "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
-        "description": "Qwen3 1.7B Design (Text-to-Voice description)",
-        "essential_files": ["config.json", "model.safetensors"]
-    },
-    "8": {
-        "name": "Qwen3-TTS-12Hz-0.6B-Base",
-        "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-        "description": "Qwen3 0.6B Base (Fast Cloning, Low VRAM)",
-        "essential_files": ["config.json", "model.safetensors"]
-    },
-    "9": {
-        "name": "Qwen3-TTS-12Hz-0.6B-CustomVoice",
-        "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
-        "description": "Qwen3 0.6B Custom (Fast Built-in, Low VRAM)",
-        "essential_files": ["config.json", "model.safetensors"]
-    },
-    "10": {
-        "name": "NLLB-200-Distilled-600M",
-        "repo": "facebook/nllb-200-distilled-600M",
-        "description": "Internal Offline Translator (Supports 200 languages)",
-        "essential_files": ["config.json", "model.safetensors"]
-    },
-    "11": {
-        "name": "OmniVoice",
-        "repo": "k2-fsa/OmniVoice",
-        "revision": "c5fdb5ccb189668d56333f77ba2629f4cd7535f4",
-        "description": "OmniVoice (Fast Voice Cloning & Design, 600+ languages)",
-        "essential_files": [
-            "config.json",
-            "model.safetensors",
-            "tokenizer.json",
-            os.path.join("audio_tokenizer", "config.json"),
-            os.path.join("audio_tokenizer", "model.safetensors")
-        ]
-    },
-    "12": {
-        "name": "Higgs-Audio-v3",
-        "repo": "multimodalart/higgs-audio-v3-tts-4b-transformers",
-        "revision": "30f01593ee6a12efa586c92455afe4b76e45095d",
-        "description": "Higgs Audio v3 (4B, Emotion & Style Tagging, 100+ languages)",
-        "essential_files": [
-            "config.json",
-            "model.safetensors",
-            "tokenizer.json"
-        ]
-    }
-}
+# Add backend directory to sys.path to access core catalog
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from core.tts.catalog import (
+    list_supported_models,
+    is_model_installed,
+    get_model_target_dir,
+    resolve_model_capabilities,
+    ModelCapabilities
+)
+from core.config import MODELS_DIR, TRANSLATION_MODELS_DIR
 
 
-def verify_installation(target_path: str, model_spec: dict) -> bool:
-    """
-    Checks that the model directory exists and that all declared essential files
-    are present and non-empty. Prevents partial downloads from being considered installed.
-    """
-    if not os.path.exists(target_path):
-        return False
-    essential = model_spec.get("essential_files", ["config.json"])
-    for ef in essential:
-        fp = os.path.join(target_path, ef)
-        if not os.path.exists(fp) or os.path.getsize(fp) == 0:
-            return False
-    return True
-
-
-def write_manifest(target_path: str, model_spec: dict):
+def write_manifest(target_path: str, caps: ModelCapabilities):
     """Writes a manifest.json recording repository, pinned revision, and timestamp."""
     manifest = {
-        "name": model_spec["name"],
-        "repo": model_spec["repo"],
-        "revision": model_spec.get("revision", "latest"),
+        "name": caps.folder_name or caps.model_id,
+        "repo": caps.upstream_repo,
+        "revision": caps.pinned_revision or "latest",
         "download_timestamp": datetime.datetime.utcnow().isoformat() + "Z",
         "verified": True,
         "files": sorted(os.listdir(target_path))
@@ -124,77 +34,122 @@ def write_manifest(target_path: str, model_spec: dict):
     print(f"[OK] Manifest recorded at {manifest_path}")
 
 
+# Preserved for backward compatibility with legacy callers and unit tests
+MODELS = {
+    str(i + 1): {
+        "name": m.folder_name or m.model_id,
+        "repo": m.upstream_repo,
+        "revision": m.pinned_revision or "latest",
+        "description": m.description or m.display_name,
+        "essential_files": m.essential_files,
+    }
+    for i, m in enumerate([m for m in list_supported_models() if m.upstream_repo])
+}
+
+def verify_installation(target_path: str, model_spec: dict) -> bool:
+    """Legacy helper preserved for backward compatibility."""
+    if not os.path.exists(target_path):
+        return False
+    essential = model_spec.get("essential_files", ["config.json"])
+    for ef in essential:
+        fp = os.path.join(target_path, ef)
+        if not os.path.exists(fp) or os.path.getsize(fp) == 0:
+            return False
+    return True
+
+
 def main():
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    models_dir = os.path.join(base_dir, "data", "model")
-    translation_dir = os.path.join(base_dir, "data", "model-translation")
-    
-    os.makedirs(models_dir, exist_ok=True)
-    os.makedirs(translation_dir, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    TRANSLATION_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    all_models = list_supported_models()
+    # Filter only models that have an upstream repository declared
+    downloadable = [m for m in all_models if m.upstream_repo]
+
+    # Map numeric strings "1", "2", ... to ModelCapabilities
+    menu_map: dict[str, ModelCapabilities] = {
+        str(i + 1): m for i, m in enumerate(downloadable)
+    }
 
     while True:
         print("\n=======================================")
         print("   Nispa Studio Weights Downloader")
         print("=======================================")
-        print(f"Main Destination: {models_dir}")
-        print(f"Translation Destination: {translation_dir}")
+        print(f"Main Destination: {MODELS_DIR}")
+        print(f"Translation Destination: {TRANSLATION_MODELS_DIR}")
         print("")
-        
-        for key, model in MODELS.items():
-            current_dest = translation_dir if "NLLB" in model['name'] else models_dir
-            target_path = os.path.join(current_dest, model['name'])
-            is_installed = verify_installation(target_path, model)
-            
-            status_mark = "[*] [ALREADY INSTALLED]" if is_installed else "[ ]"
-            rev_info = f" (rev: {model['revision'][:8]})" if 'revision' in model else ""
-            print(f"{key}) {status_mark} {model['name']}{rev_info} - {model['description']}")
-        
+
+        for key, caps in menu_map.items():
+            installed = is_model_installed(caps)
+            status_mark = "[*] [ALREADY INSTALLED]" if installed else "[ ]"
+            rev_info = f" (rev: {caps.pinned_revision[:8]})" if caps.pinned_revision else ""
+            desc = caps.description or caps.display_name
+            name = caps.folder_name or caps.model_id
+            print(f"{key:>2}) {status_mark} {name}{rev_info} - {desc}")
+
         choice = input("\nSelect model to download (or 'q' to quit): ").strip()
-        
+
         if choice.lower() == 'q':
             break
 
-        if choice not in MODELS:
+        if choice not in menu_map:
             print("\n[!] Invalid choice. Please try again.")
             continue
 
-        selected = MODELS[choice]
-        current_dest = translation_dir if "NLLB" in selected['name'] else models_dir
-        target_path = os.path.join(current_dest, selected['name'])
-        
+        selected = menu_map[choice]
+        target_path = str(get_model_target_dir(selected))
+        os.makedirs(target_path, exist_ok=True)
+
         # Auto-download Tokenizer if a Qwen model is chosen and tokenizer is missing
-        if "Qwen" in selected['name'] and selected['name'] != "Qwen3-TTS-Tokenizer-12Hz":
-            tokenizer_model = MODELS["4"]
-            tokenizer_path = os.path.join(models_dir, tokenizer_model['name'])
-            if not verify_installation(tokenizer_path, tokenizer_model):
-                print(f"\n[!] Qwen3 Tokenizer is required but missing. Downloading it first...")
-                try:
+        if selected.provider_id == "qwen" and selected.model_id != "qwen3-tokenizer-12hz":
+            try:
+                tok_caps = resolve_model_capabilities("qwen3-tokenizer-12hz")
+                tok_target = str(get_model_target_dir(tok_caps))
+                if not is_model_installed(tok_caps):
+                    print("\n[!] Qwen3 Tokenizer is required but missing. Downloading it first...")
                     snapshot_download(
-                        repo_id=tokenizer_model['repo'],
-                        local_dir=tokenizer_path,
+                        repo_id=tok_caps.upstream_repo,
+                        local_dir=tok_target,
                         local_dir_use_symlinks=False
                     )
-                    write_manifest(tokenizer_path, tokenizer_model)
+                    write_manifest(tok_target, tok_caps)
                     print("[OK] Tokenizer downloaded successfully.")
-                except Exception as e:
-                    print(f"[ERR] Failed to download tokenizer: {e}. Synthesis might fail.")
+            except Exception as e:
+                print(f"[ERR] Failed to download tokenizer: {e}. Synthesis might fail.")
 
-        revision = selected.get("revision")
-        print(f"\n[+] Downloading {selected['repo']} ({f'revision {revision[:8]}' if revision else 'latest'}) to {target_path}...")
+        # Auto-download Audio Codec Tokenizer if a Higgs model is chosen and codec is missing
+        if selected.provider_id == "higgs" and selected.model_id != "higgs-audio-v2-tokenizer":
+            try:
+                tok_caps = resolve_model_capabilities("higgs-audio-v2-tokenizer")
+                tok_target = str(get_model_target_dir(tok_caps))
+                if not is_model_installed(tok_caps):
+                    print("\n[!] Higgs Audio Tokenizer/Codec is required but missing. Downloading it first...")
+                    snapshot_download(
+                        repo_id=tok_caps.upstream_repo,
+                        local_dir=tok_target,
+                        local_dir_use_symlinks=False
+                    )
+                    write_manifest(tok_target, tok_caps)
+                    print("[OK] Higgs Audio Tokenizer downloaded successfully.")
+            except Exception as e:
+                print(f"[ERR] Failed to download Higgs audio codec: {e}. Synthesis might fail.")
+
+        rev = selected.pinned_revision
+        print(f"\n[+] Downloading {selected.upstream_repo} ({f'revision {rev[:8]}' if rev else 'latest'}) to {target_path}...")
         print("This may take several minutes depending on your connection...")
-        
+
         try:
             download_kwargs = {
-                "repo_id": selected['repo'],
+                "repo_id": selected.upstream_repo,
                 "local_dir": target_path,
                 "local_dir_use_symlinks": False
             }
-            if revision:
-                download_kwargs["revision"] = revision
+            if rev:
+                download_kwargs["revision"] = rev
 
             snapshot_download(**download_kwargs)
-            
-            if verify_installation(target_path, selected):
+
+            if is_model_installed(selected):
                 write_manifest(target_path, selected)
                 print("\n[OK] Download Complete and Verified!")
                 print(f"Model saved to: {target_path}")
@@ -202,8 +157,9 @@ def main():
                 print("\n[!] Download finished but essential files appear missing or incomplete.")
         except Exception as e:
             print(f"\n[ERR] An error occurred during download: {e}")
-        
+
         print("\nReturning to menu...")
+
 
 if __name__ == "__main__":
     main()

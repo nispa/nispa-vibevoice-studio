@@ -151,16 +151,17 @@ brew install ffmpeg
 
 ### 🎭 Higgs Audio v3 Emotion & Style Tagging
 
-When **Higgs Audio v3** is selected in **Script Mode**, a dedicated **Tag Palette** appears directly above the script text area. Clicking any tag inserts it at the cursor position:
+When **Higgs Audio v3** is selected in **Script Mode**, a collapsible **Tag Palette** with an interactive **Syntax & Emotion Guide Modal** appears directly above the script text area. The tags correspond strictly to Higgs Audio v3 special tokens:
 
-- **Emotions**: `<|emotion:anger|>`, `<|emotion:sadness|>`, `<|emotion:amusement|>`, `<|emotion:elation|>`
-- **Styles**: `<|whisper|>`, `<|shout|>`
-- **Prosody**: `<|pitch:high|>`, `<|speed:slow|>`, `...` (pause)
-- **Paralinguistic / SFX**: `[laughter]`, `[sigh]`, `[cough]`
+- **Emotions**: `<|emotion:anger|>`, `<|emotion:sadness|>`, `<|emotion:amusement|>`, `<|emotion:elation|>`, `<|emotion:fear|>`, `<|emotion:contentment|>`, etc. (21 total)
+- **Styles**: `<|style:whispering|>`, `<|style:shouting|>`, `<|style:singing|>`
+- **SFX / Paralinguistic**: `<|sfx:laughter|>`, `<|sfx:sigh|>`, `<|sfx:cough|>`, `<|sfx:crying|>`, `<|sfx:screaming|>`, `<|sfx:humming|>`
+- **Prosody**: `<|prosody:pause|>`, `<|prosody:long_pause|>`, `<|prosody:speed_slow|>`, `<|prosody:speed_fast|>`, `<|prosody:pitch_high|>`, `<|prosody:pitch_low|>`
+- **Environment**: `<|env:music|>`, `<|env:noise|>`
 
-You can also combine tags dynamically, for example:
+You can combine tags dynamically before or within dialogue lines, for example:
 ```text
-<|whisper|>Keep quiet... [laughter] <|emotion:amusement|>Did you really think nobody was watching?
+<|style:whispering|>Keep quiet... <|sfx:laughter|> <|emotion:amusement|>Did you really think nobody was watching?
 ```
 
 ### 🔒 Privacy, Offline Operation & Biometric Voice Prompts

@@ -1,5 +1,6 @@
-import { Settings } from 'lucide-react';
+import { Settings, Download } from 'lucide-react';
 import type { Model } from '../../context/GlobalContext';
+import { openModelsManager } from '../../utils/uiEvents';
 
 interface ModelSelectorProps {
     models: Model[];
@@ -32,6 +33,19 @@ export default function ModelSelector({ models, selectedModel, onModelSelect }: 
                         {currentModel?.requires_transcript && (
                             <span className="block text-xs text-amber-400/90 mt-0.5">
                                 • Requires reference audio with verified transcript (.wav + .txt)
+                            </span>
+                        )}
+                        {currentModel?.installed === false && (
+                            <span className="flex items-center flex-wrap gap-2 text-xs text-amber-400/90 mt-1">
+                                <span>• Not installed yet.</span>
+                                <button
+                                    type="button"
+                                    onClick={() => openModelsManager(currentModel.id)}
+                                    className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-medium transition border border-amber-500/30 inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                    <Download size={12} />
+                                    Install in Models Manager
+                                </button>
                             </span>
                         )}
                     </p>

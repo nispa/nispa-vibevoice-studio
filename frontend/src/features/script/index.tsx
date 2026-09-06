@@ -35,6 +35,7 @@ function ScriptModeInner() {
         showProgressModal, setShowProgressModal,
         progressMessages, setProgressMessages,
         progressValue, setProgressValue,
+        generatedSegments,
         handleGenerate, handleCancelGeneration
     } = useScriptGeneration();
 
@@ -54,6 +55,7 @@ function ScriptModeInner() {
                 onCancel={handleCancelGeneration}
                 progress={progressValue}
                 logs={progressMessages}
+                generatedSegments={generatedSegments}
             />
 
             <ScriptArchiveModal

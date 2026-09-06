@@ -6,7 +6,7 @@ def check_ffmpeg():
     print("[+] Checking for FFmpeg...")
     try:
         subprocess.check_call(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print("[✓] FFmpeg is installed and accessible.")
+        print("[OK] FFmpeg is installed and accessible.")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("[!] FFmpeg not found in PATH.")
@@ -22,9 +22,9 @@ def install_audio_deps():
     deps = ["librosa", "resampy", "soundfile"]
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install"] + deps)
-        print("[✓] Audio dependencies installed successfully.")
+        print("[OK] Audio dependencies installed successfully.")
     except Exception as e:
-        print(f"[✗] Failed to install dependencies: {e}")
+        print(f"[ERR] Failed to install dependencies: {e}")
 
 def main():
     print("=======================================")

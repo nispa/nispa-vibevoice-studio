@@ -46,9 +46,16 @@ export const SegmentPreviews: React.FC<SegmentPreviewsProps> = ({ generatedSegme
                         {displaySegments.map((seg, i) => (
                             <div key={seg.index || i} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-5 space-y-4 animate-slide-in-right shadow-xl hover:border-indigo-500/30 transition-all">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/10">
-                                        SEGMENT #{seg.index}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/10">
+                                            SEGMENT #{seg.index}
+                                        </span>
+                                        {seg.voice_id && (
+                                            <span className="text-[10px] font-medium text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60 max-w-[200px] truncate" title={seg.voice_id}>
+                                                {seg.voice_id}
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-3">
                                         <button 
                                             onClick={() => setEditingId(editingIndex === seg.index ? null : seg.index)}
