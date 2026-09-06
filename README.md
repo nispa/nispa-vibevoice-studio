@@ -51,8 +51,11 @@ Most AI voiceover tools send your data to remote APIs. Nispa VibeVoice Studio ru
 | **Qwen3-TTS** | State-of-the-art expressive quality (1.7B recommended), multi-language | ✅ 3-second zero-shot (x-vector / transcript) | ✅ Text description |
 | **VibeVoice** | Stable long-form synthesis, multi-speaker synchronised | ✅ Reference audio | ❌ |
 
-### ⚡ Hardware-Aware Dynamic Batching
-The system queries your GPU's available VRAM in real-time and dynamically scales inference batch size (1–8 segments simultaneously). No more OOM crashes — the engine adapts to your hardware.
+### ⚡ Hardware-Aware Dynamic Batching & Multi-GPU
+The system queries your GPU's available VRAM in real-time and dynamically scales inference batch size (1–8 segments simultaneously). Work is automatically split across multiple GPUs when available. Manual overrides and hardware preferences can be configured in the UI or via `data/settings.json` (see [Settings & Configuration Guide](docs/SETTINGS_GUIDE.md)).
+
+### 📦 WebUI Models & Engines Manager
+Download, inspect, filter, and delete models directly inside the application with live SSE download progress, speed reporting (MB/s), cancellation support, and system health diagnostics.
 
 ### 💾 Zero-Data-Loss Persistence
 Audio segments are saved to a local SQLite database **the instant they are generated**. If your browser crashes, you lose connection, or you cancel — your progress is guaranteed safe.
@@ -245,8 +248,10 @@ nispa-voiceover/
 |----------|-------------|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Full user guide (EN) — installation, workflows, FAQ |
 | [docs/GUIDA_UTENTE.md](docs/GUIDA_UTENTE.md) | Guida utente completa (IT) — installazione, workflow, FAQ |
-| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Backend REST API reference |
-| [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) | Architecture & internals |
+| [docs/SETTINGS_GUIDE.md](docs/SETTINGS_GUIDE.md) | Settings & Configuration guide (EN) — GPU tuning, paths, settings.json |
+| [docs/GUIDA_IMPOSTAZIONI.md](docs/GUIDA_IMPOSTAZIONI.md) | Guida impostazioni e configurazione (IT) — tuning GPU, percorsi, settings.json |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Backend REST API reference (v0.9.0) |
+| [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) | Architecture & internals (v0.9.0) |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
