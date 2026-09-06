@@ -5,6 +5,7 @@ import { AudioTrimmer } from '../../../components/ui/AudioTrimmer';
 import { useSubtitleContext } from '../context/SubtitleContext';
 import type { SubtitleSegment } from '../context/SubtitleContext';
 import { ttsApi } from '../../../services/ttsApi';
+import { API_BASE_URL } from '../../../services/apiClient';
 import { serializeAudioUrl, filePathToHttpUrl } from '../../../utils/audio';
 
 interface JobReviewModalProps {
@@ -118,7 +119,7 @@ export const JobReviewModal: React.FC<JobReviewModalProps> = ({
 
             // Prefer file path (stored on disk); fall back to base64 for immediate playback
             const newAudioUrl = data.audio_path
-                ? filePathToHttpUrl(data.audio_path, import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000')
+                ? filePathToHttpUrl(data.audio_path, API_BASE_URL)
                 : `data:audio/wav;base64,${data.audio_base64}`;
 
             const updatedSegments = segments.map(s =>

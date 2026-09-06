@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 # Import routers (minimal impact because routers themselves use lazy imports now)
-from api.routers import system, voices, generation, jobs, translation, tasks
+from api.routers import system, voices, generation, jobs, translation, tasks, models
 from core.config import setup_offline_environment
 
 # Enforce strict offline execution for TTS models & privacy
@@ -86,6 +86,7 @@ app.include_router(translation.router)
 app.include_router(generation.router)
 app.include_router(tasks.router)
 app.include_router(jobs.router)
+app.include_router(models.router)
 
 @app.on_event("startup")
 async def startup_event():

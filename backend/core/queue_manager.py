@@ -137,7 +137,11 @@ class TTSQueueManager:
                             self.tasks[task_id]["segments"].append({
                                 "index": update.get("segment_index"),
                                 "text": update.get("segment_text"),
-                                "audio_b64": update["segment_audio_b64"]
+                                "audio_b64": update["segment_audio_b64"],
+                                "voice_id": update.get("voice_id", ""),
+                                "speaker": update.get("speaker", ""),
+                                "model_name": update.get("model_name", ""),
+                                "language": update.get("language", "")
                             })
 
                         if audio_url:

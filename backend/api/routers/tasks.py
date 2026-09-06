@@ -512,6 +512,9 @@ async def create_generation_task(
 
         # Group consecutive lines by same voice_id for efficient batching
         i = 0
+        failed_lines_count = 0
+        last_synthesis_error = None
+
         while i < total_items:
             task_state = queue_manager.get_task(task_id)
             if task_state.get("status") == TaskStatus.CANCELLED:
@@ -540,12 +543,22 @@ async def create_generation_task(
                 j += 1
 
             batch_texts = [script_lines[k].text for k in batch_indices]
+            current_speaker = script_lines[i].speaker
+            if len(batch_indices) == 1:
+                line_text = script_lines[i].text.strip()
+                snippet = line_text if len(line_text) <= 50 else line_text[:47] + "..."
+                start_msg = f"[TTS] Line #{i + 1}/{total_items} [{current_speaker} • {voice_id}]: \"{snippet}\""
+            else:
+                first_line_text = script_lines[i].text.strip()
+                snippet = first_line_text if len(first_line_text) <= 40 else first_line_text[:37] + "..."
+                start_msg = f"[TTS] Synthesizing {len(batch_indices)} line(s) #{i + 1}-#{i + len(batch_indices)}/{total_items} [{current_speaker} • {voice_id}]: \"{snippet}\"..."
+
             current_progress = int((i / total_items) * 100)
             yield {
                 "progress": current_progress,
                 "total_items": total_items,
                 "current_item": i + 1,
-                "message": f"[TTS] Synthesizing {len(batch_texts)} line(s) starting at #{i + 1}..."
+                "message": start_msg
             }
 
             try:
@@ -559,9 +572,43 @@ async def create_generation_task(
                         segments_data[k].audioUrl = seg_path
                     except Exception as se:
                         print(f"[Tasks] Warning saving script segment audio: {se}")
+
+                    seg_audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+                    line = script_lines[k]
+                    line_text = line.text.strip()
+                    line_snippet = line_text if len(line_text) <= 45 else line_text[:42] + "..."
+                    after_progress = int(((k + 1) / total_items) * 100)
+                    if after_progress >= 100:
+                        after_progress = 99
+                    queue_manager.update_task(task_id, progress=after_progress)
+
+                    yield {
+                        "progress": after_progress,
+                        "total_items": total_items,
+                        "current_item": k + 1,
+                        "segment_index": k + 1,
+                        "segment_text": line.text,
+                        "segment_audio_b64": seg_audio_b64,
+                        "speaker": line.speaker,
+                        "voice_id": voice_id,
+                        "model_name": model_name,
+                        "language": language,
+                        "message": f"✓ Line #{k + 1} [{line.speaker} • {voice_id}] completed: \"{line_snippet}\""
+                    }
             except Exception as e:
                 print(f"[TTS] generation_job batch failed, falling back to sequential: {e}")
+                last_synthesis_error = str(e)
                 for k in batch_indices:
+                    line = script_lines[k]
+                    line_text = line.text.strip()
+                    line_snippet = line_text if len(line_text) <= 45 else line_text[:42] + "..."
+                    fallback_progress = int((k / total_items) * 100)
+                    yield {
+                        "progress": fallback_progress,
+                        "total_items": total_items,
+                        "current_item": k + 1,
+                        "message": f"[TTS] Line #{k + 1}/{total_items} [{line.speaker} • {voice_id}]: \"{line_snippet}\""
+                    }
                     try:
                         wav_bytes = await asyncio.to_thread(
                             tts_engine.synthesize, script_lines[k].text, model_name, None, voice_id, voice_description, language
@@ -572,8 +619,30 @@ async def create_generation_task(
                             segments_data[k].audioUrl = seg_path
                         except Exception as se:
                             pass
+
+                        seg_audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+                        after_progress = int(((k + 1) / total_items) * 100)
+                        if after_progress >= 100:
+                            after_progress = 99
+                        queue_manager.update_task(task_id, progress=after_progress)
+
+                        yield {
+                            "progress": after_progress,
+                            "total_items": total_items,
+                            "current_item": k + 1,
+                            "segment_index": k + 1,
+                            "segment_text": line.text,
+                            "segment_audio_b64": seg_audio_b64,
+                            "speaker": line.speaker,
+                            "voice_id": voice_id,
+                            "model_name": model_name,
+                            "language": language,
+                            "message": f"✓ Line #{k + 1} [{line.speaker} • {voice_id}] completed: \"{line_snippet}\""
+                        }
                     except Exception as inner_e:
                         print(f"[TTS] Sequential fallback failed for line {k}: {inner_e}")
+                        failed_lines_count += 1
+                        last_synthesis_error = str(inner_e)
                         from pydub import AudioSegment as _AS
                         buf = io.BytesIO()
                         _AS.silent(duration=500).export(buf, format="wav")
@@ -583,6 +652,16 @@ async def create_generation_task(
             if after_progress >= 100: after_progress = 99
             queue_manager.update_task(task_id, progress=after_progress)
             i = batch_indices[-1] + 1
+
+        if failed_lines_count == len(script_lines):
+            err_detail = f"All {len(script_lines)} lines failed to generate speech: {last_synthesis_error}"
+            print(f"[Tasks] {err_detail}")
+            try:
+                update_job_status(job_id, status="failed")
+            except Exception:
+                pass
+            yield {"progress": 100, "message": f"Error: {err_detail}", "type": "error"}
+            return
 
         yield {"progress": 100, "message": "Finalizing audio file..."}
         # Replace any None entries (cancelled mid-job) with silence

@@ -21,7 +21,7 @@ def test_list_models_success():
         assert "id" in m
         assert "name" in m
         assert "engine" in m
-        assert m["engine"] in ["qwen", "vibevoice", "omnivoice"]
+        assert m["engine"] in ["qwen", "vibevoice", "omnivoice", "higgs"]
         assert "supports_voice_design" in m
         assert "requires_reference" in m
         assert "installed" in m
@@ -56,6 +56,14 @@ def test_list_models_include_all_query():
     assert "qwen" in engines
     assert "vibevoice" in engines
     assert "omnivoice" in engines
+    assert "higgs" in engines
+
+    higgs = next((m for m in models if m["id"] == "higgs-audio-v3-4b"), None)
+    assert higgs is not None
+    assert higgs["engine"] == "higgs"
+    assert higgs["requires_reference"] is True
+    assert higgs["requires_transcript"] is False
+    assert higgs["supports_emotion_tags"] is True
     
     for m in models:
         assert isinstance(m["installed"], bool)

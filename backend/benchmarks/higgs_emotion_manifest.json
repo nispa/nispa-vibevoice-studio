@@ -1,0 +1,100 @@
+[
+  {
+    "id": "higgs_01_anger",
+    "category": "Emotions",
+    "tag": "<|emotion:anger|>",
+    "text": "<|emotion:anger|>I told you three times already, do not touch the archives without written permission!",
+    "target_aspect": "Sharp vocal attack, increased pitch dynamics, aggressive cadence without clipping."
+  },
+  {
+    "id": "higgs_02_sadness",
+    "category": "Emotions",
+    "tag": "<|emotion:sadness|>",
+    "text": "<|emotion:sadness|>I'm afraid there's nothing more we can do for the old manor. It's lost.",
+    "target_aspect": "Subdued breathy phonation, lowered pitch contour, somber British cadence."
+  },
+  {
+    "id": "higgs_03_amusement",
+    "category": "Emotions",
+    "tag": "<|emotion:amusement|>",
+    "text": "<|emotion:amusement|>You actually believed he rode an umbrella all the way to Paddington station?",
+    "target_aspect": "Lighthearted pitch oscillation, suppressed chuckle in voice, cheerful lilt."
+  },
+  {
+    "id": "higgs_04_elation",
+    "category": "Emotions",
+    "tag": "<|emotion:elation|>",
+    "text": "<|emotion:elation|>We won the fellowship! The entire grant has been approved unanimously!",
+    "target_aspect": "High vocal energy, bright timbre, expansive pitch range without distortion."
+  },
+  {
+    "id": "higgs_05_whisper",
+    "category": "Styles",
+    "tag": "<|style:whispering|>",
+    "text": "<|style:whispering|>Keep your voice down... the night watchman is right around the corner.",
+    "target_aspect": "Aphonic/breathy whispering, crisp unvoiced fricatives, intimate closeness."
+  },
+  {
+    "id": "higgs_06_shout",
+    "category": "Styles",
+    "tag": "<|style:shouting|>",
+    "text": "<|style:shouting|>Look out below! The scaffold is collapsing!",
+    "target_aspect": "Projected vocal power, strained intensity, controlled loudness without waveform clipping."
+  },
+  {
+    "id": "higgs_07_prosody_high_pitch",
+    "category": "Prosody",
+    "tag": "<|prosody:pitch_high|>",
+    "text": "<|prosody:pitch_high|>Are you truly certain that little creature is harmless?",
+    "target_aspect": "Elevated fundamental frequency (F0) shift while preserving natural cloned timbre."
+  },
+  {
+    "id": "higgs_08_prosody_slow",
+    "category": "Prosody",
+    "tag": "<|prosody:speed_slow|>",
+    "text": "<|prosody:speed_slow|>Every single detail... must be handled with utmost precision.",
+    "target_aspect": "Extended vowel durations, measured deliberate delivery without robotic artifacting."
+  },
+  {
+    "id": "higgs_09_sfx_laughter",
+    "category": "SFX & Paralinguistic",
+    "tag": "<|sfx:laughter|>",
+    "text": "Well <|sfx:laughter|>, that is quite possibly the most ridiculous excuse I've ever heard in my life.",
+    "target_aspect": "Natural integration of acoustic laughter token with continuous conversational flow."
+  },
+  {
+    "id": "higgs_10_sfx_sigh",
+    "category": "SFX & Paralinguistic",
+    "tag": "<|sfx:sigh|>",
+    "text": "<|sfx:sigh|> Another endless meeting that could have been resolved in a thirty-second email.",
+    "target_aspect": "Audible exhalation/sigh followed by resigned British weary inflection."
+  },
+  {
+    "id": "higgs_11_sfx_cough",
+    "category": "SFX & Paralinguistic",
+    "tag": "<|sfx:cough|>",
+    "text": "<|sfx:cough|> Excuse me, the London fog seems particularly heavy this evening.",
+    "target_aspect": "Dry cough paralinguistic sound followed by clear vocal recovery."
+  },
+  {
+    "id": "higgs_12_transition_whisper_to_shout",
+    "category": "Transitions",
+    "tag": "<|style:whispering|> -> <|style:shouting|>",
+    "text": "<|style:whispering|>Listen very carefully... <|style:shouting|>Run now, don't look back!",
+    "target_aspect": "Dynamic range transition from intimate quiet whisper to urgent warning cry."
+  },
+  {
+    "id": "higgs_13_transition_amusement_to_anger",
+    "category": "Transitions",
+    "tag": "<|emotion:amusement|> -> <|emotion:anger|>",
+    "text": "<|emotion:amusement|>I thought it was just a joke at first, <|emotion:anger|>until I saw you actually burned the contracts!",
+    "target_aspect": "Shift from playful tone to sharp indignation and fury within a single utterance."
+  },
+  {
+    "id": "higgs_14_british_dialogue_mixed_tags",
+    "category": "Complex Dialogue",
+    "tag": "mixed",
+    "text": "<|emotion:amusement|>Honestly, darling, <|sfx:laughter|> <|style:whispering|>you mustn't tell Lady Bracknell about this disaster just yet.",
+    "target_aspect": "Multi-tag composition: amusement, paralinguistic laughter, and confidential whisper."
+  }
+]

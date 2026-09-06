@@ -16,8 +16,9 @@ export const useActivityLogs = () => {
     const addLog = useCallback((message: string) => {
         if (message === lastLogRef.current) return;
         lastLogRef.current = message;
+        const cleanMessage = message.replace(/^\[\d{1,2}:\d{2}:\d{2}\]\s*/, '');
         const timestamp = new Date().toLocaleTimeString();
-        setActivityLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+        setActivityLogs(prev => [...prev, `[${timestamp}] ${cleanMessage}`]);
     }, []);
 
     const clearLogs = useCallback(() => {

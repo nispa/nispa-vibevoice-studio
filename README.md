@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.1-blueviolet?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.9.0-blueviolet?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" alt="Python"/>
   <img src="https://img.shields.io/badge/react-19-61DAFB?style=flat-square&logo=react" alt="React"/>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"/>
@@ -42,16 +42,20 @@ Most AI voiceover tools send your data to remote APIs. Nispa VibeVoice Studio ru
 
 ## ✨ Key Features
 
-### 🧠 Triple Local TTS Engine Architecture
+### 🧠 Quad TTS Engine Architecture
 
-| Engine | Strengths | Voice Cloning | Voice Design | Execution |
-|--------|-----------|:---:|:---:|:---:|
-| **OmniVoice** | Ultra-fast (RTF < 0.6), high throughput, natural conversational flow | ✅ Zero-shot (WAV + Transcript) | ❌ | Local isolated worker (`127.0.0.1`) |
-| **Qwen3-TTS** | State-of-the-art expressive quality (1.7B recommended), multi-language | ✅ 3-second zero-shot (x-vector / transcript) | ✅ Text description | Local in-process |
-| **VibeVoice** | Stable long-form synthesis, multi-speaker synchronised | ✅ Reference audio | ❌ | Local in-process |
+| Engine | Strengths | Voice Cloning | Voice Design |
+|--------|-----------|:---:|:---:|
+| **Higgs Audio v3** | 4B expressive voice cloning, inline emotion & style tag control | ✅ Zero-shot (WAV + optional transcript) | ❌ |
+| **OmniVoice** | Ultra-fast (RTF < 0.6), high throughput, natural conversational flow | ✅ Zero-shot (WAV + Transcript) | ❌ |
+| **Qwen3-TTS** | State-of-the-art expressive quality (1.7B recommended), multi-language | ✅ 3-second zero-shot (x-vector / transcript) | ✅ Text description |
+| **VibeVoice** | Stable long-form synthesis, multi-speaker synchronised | ✅ Reference audio | ❌ |
 
-### ⚡ Hardware-Aware Dynamic Batching
-The system queries your GPU's available VRAM in real-time and dynamically scales inference batch size (1–8 segments simultaneously). No more OOM crashes — the engine adapts to your hardware.
+### ⚡ Hardware-Aware Dynamic Batching & Multi-GPU
+The system queries your GPU's available VRAM in real-time and dynamically scales inference batch size (1–8 segments simultaneously). Work is automatically split across multiple GPUs when available. Manual overrides and hardware preferences can be configured in the UI or via `data/settings.json` (see [Settings & Configuration Guide](docs/SETTINGS_GUIDE.md)).
+
+### 📦 WebUI Models & Engines Manager
+Download, inspect, filter, and delete models directly inside the application with live SSE download progress, speed reporting (MB/s), cancellation support, and system health diagnostics.
 
 ### 💾 Zero-Data-Loss Persistence
 Audio segments are saved to a local SQLite database **the instant they are generated**. If your browser crashes, you lose connection, or you cancel — your progress is guaranteed safe.
@@ -140,6 +144,7 @@ brew install ffmpeg
 
 | Model | Size | VRAM | Best For |
 |-------|------|------|----------|
+| **Higgs Audio v3** | 4B (~8GB bfloat16) | ~8-9GB | Expressive voice cloning with emotion, style, and paralinguistic tag control |
 | **OmniVoice** | 3.0GB | ~3GB | Ultra-fast cloning (RTF < 0.6), fast multi-speaker dialogue & rapid script iterations |
 | **Qwen3 1.7B** | Premium | ~6GB | Highest quality expressive cloning, voice design, zero-transcript cloning |
 | **Qwen3 0.6B** | Lightweight | ~2GB | Lightweight Qwen testing |
@@ -147,11 +152,25 @@ brew install ffmpeg
 | **VibeVoice 7B** | Large | ~14GB | High fidelity subtitle synthesis |
 | **VibeVoice 0.5B** | Streaming | ~2GB | Real-time preview, single speaker |
 
+### 🎭 Higgs Audio v3 Emotion & Style Tagging
+
+When **Higgs Audio v3** is selected in **Script Mode**, a collapsible **Tag Palette** with an interactive **Syntax & Emotion Guide Modal** appears directly above the script text area. The tags correspond strictly to Higgs Audio v3 special tokens:
+
+- **Emotions**: `<|emotion:anger|>`, `<|emotion:sadness|>`, `<|emotion:amusement|>`, `<|emotion:elation|>`, `<|emotion:fear|>`, `<|emotion:contentment|>`, etc. (21 total)
+- **Styles**: `<|style:whispering|>`, `<|style:shouting|>`, `<|style:singing|>`
+- **SFX / Paralinguistic**: `<|sfx:laughter|>`, `<|sfx:sigh|>`, `<|sfx:cough|>`, `<|sfx:crying|>`, `<|sfx:screaming|>`, `<|sfx:humming|>`
+- **Prosody**: `<|prosody:pause|>`, `<|prosody:long_pause|>`, `<|prosody:speed_slow|>`, `<|prosody:speed_fast|>`, `<|prosody:pitch_high|>`, `<|prosody:pitch_low|>`
+- **Environment**: `<|env:music|>`, `<|env:noise|>`
+
+You can combine tags dynamically before or within dialogue lines, for example:
+```text
+<|style:whispering|>Keep quiet... <|sfx:laughter|> <|emotion:amusement|>Did you really think nobody was watching?
+```
+
 ### 🔒 Privacy, Offline Operation & Biometric Voice Prompts
 
 - **100% Strict-Offline**: Network access is explicitly disabled during inference (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`). Model download is an explicit installation step; generation never triggers background downloads or remote API calls.
 - **Biometric Voice Clone Prompts**: OmniVoice creates derived acoustic prompts (`VoiceClonePrompt`), cached in `data/voice-prompts/omnivoice/`. These are treated as sensitive biometric derivatives, excluded from Git via `.gitignore`, keyed to cryptographic hashes of the reference audio and transcript, and can be invalidated or deleted at any time without deleting original voices.
-- **Worker Isolation**: The OmniVoice worker process operates in an isolated virtual environment (`venv_omnivoice`), binds exclusively to `127.0.0.1` with a per-session token, and terminates cleanly with the backend.
 
 ### Translation Models
 
@@ -187,7 +206,8 @@ nispa-voiceover/
 │   ├── core/
 │   │   ├── tts/                 # TTS Provider pattern
 │   │   │   ├── base.py          # Abstract TTSProvider
-│   │   │   ├── omnivoice_provider.py # OmniVoice implementation (local worker proxy)
+│   │   │   ├── higgs_provider.py # Higgs Audio v3 implementation (worker proxy)
+│   │   │   ├── omnivoice_provider.py # OmniVoice implementation (worker proxy)
 │   │   │   ├── qwen_provider.py # Qwen3-TTS implementation
 │   │   │   └── vibe_provider.py # VibeVoice implementation
 │   │   ├── tts_provider.py      # Multi-model orchestrator
@@ -198,7 +218,8 @@ nispa-voiceover/
 │   │   ├── translator.py        # NLLB-200 engine
 │   │   └── config.py            # Settings & path management
 │   ├── workers/                 # Isolated background workers
-│   │   └── omnivoice_worker.py  # Standalone OmniVoice worker on loopback
+│   │   ├── higgs_worker.py      # Standalone Higgs Audio worker
+│   │   └── omnivoice_worker.py  # Standalone OmniVoice worker
 │   ├── db/
 │   │   ├── database.py          # SQLite operations
 │   │   └── models.py            # Pydantic data models
@@ -227,8 +248,10 @@ nispa-voiceover/
 |----------|-------------|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Full user guide (EN) — installation, workflows, FAQ |
 | [docs/GUIDA_UTENTE.md](docs/GUIDA_UTENTE.md) | Guida utente completa (IT) — installazione, workflow, FAQ |
-| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Backend REST API reference |
-| [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) | Architecture & internals |
+| [docs/SETTINGS_GUIDE.md](docs/SETTINGS_GUIDE.md) | Settings & Configuration guide (EN) — GPU tuning, paths, settings.json |
+| [docs/GUIDA_IMPOSTAZIONI.md](docs/GUIDA_IMPOSTAZIONI.md) | Guida impostazioni e configurazione (IT) — tuning GPU, percorsi, settings.json |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Backend REST API reference (v0.9.0) |
+| [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) | Architecture & internals (v0.9.0) |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
@@ -298,7 +321,7 @@ cd frontend && npm run dev
 - [ ] **Docker & Headless Deployment**: Optional containerized profile for headless servers and developer workflows
 
 ### ✅ Completed Milestones
-- [x] **Triple Local TTS Engine Architecture**: OmniVoice, Qwen3-TTS, and VibeVoice with strict-offline inference
+- [x] **Quad TTS Engine Architecture**: Higgs Audio v3, OmniVoice, Qwen3-TTS, and VibeVoice with strict-offline inference
 - [x] **Extensible Data-Driven Provider Registry & Model Catalog**: Dynamic capabilities routing replacing substring matching
 - [x] **Untimed Script Mode Persistence & Isolated Archive**: Continuous local draft auto-save and dedicated database archive separate from subtitle jobs
 - [x] **Hardware-Aware Dynamic Batching & Multi-GPU**: Real-time VRAM budget calculation and proportional CUDA distribution
@@ -314,6 +337,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 | Component | License | Repository |
 |-----------|---------|------------|
+| Higgs Audio v3 | Apache 2.0 | [multimodalart/higgs-audio-v3](https://huggingface.co/multimodalart/higgs-audio-v3-tts-4b-transformers) |
 | OmniVoice | Apache 2.0 (code) / CC-BY-NC 4.0 (model) | [k2-fsa/OmniVoice](https://github.com/k2-fsa/OmniVoice) |
 | Qwen3-TTS | Apache 2.0 | [Qwen/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) |
 | VibeVoice | MIT | [vibevoice/VibeVoice](https://github.com/vibevoice) |

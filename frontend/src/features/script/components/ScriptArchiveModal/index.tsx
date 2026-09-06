@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, ArrowUpRight, Trash2, Volume2, Calendar, Users, Cpu, Play } from 'lucide-react';
+import { X, FileText, ArrowUpRight, Trash2, Volume2, Calendar, Users, Cpu, Play, Download } from 'lucide-react';
 import { useJobArchive } from '../../../../hooks/useJobArchive';
 import type { Job } from '../../../../hooks/useJobArchive';
 import { useScriptContext } from '../../context/ScriptContext';
+import { useGlobalContext } from '../../../../context/GlobalContext';
+import { API_BASE_URL } from '../../../../services/apiClient';
 
 interface ScriptArchiveModalProps {
     isOpen: boolean;
@@ -24,6 +26,7 @@ export const ScriptArchiveModal: React.FC<ScriptArchiveModalProps> = ({
 }) => {
     const { jobs, loading, loadJobs, deleteJob } = useJobArchive('script');
     const { loadFromScriptJob } = useScriptContext();
+    const { setAudioUrl } = useGlobalContext();
     const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
     useEffect(() => {
@@ -36,6 +39,14 @@ export const ScriptArchiveModal: React.FC<ScriptArchiveModalProps> = ({
 
     const handleLoadScript = (job: Job) => {
         loadFromScriptJob(job);
+        if (job.audio_url) {
+            const fullUrl = job.audio_url.startsWith('http')
+                ? job.audio_url
+                : `${API_BASE_URL}${job.audio_url}`;
+            setAudioUrl(fullUrl);
+        } else {
+            setAudioUrl(null);
+        }
         onClose();
     };
 
@@ -135,6 +146,33 @@ export const ScriptArchiveModal: React.FC<ScriptArchiveModalProps> = ({
 
                                         {/* Actions */}
                                         <div className="flex items-center gap-2 shrink-0">
+                                            {job.audio_url && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const fullUrl = job.audio_url!.startsWith('http')
+                                                            ? job.audio_url!
+                                                            : `${API_BASE_URL}${job.audio_url!}`;
+                                                        const a = document.createElement('a');
+                                                        a.href = fullUrl;
+                                                        const ext = fullUrl.split('.').pop()?.split('?')[0] || 'mp3';
+                                                        const cleanName = (job.original_filename || 'script_audio')
+                                                            .replace(/[^\w.-]/g, '_')
+                                                            .slice(0, 30);
+                                                        a.download = `${cleanName}_${job.id}.${ext}`;
+                                                        a.target = '_blank';
+                                                        document.body.appendChild(a);
+                                                        a.click();
+                                                        document.body.removeChild(a);
+                                                    }}
+                                                    className="p-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/20 rounded-lg border border-emerald-500/30 transition text-xs flex items-center gap-1 font-medium"
+                                                    title="Download rendered audio file"
+                                                >
+                                                    <Download size={14} />
+                                                    <span className="hidden sm:inline">Download</span>
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => handleLoadScript(job)}
@@ -168,13 +206,25 @@ export const ScriptArchiveModal: React.FC<ScriptArchiveModalProps> = ({
                                         <div className="mt-4 pt-4 border-t border-slate-700/40 space-y-3">
                                             {job.audio_url && (
                                                 <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                                                    <div className="text-xs text-slate-400 mb-1.5 font-medium flex items-center gap-1.5">
-                                                        <Play size={12} className="text-indigo-400" />
-                                                        Combined Dialogue Audio:
+                                                    <div className="text-xs text-slate-400 mb-1.5 font-medium flex items-center justify-between">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Play size={12} className="text-indigo-400" />
+                                                            Combined Dialogue Audio:
+                                                        </span>
+                                                        <a
+                                                            href={job.audio_url.startsWith('http') ? job.audio_url : `${API_BASE_URL}${job.audio_url}`}
+                                                            download={`script_job_${job.id}.mp3`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 hover:underline font-medium"
+                                                        >
+                                                            <Download size={12} />
+                                                            Download MP3
+                                                        </a>
                                                     </div>
                                                     <audio
                                                         controls
-                                                        src={job.audio_url}
+                                                        src={job.audio_url.startsWith('http') ? job.audio_url : `${API_BASE_URL}${job.audio_url}`}
                                                         className="w-full h-8"
                                                     />
                                                 </div>

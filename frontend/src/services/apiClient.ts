@@ -1,15 +1,36 @@
 /**
  * Centralized API client for all backend communication.
- * Base URL is configured via VITE_API_BASE_URL environment variable.
- * Falls back to http://127.0.0.1:8000 for local development.
+ * Base URL can be configured via:
+ * 1. Runtime configuration window.__APP_CONFIG__.API_URL (e.g., public/config.js)
+ * 2. Build-time environment variable VITE_API_BASE_URL (.env)
+ * 3. Default fallback to http://127.0.0.1:8000 for local development.
  */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+declare global {
+    interface Window {
+        __APP_CONFIG__?: {
+            API_URL?: string;
+        };
+    }
+}
+
+export function getApiBaseUrl(): string {
+    if (typeof window !== 'undefined' && window.__APP_CONFIG__?.API_URL?.trim()) {
+        return window.__APP_CONFIG__.API_URL.trim().replace(/\/+$/, '');
+    }
+    if (import.meta.env.VITE_API_BASE_URL) {
+        return import.meta.env.VITE_API_BASE_URL.trim().replace(/\/+$/, '');
+    }
+    return 'http://127.0.0.1:8000';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Typed fetch wrapper that prepends the base URL and throws on non-OK responses.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-    const url = `${API_BASE_URL}${path}`;
+    const url = `${getApiBaseUrl()}${path}`;
     const response = await fetch(url, init);
     return response;
 }
@@ -58,5 +79,5 @@ export async function apiGet<T>(path: string): Promise<T> {
  * Returns a full EventSource URL for streaming endpoints.
  */
 export function apiStreamUrl(path: string): string {
-    return `${API_BASE_URL}${path}`;
+    return `${getApiBaseUrl()}${path}`;
 }

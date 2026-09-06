@@ -145,3 +145,37 @@ async def test_get_active_task_none_after_completion():
     await _wait_for_status(qm, task_id, TaskStatus.COMPLETED)
     assert qm.get_active_task() is None
     worker.cancel()
+
+
+@pytest.mark.anyio
+async def test_worker_records_segments_with_metadata():
+    qm = TTSQueueManager()
+
+    async def segment_job(task_id):
+        yield {
+            "progress": 50,
+            "segment_index": 1,
+            "segment_text": "Hello world",
+            "segment_audio_b64": "UklGRg==",
+            "voice_id": "Alice (en-emma)",
+            "speaker": "Alice",
+            "model_name": "qwen3-tts-1.7b",
+            "language": "en",
+            "message": "✓ Line #1 completed."
+        }
+        yield {"progress": 100, "message": "Done", "audio_url": "/outputs/test.mp3"}
+
+    task_id = qm.submit_task(segment_job)
+    worker = asyncio.create_task(qm._worker_loop())
+
+    await _wait_for_status(qm, task_id, TaskStatus.COMPLETED)
+    segments = qm.tasks[task_id].get("segments", [])
+    assert len(segments) == 1
+    assert segments[0]["index"] == 1
+    assert segments[0]["text"] == "Hello world"
+    assert segments[0]["audio_b64"] == "UklGRg=="
+    assert segments[0]["voice_id"] == "Alice (en-emma)"
+    assert segments[0]["speaker"] == "Alice"
+    assert segments[0]["model_name"] == "qwen3-tts-1.7b"
+    assert segments[0]["language"] == "en"
+    worker.cancel()

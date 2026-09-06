@@ -13,6 +13,7 @@ class ModelCapabilities(BaseModel):
     display_name: str = Field(..., description="Human-readable label for UI and logs")
     supports_voice_clone: bool = Field(default=False, description="Whether zero-shot voice cloning is supported")
     supports_voice_design: bool = Field(default=False, description="Whether voice description/design is supported")
+    supports_emotion_tags: bool = Field(default=False, description="Whether inline emotion and style tags are supported")
     supports_batch: bool = Field(default=False, description="Whether native batch inference is supported")
     supports_native_dialogue: bool = Field(default=False, description="Whether multi-speaker dialogue can be generated natively in one shot")
     max_speakers: int = Field(default=1, description="Maximum number of distinct speakers supported in a single generation")
@@ -24,6 +25,16 @@ class ModelCapabilities(BaseModel):
         default="local_in_process",
         description="Runtime execution model: in-process PyTorch or isolated local worker process"
     )
+    upstream_repo: Optional[str] = Field(default=None, description="HuggingFace hub repository identifier")
+    pinned_revision: Optional[str] = Field(default=None, description="Pinned commit SHA for deterministic offline verification")
+    essential_files: List[str] = Field(default_factory=lambda: ["config.json"], description="Files required for valid installation")
+    folder_name: Optional[str] = Field(default=None, description="Local folder name under data/ (defaults to display folder name)")
+    destination_folder: str = Field(default="model", description="Destination directory under data/ ('model' or 'model-translation')")
+    disk_size_gb: float = Field(default=0.0, description="Approximate disk size in GB when installed")
+    vram_cost_gb: float = Field(default=1.5, description="Estimated VRAM cost per segment in GB")
+    vram_peak_multiplier: float = Field(default=2.0, description="Overhead factor during model.generate()")
+    max_batch_size: int = Field(default=8, description="Hard cap on batch size")
+    description: Optional[str] = Field(default=None, description="Short human-readable description")
 
 
 @dataclass

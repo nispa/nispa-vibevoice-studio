@@ -8,19 +8,7 @@ from core.config import VOICES_DIR, MODELS_DIR
 
 router = APIRouter(prefix="/api")
 
-from core.tts.catalog import resolve_model_capabilities, list_supported_models, ModelNotFoundError
-
-def _is_model_installed(folder_name: str) -> bool:
-    """Verifies that a model directory exists and contains essential model weights/configs."""
-    model_path = MODELS_DIR / folder_name
-    if not model_path.is_dir():
-        return False
-    files = set(os.listdir(model_path))
-    if "config.json" in files or "model.safetensors" in files:
-        return True
-    if any(f.endswith(".safetensors") or f.endswith(".bin") or f.endswith(".pt") for f in files):
-        return True
-    return False
+from core.tts.catalog import resolve_model_capabilities, list_supported_models, is_model_installed, ModelNotFoundError
 
 @router.get("/models")
 def list_models(include_all: bool = False):
@@ -29,52 +17,29 @@ def list_models(include_all: bool = False):
     By default returns only models currently installed and verified on disk.
     If include_all=True, returns all catalog models with their installed status.
     """
-    installed_folders = set()
-    if MODELS_DIR.exists():
-        installed_folders = {entry for entry in os.listdir(MODELS_DIR) if os.path.isdir(MODELS_DIR / entry)}
-
-    # Map verified installed folders to their canonical model IDs
-    installed_canonical_ids = set()
-    for entry in installed_folders:
-        if "Tokenizer" in entry or not _is_model_installed(entry):
-            continue
-        try:
-            caps = resolve_model_capabilities(entry)
-            installed_canonical_ids.add(caps.model_id)
-        except ModelNotFoundError:
-            continue
-
     models_metadata = []
-    if include_all:
-        for caps in list_supported_models():
-            installed = caps.model_id in installed_canonical_ids
-            models_metadata.append({
-                "id": caps.model_id,
-                "name": caps.display_name,
-                "engine": caps.provider_id,
-                "supports_voice_design": caps.supports_voice_design,
-                "requires_reference": caps.requires_reference_audio,
-                "requires_transcript": caps.requires_reference_transcript,
-                "max_speakers": caps.max_speakers,
-                "sample_rate": caps.sample_rate,
-                "execution": caps.execution,
-                "installed": installed,
-            })
-    else:
-        for caps in list_supported_models():
-            if caps.model_id in installed_canonical_ids:
-                models_metadata.append({
-                    "id": caps.model_id,
-                    "name": caps.display_name,
-                    "engine": caps.provider_id,
-                    "supports_voice_design": caps.supports_voice_design,
-                    "requires_reference": caps.requires_reference_audio,
-                    "requires_transcript": caps.requires_reference_transcript,
-                    "max_speakers": caps.max_speakers,
-                    "sample_rate": caps.sample_rate,
-                    "execution": caps.execution,
-                    "installed": True,
-                })
+    for caps in list_supported_models():
+        # Skip internal artifacts or non-synthesis entries in general synthesis dropdown
+        if caps.provider_id == "translation" or (caps.max_batch_size == 0 and caps.max_speakers == 0):
+            continue
+        installed = is_model_installed(caps)
+        if not installed and not include_all:
+            continue
+        models_metadata.append({
+            "id": caps.model_id,
+            "name": caps.display_name,
+            "engine": caps.provider_id,
+            "supports_voice_design": caps.supports_voice_design,
+            "supports_emotion_tags": caps.supports_emotion_tags,
+            "requires_reference": caps.requires_reference_audio,
+            "requires_transcript": caps.requires_reference_transcript,
+            "max_speakers": caps.max_speakers,
+            "sample_rate": caps.sample_rate,
+            "execution": caps.execution,
+            "installed": installed,
+            "disk_size_gb": caps.disk_size_gb,
+            "description": caps.description,
+        })
 
     return {"models": models_metadata}
 

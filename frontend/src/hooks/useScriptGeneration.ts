@@ -3,7 +3,9 @@ import { useScriptContext } from '../features/script/context/ScriptContext';
 import { useGlobalContext } from '../context/GlobalContext';
 import { ttsApi } from '../services/ttsApi';
 import { apiFetch, API_BASE_URL } from '../services/apiClient';
-import type { SseMessage } from '../types/sse';
+import type { SseMessage, SseNewSegment } from '../types/sse';
+import type { GeneratedSegment } from '../types/generated';
+import { base64ToBlobUrl } from '../utils/audio';
 
 /**
  * Custom hook to manage the script-based audio generation workflow.
@@ -24,6 +26,7 @@ export const useScriptGeneration = () => {
     const [showProgressModal, setShowProgressModal] = useState(false);
     const [progressMessages, setProgressMessages] = useState<string[]>([]);
     const [progressValue, setProgressValue] = useState(0);
+    const [generatedSegments, setGeneratedSegments] = useState<GeneratedSegment[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -44,9 +47,27 @@ export const useScriptGeneration = () => {
             }
             
             if (message.status) {
-                setProgressMessages(prev => [...prev, `[${timestamp}] ${message.status}`]);
+                const cleanStatus = message.status.replace(/^\[\d{1,2}:\d{2}:\d{2}\]\s*/, '');
+                setProgressMessages(prev => [...prev, `[${timestamp}] ${cleanStatus}`]);
             }
-        } else if (message.type === 'complete' && message.audioUrl) {
+        }
+
+        if (message.type === 'progress' || message.type === 'complete') {
+            if (message.new_segments && message.new_segments.length > 0) {
+                const newPreviewSegments: GeneratedSegment[] = message.new_segments.map((seg: SseNewSegment) => ({
+                    index: seg.index,
+                    text: seg.text,
+                    audioUrl: base64ToBlobUrl(seg.audio_b64),
+                    audioBase64: seg.audio_b64,
+                    voice_id: seg.voice_id,
+                    model_name: seg.model_name,
+                    language: seg.language
+                }));
+                setGeneratedSegments(prev => [...prev, ...newPreviewSegments]);
+            }
+        }
+
+        if (message.type === 'complete' && message.audioUrl) {
             setProgressValue(100);
             setProgressMessages(prev => [...prev, `[${timestamp}] ✓ Complete!`]);
 
@@ -57,8 +78,9 @@ export const useScriptGeneration = () => {
                 setShowProgressModal(false);
             }, 1000);
         } else if (message.type === 'error') {
-            setProgressMessages(prev => [...prev, `[${timestamp}] ✗ Error: ${message.message}`]);
-            setErrorMsg(message.message || 'An unexpected error occurred');
+            const cleanErr = (message.message || 'An unexpected error occurred').replace(/^\[\d{1,2}:\d{2}:\d{2}\]\s*/, '');
+            setProgressMessages(prev => [...prev, `[${timestamp}] ✗ Error: ${cleanErr}`]);
+            setErrorMsg(cleanErr);
         }
     };
 
@@ -86,6 +108,10 @@ export const useScriptGeneration = () => {
         }
 
         const selectedModelData = models.find(m => m.id === selectedModel);
+        if (selectedModelData?.installed === false) {
+            setErrorMsg(`Model "${selectedModelData.name}" is not installed yet. Please run "python backend/scripts/download_model.py" or use install.bat to install it.`);
+            return;
+        }
         if (selectedModelData?.requires_transcript) {
             const invalidVoices: string[] = [];
             speakers.forEach(s => {
@@ -106,6 +132,7 @@ export const useScriptGeneration = () => {
         setShowProgressModal(true);
         setProgressMessages([]);
         setProgressValue(0);
+        setGeneratedSegments([]);
 
         const speakerVoiceMap: Record<string, string> = {};
         speakers.forEach(speaker => {
@@ -220,6 +247,8 @@ export const useScriptGeneration = () => {
         setProgressMessages,
         progressValue,
         setProgressValue,
+        generatedSegments,
+        setGeneratedSegments,
         handleGenerate,
         handleCancelGeneration
     };

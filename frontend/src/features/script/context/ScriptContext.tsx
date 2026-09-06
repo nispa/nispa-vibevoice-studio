@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { Job } from '../../../hooks/useJobArchive';
+import { useGlobalContext } from '../../../context/GlobalContext';
+import { API_BASE_URL } from '../../../services/apiClient';
 
 /**
  * Represents a speaker identified in a script and their assigned voice.
@@ -68,6 +70,14 @@ const ScriptContext = createContext<ScriptContextProps | undefined>(undefined);
 export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const initialDraft = useMemo(() => loadDraft(), []);
 
+    let setAudioUrl: ((url: string | null) => void) | undefined;
+    try {
+        const globalCtx = useGlobalContext();
+        setAudioUrl = globalCtx?.setAudioUrl;
+    } catch {
+        // Fallback for isolated unit tests
+    }
+
     const [scriptFile, setScriptFile] = useState<File | null>(null);
     const [scriptText, setScriptText] = useState<string>(initialDraft.scriptText || '');
     const [speakers, setSpeakers] = useState<Speaker[]>(
@@ -131,12 +141,13 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setSpeakers([{ id: '1', name: 'Speaker1', voiceId: '' }]);
         setDetectedSpeakers([]);
         setVoiceDescription('');
+        setAudioUrl?.(null);
         try {
             localStorage.removeItem(DRAFT_STORAGE_KEY);
         } catch (e) {
             console.warn('Failed to clear script draft from localStorage', e);
         }
-    }, []);
+    }, [setAudioUrl]);
 
     const loadFromScriptJob = useCallback((job: Job) => {
         let rawText = '';
@@ -176,7 +187,16 @@ export const ScriptProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }));
             setSpeakers(restoredSpeakers);
         }
-    }, []);
+
+        if (job.audio_url) {
+            const fullUrl = job.audio_url.startsWith('http')
+                ? job.audio_url
+                : `${API_BASE_URL}${job.audio_url}`;
+            setAudioUrl?.(fullUrl);
+        } else {
+            setAudioUrl?.(null);
+        }
+    }, [setAudioUrl]);
 
     const hasDraft = scriptText.trim().length > 0;
 

@@ -16,7 +16,8 @@ export interface GenerateSegmentResponse {
 
 export const ttsApi = {
     getVoices: () => apiGet<VoicesResponse>('/api/voices'),
-    getModels: () => apiGet<ModelsResponse>('/api/models'),
+    getModels: (includeAll: boolean = true) =>
+        apiGet<ModelsResponse>(`/api/models?include_all=${includeAll}`),
 
     generateSegment: (body: FormData) =>
         apiPostForm<GenerateSegmentResponse>('/api/generate-segment', body),

@@ -1,16 +1,44 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Clipboard, FileText } from 'lucide-react';
 import FileUploadArea from '../ui/FileUploadArea';
 import { useScriptContext } from '../../features/script/context/ScriptContext';
+import { useGlobalContext } from '../../context/GlobalContext';
+import HiggsEmotionGuideModal from './HiggsEmotionGuideModal';
+import { HiggsTagPalette } from './HiggsTagPalette';
 
 export default function ScriptInputArea() {
+    const { models } = useGlobalContext();
     const {
         scriptFile, setScriptFile,
         scriptText, setScriptText,
         setDetectedSpeakers, setErrorMsg,
-        clearDraft, hasDraft
+        clearDraft, hasDraft, selectedModel
     } = useScriptContext();
     const scriptInputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [showGuideModal, setShowGuideModal] = useState(false);
+
+    const currentModel = models.find(m => m.id === selectedModel);
+    const supportsEmotionTags = Boolean(currentModel?.supports_emotion_tags);
+
+    const insertTag = (tag: string) => {
+        const textarea = textareaRef.current;
+        if (!textarea) {
+            handleScriptTextChange(scriptText + tag);
+            return;
+        }
+        const start = textarea.selectionStart ?? scriptText.length;
+        const end = textarea.selectionEnd ?? scriptText.length;
+        const before = scriptText.substring(0, start);
+        const after = scriptText.substring(end);
+        const newText = before + tag + after;
+        handleScriptTextChange(newText);
+
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + tag.length, start + tag.length);
+        }, 0);
+    };
 
     const extractSpeakersFromText = (text: string): string[] => {
         const speakerPattern = /^(?:\[?([^\]:]+)\]?:?)\s*(.*)$/gm;
@@ -91,11 +119,27 @@ export default function ScriptInputArea() {
                         </div>
                     )}
                 </div>
+
+                {supportsEmotionTags && (
+                    <HiggsTagPalette
+                        onInsertTag={insertTag}
+                        onOpenGuide={() => setShowGuideModal(true)}
+                    />
+                )}
+
+
                 <textarea
+                    ref={textareaRef}
                     value={scriptText}
                     onChange={(e) => handleScriptTextChange(e.target.value)}
                     placeholder="Format: Speaker1: Dialogue. Up to 8 speakers supported.&#10;&#10;Example:&#10;Speaker1: Hello, how are you?&#10;Speaker2: I'm doing great!&#10;Speaker1: That's wonderful!"
                     className="input-style w-full h-36 resize-none bg-slate-900/50"
+                />
+
+                <HiggsEmotionGuideModal
+                    isOpen={showGuideModal}
+                    onClose={() => setShowGuideModal(false)}
+                    onInsertTag={insertTag}
                 />
             </div>
         </div>

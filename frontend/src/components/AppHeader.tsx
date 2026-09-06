@@ -1,4 +1,4 @@
-import { Settings, Headphones, Mic2, Loader2 } from 'lucide-react';
+import { Settings, Headphones, Mic2, Loader2, Layers } from 'lucide-react';
 import { useGlobalContext } from '../context/GlobalContext';
 
 /**
@@ -13,23 +13,36 @@ interface AppHeaderProps {
      * Callback triggered when the voice library button is clicked.
      */
     onShowVoiceLibrary: () => void;
+    /**
+     * Callback triggered when the models & engines manager button is clicked.
+     */
+    onShowModelsManager?: () => void;
 }
 
 /**
  * Main application header component.
  * 
  * Displays the application title, a brief description, and buttons
- * to access system information and voice management.
+ * to access system information, models manager, and voice management.
  * 
  * @param {AppHeaderProps} props - Component props.
  * @returns {JSX.Element} The rendered header.
  */
-export default function AppHeader({ onShowSystemInfo, onShowVoiceLibrary }: AppHeaderProps) {
+export default function AppHeader({ onShowSystemInfo, onShowVoiceLibrary, onShowModelsManager }: AppHeaderProps) {
     const { isBackendReady } = useGlobalContext();
 
     return (
         <div className="w-full max-w-4xl text-center mb-10 space-y-4 relative">
             <div className="absolute top-0 right-0 flex gap-2">
+                {onShowModelsManager && (
+                    <button
+                        onClick={onShowModelsManager}
+                        className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition"
+                        title="Models & Engines Manager"
+                    >
+                        <Layers size={24} />
+                    </button>
+                )}
                 <button
                     onClick={onShowVoiceLibrary}
                     className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition"

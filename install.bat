@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo =======================================
-echo    Nispa Studio Installer (v0.8.0)
+echo    Nispa Studio Installer (v0.9.0)
 echo =======================================
 
 :: Step 1: Virtual Environment Setup
@@ -10,7 +10,8 @@ if not exist "venv\\" (
     echo [1/5] Creating virtual environment...
     python -m venv venv
 )
-call venv\\Scripts\\activate.bat
+call venv\Scripts\activate.bat
+setlocal enabledelayedexpansion
 
 echo [2/5] Installing Core dependencies...
 pip install -r backend\\requirements.txt
@@ -23,12 +24,13 @@ echo =======================================
 echo [1] VibeVoice only (Zero-shot cloning)
 echo [2] Qwen3-TTS only (Voice Design, High-fidelity)
 echo [3] OmniVoice only (Voice Cloning, UK English)
-echo [4] VibeVoice + Qwen3-TTS
-echo [5] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice - Recommended)
+echo [4] Higgs Audio v3 only (4B, Emotion & Style Tagging)
+echo [5] VibeVoice + Qwen3-TTS
+echo [6] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice + Higgs Audio - Recommended)
 echo.
-set /p ENGINE_CHOICE="Enter your choice (1/2/3/4/5): "
+set /p ENGINE_CHOICE="Enter your choice (1/2/3/4/5/6): "
 
-set OPT_ENGINES=vibevoice,qwen,omnivoice
+set OPT_ENGINES=vibevoice,qwen,omnivoice,higgs
 if "%ENGINE_CHOICE%"=="1" (
     set OPT_ENGINES=vibevoice
     echo [3/5] Installing VibeVoice dependencies...
@@ -45,16 +47,23 @@ if "%ENGINE_CHOICE%"=="1" (
     )
     venv_omnivoice\Scripts\pip install -r backend\requirements-omnivoice.txt
 ) else if "%ENGINE_CHOICE%"=="4" (
+    set OPT_ENGINES=higgs
+    echo [3/5] Installing Higgs Audio modern worker environment...
+    if not exist "venv_omnivoice\" (
+        python -m venv venv_omnivoice
+    )
+    venv_omnivoice\Scripts\pip install -r backend\requirements-omnivoice.txt
+) else if "%ENGINE_CHOICE%"=="5" (
     set OPT_ENGINES=vibevoice,qwen
     echo [3/5] Installing VibeVoice and Qwen3-TTS dependencies...
     pip install -r backend\requirements-vibevoice.txt
     pip install -r backend\requirements-qwen.txt
 ) else (
-    set OPT_ENGINES=vibevoice,qwen,omnivoice
+    set OPT_ENGINES=vibevoice,qwen,omnivoice,higgs
     echo [3/5] Installing ALL dependencies...
     pip install -r backend\requirements-vibevoice.txt
     pip install -r backend\requirements-qwen.txt
-    echo Installing OmniVoice worker in isolated environment...
+    echo Installing Modern Engines worker [OmniVoice + Higgs] in isolated environment...
     if not exist "venv_omnivoice\" (
         python -m venv venv_omnivoice
     )

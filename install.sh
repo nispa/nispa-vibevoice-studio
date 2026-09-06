@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "======================================="
-echo "   Nispa Studio Installer (v0.8.0)"
+echo "   Nispa Studio Installer (v0.9.0)"
 echo "======================================="
 
 # Detect platform
@@ -35,12 +35,13 @@ echo "======================================="
 echo "[1] VibeVoice only (Zero-shot cloning)"
 echo "[2] Qwen3-TTS only (Voice Design, High-fidelity)"
 echo "[3] OmniVoice only (Voice Cloning, UK English)"
-echo "[4] VibeVoice + Qwen3-TTS"
-echo "[5] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice - Recommended)"
+echo "[4] Higgs Audio v3 only (4B, Emotion & Style Tagging)"
+echo "[5] VibeVoice + Qwen3-TTS"
+echo "[6] ALL ENGINES (VibeVoice + Qwen3-TTS + OmniVoice + Higgs Audio - Recommended)"
 echo ""
-read -p "Enter your choice (1/2/3/4/5): " ENGINE_CHOICE
+read -p "Enter your choice (1/2/3/4/5/6): " ENGINE_CHOICE
 
-OPT_ENGINES="vibevoice,qwen,omnivoice"
+OPT_ENGINES="vibevoice,qwen,omnivoice,higgs"
 if [ "$ENGINE_CHOICE" = "1" ]; then
     OPT_ENGINES="vibevoice"
     echo "[3/5] Installing VibeVoice dependencies..."
@@ -57,16 +58,23 @@ elif [ "$ENGINE_CHOICE" = "3" ]; then
     fi
     venv_omnivoice/bin/pip install -r backend/requirements-omnivoice.txt
 elif [ "$ENGINE_CHOICE" = "4" ]; then
+    OPT_ENGINES="higgs"
+    echo "[3/5] Installing Higgs Audio modern worker environment..."
+    if [ ! -d "venv_omnivoice" ]; then
+        python3 -m venv venv_omnivoice
+    fi
+    venv_omnivoice/bin/pip install -r backend/requirements-omnivoice.txt
+elif [ "$ENGINE_CHOICE" = "5" ]; then
     OPT_ENGINES="vibevoice,qwen"
     echo "[3/5] Installing VibeVoice and Qwen3-TTS dependencies..."
     pip install -r backend/requirements-vibevoice.txt
     pip install -r backend/requirements-qwen.txt
 else
-    OPT_ENGINES="vibevoice,qwen,omnivoice"
+    OPT_ENGINES="vibevoice,qwen,omnivoice,higgs"
     echo "[3/5] Installing ALL dependencies..."
     pip install -r backend/requirements-vibevoice.txt
     pip install -r backend/requirements-qwen.txt
-    echo "Installing OmniVoice worker in isolated environment..."
+    echo "Installing Modern Engines worker (OmniVoice + Higgs) in isolated environment..."
     if [ ! -d "venv_omnivoice" ]; then
         python3 -m venv venv_omnivoice
     fi
