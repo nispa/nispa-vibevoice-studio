@@ -1,0 +1,63 @@
+name: Sync Documentation to GitHub Wiki
+
+on:
+  push:
+    branches:
+      - main
+      - higgs
+    paths:
+      - 'docs/**'
+      - '.github/workflows/sync-wiki.yml'
+  workflow_dispatch:
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Wiki Structure & Navigation
+        run: |
+          mkdir -p wiki_staging
+          # Copy all documentation files and assets
+          cp -r docs/* wiki_staging/
+
+          # GitHub Wiki entrypoint requires Home.md
+          if [ -f wiki_staging/USER_GUIDE.md ]; then
+            cp wiki_staging/USER_GUIDE.md wiki_staging/Home.md
+          fi
+
+          # Create custom GitHub Wiki Sidebar navigation
+          cat << 'EOF' > wiki_staging/_Sidebar.md
+          ### 📖 Nispa VibeVoice Studio
+          * [[🏠 Home (User Guide)|Home]]
+          * [[🇮🇹 Guida Utente|GUIDA_UTENTE]]
+          * [[⚙️ Settings & Config Guide|SETTINGS_GUIDE]]
+          * [[🇮🇹 Guida Impostazioni|GUIDA_IMPOSTAZIONI]]
+          * [[🔌 API Reference|API_REFERENCE]]
+          * [[🏗️ Technical Documentation|TECHNICAL_DOCUMENTATION]]
+          * [[📊 UK Benchmark Results|benchmark-uk-results]]
+          EOF
+
+          # Create custom GitHub Wiki Footer
+          cat << 'EOF' > wiki_staging/_Footer.md
+          ---
+          *Nispa VibeVoice Studio — 100% Offline Local AI Studio. Auto-synced from `docs/` via GitHub Actions.*
+          EOF
+
+      - name: Deploy to GitHub Wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd wiki_staging
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b master
+          git add .
+          git commit -m "docs: auto-sync documentation from docs/ [skip ci]" || echo "No changes to commit"
+          # Push to the wiki repository
+          git push --force https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git master

@@ -312,19 +312,16 @@ cd frontend && npm run dev
 ## 📋 Roadmap
 
 ### 🎯 Next Priorities
-- [ ] **Additional Local TTS Engines**:
-  - **Chatterbox / Chatterbox Turbo**: lightweight MIT-licensed voice cloning with paralinguistic tag and exaggeration control
-  - **IndexTTS-2.5**: emotion/speed disentanglement and CMU phonemes
-- [ ] **LLM Emotion & Prosody Tagging**: Preprocessing dialogue lines via local Ollama models to insert inline emotional, stylistic, and paralinguistic markers
-- [ ] **Web-Based Voice Recording**: Record reference audio directly from the microphone in the browser Voice Library
-- [ ] **Visual Timeline Editor**: Interactive multitrack waveform timeline for precise manual adjustment of pauses, overlaps, and subtitle sync
-- [ ] **Docker & Headless Deployment**: Optional containerized profile for headless servers and developer workflows
+- [ ] **LLM Emotion & Prosody Tagging**: Contextual dialogue analysis and automated insertion of Higgs Audio v3 acoustic control tags (`<|emotion:...|>`, `<|style:...|>`, `<|sfx:...|>`, `<|prosody:...|>`) via local Ollama LLMs.
+- [ ] **Automated Reference Audio Normalization**: Optional one-click audio cleanup (noise gating, loudness matching to -23 LUFS, silence trimming) during reference voice upload.
 
 ### ✅ Completed Milestones
 - [x] **Quad TTS Engine Architecture**: Higgs Audio v3, OmniVoice, Qwen3-TTS, and VibeVoice with strict-offline inference
+- [x] **WebUI Models & Engines Manager**: Live background downloads with SSE progress, speed reporting (MB/s), cancellation, safe deletion, and system health diagnostics
+- [x] **Higgs Audio v3 Acoustic Architecture**: Standardized 45-element control syntax (`<|category:value|>`), collapsible category tag palette, and portal-based interactive guide modal
 - [x] **Extensible Data-Driven Provider Registry & Model Catalog**: Dynamic capabilities routing replacing substring matching
 - [x] **Untimed Script Mode Persistence & Isolated Archive**: Continuous local draft auto-save and dedicated database archive separate from subtitle jobs
-- [x] **Hardware-Aware Dynamic Batching & Multi-GPU**: Real-time VRAM budget calculation and proportional CUDA distribution
+- [x] **Hardware-Aware Dynamic Batching & Multi-GPU**: Real-time VRAM budget calculation, manual batch overrides, and proportional CUDA distribution
 - [x] **Zero-Data-Loss Audio Persistence**: Instant SQLite & WAV disk saving during generation with session recovery
 
 ---
