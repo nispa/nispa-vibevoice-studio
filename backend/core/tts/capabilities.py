@@ -13,6 +13,7 @@ class ModelCapabilities(BaseModel):
     display_name: str = Field(..., description="Human-readable label for UI and logs")
     supports_voice_clone: bool = Field(default=False, description="Whether zero-shot voice cloning is supported")
     supports_voice_design: bool = Field(default=False, description="Whether voice description/design is supported")
+    supports_emotion_tags: bool = Field(default=False, description="Whether inline emotion and style tags are supported")
     supports_batch: bool = Field(default=False, description="Whether native batch inference is supported")
     supports_native_dialogue: bool = Field(default=False, description="Whether multi-speaker dialogue can be generated natively in one shot")
     max_speakers: int = Field(default=1, description="Maximum number of distinct speakers supported in a single generation")

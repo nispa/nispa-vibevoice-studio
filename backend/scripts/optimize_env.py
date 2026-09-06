@@ -22,7 +22,7 @@ def check_tool(name, version_cmd, install_help):
     path = config_manager.get_path(name.lower()) if HAS_CONFIG else name.lower()
     try:
         subprocess.check_call([path] + version_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"[✓] {name} is installed and accessible at: {path}")
+        print(f"[OK] {name} is installed and accessible at: {path}")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         print(f"[!] {name} not found or not working correctly.")
@@ -38,13 +38,13 @@ def main():
         "--engines",
         type=str,
         default="all",
-        help="Comma-separated list of engines to check (e.g. 'vibevoice,qwen,omnivoice' or 'all')"
+        help="Comma-separated list of engines to check (e.g. 'vibevoice,qwen,omnivoice,higgs' or 'all')"
     )
     args = parser.parse_args()
     
     raw_engines = args.engines.strip().lower()
     if raw_engines == "all":
-        selected_engines = {"vibevoice", "qwen", "omnivoice"}
+        selected_engines = {"vibevoice", "qwen", "omnivoice", "higgs"}
     else:
         selected_engines = {e.strip() for e in raw_engines.split(",") if e.strip()}
 
@@ -71,7 +71,7 @@ def main():
         print("\n[+] Checking Flash Attention...")
         try:
             import flash_attn
-            print(f"[✓] Flash Attention is already installed.")
+            print(f"[OK] Flash Attention is already installed.")
         except ImportError:
             print("[i] Flash Attention not found. Running dynamic installer...")
             try:
@@ -103,14 +103,35 @@ def main():
                     text=True,
                     check=True
                 )
-                print(f"[✓] OmniVoice isolated environment verified ({res.stdout.strip()})")
+                print(f"[OK] OmniVoice isolated environment verified ({res.stdout.strip()})")
             except Exception as e:
                 print(f"[!] OmniVoice isolated environment check failed: {e}")
         else:
             print(f"[i] venv_omnivoice not found. It will be created when OmniVoice is installed.")
 
+    if "higgs" in selected_engines:
+        print("\n[+] Checking Higgs Audio worker environment...")
+        root_dir = Path(__file__).resolve().parent.parent.parent
+        worker_py = root_dir / "venv_omnivoice" / "Scripts" / "python.exe"
+        if not worker_py.exists():
+            worker_py = root_dir / "venv_omnivoice" / "bin" / "python"
+        
+        if worker_py.exists():
+            try:
+                res = subprocess.run(
+                    [str(worker_py), "-c", "import torch, transformers, soundfile; print('Higgs modern venv ready')"],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                print(f"[OK] Higgs worker environment verified ({res.stdout.strip()})")
+            except Exception as e:
+                print(f"[!] Higgs worker environment check failed: {e}")
+        else:
+            print(f"[i] venv_omnivoice not found. It will be created when Higgs Audio / modern engines are installed.")
+
     print_header("Optimization Check Complete")
-    print("If all tools are [✓], Nispa Studio is ready for high-performance synthesis.")
+    print("If all tools are [OK], Nispa Studio is ready for high-performance synthesis.")
 
 if __name__ == "__main__":
     main()

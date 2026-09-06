@@ -34,9 +34,10 @@ export interface Voice {
 export interface Model {
     id: string;
     name: string;
-    engine: 'vibevoice' | 'qwen' | 'omnivoice' | string;
+    engine: 'vibevoice' | 'qwen' | 'omnivoice' | 'higgs' | string;
     supports_voice_design: boolean;
     supports_voice_clone?: boolean;
+    supports_emotion_tags?: boolean;
     requires_reference?: boolean;
     requires_transcript?: boolean;
     max_speakers?: number;

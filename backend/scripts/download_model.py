@@ -78,6 +78,17 @@ MODELS = {
             os.path.join("audio_tokenizer", "config.json"),
             os.path.join("audio_tokenizer", "model.safetensors")
         ]
+    },
+    "12": {
+        "name": "Higgs-Audio-v3",
+        "repo": "multimodalart/higgs-audio-v3-tts-4b-transformers",
+        "revision": "30f01593ee6a12efa586c92455afe4b76e45095d",
+        "description": "Higgs Audio v3 (4B, Emotion & Style Tagging, 100+ languages)",
+        "essential_files": [
+            "config.json",
+            "model.safetensors",
+            "tokenizer.json"
+        ]
     }
 }
 

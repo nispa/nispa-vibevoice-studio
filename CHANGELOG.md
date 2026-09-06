@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-06
+
+### Added
+- **Higgs Audio v3 (4B Emotion & Style Tagging)**: Integrated as the 4th local offline TTS provider for Nispa Studio, enabling expressive zero-shot voice cloning with fine-grained prosody and emotion control.
+- **Modern Engines Isolated Worker**: Standalone REST worker (`backend/workers/higgs_worker.py`) running in `venv_omnivoice` (`transformers>=5.16.1`, PyTorch with Blackwell support) on loopback `127.0.0.1`, protected by session token authentication and path containment under `data/`.
+- **Frontend Tag Palette**: Interactive emotion (`Anger`, `Sadness`, `Amusement`, `Elation`), style (`Whisper`, `Shout`), prosody (`High Pitch`, `Slow`, `Pause`), and paralinguistic (`Laughter`, `Sigh`, `Cough`) insertion buttons in Script Mode that inject tags at the current cursor position.
+- **Capabilities & Catalog Integration**: Added `supports_emotion_tags` capability flag across backend catalog, REST `/api/models` endpoint, and frontend `Model` types.
+- **Emotion & Style Benchmark Suite**: Created `backend/benchmarks/higgs_emotion_manifest.json` featuring 14 targeted benchmark prompts across emotions, styles, acoustic SFX tokens, and multi-tag conversational transitions.
+- **Model Downloader & Guided Installers**: Registered Higgs Audio v3 (target `12`, pinned revision `30f01593ee6a12efa586c92455afe4b76e45095d`) in `download_model.py`, added dedicated engine selections in `install.bat` and `install.sh`, and updated `optimize_env.py` validation.
+
 ## [0.8.1] - 2026-09-04
 
 ### Added

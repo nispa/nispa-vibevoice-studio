@@ -133,6 +133,26 @@ class TestCatalogAndCapabilities:
         assert caps.execution == "local_worker"
         assert caps.requires_reference_transcript is True
 
+    def test_resolve_higgs_model(self):
+        from core.tts.catalog import resolve_model_capabilities
+        caps = resolve_model_capabilities("higgs-audio-v3-4b")
+        assert caps.provider_id == "higgs"
+        assert caps.execution == "local_worker"
+        assert caps.supports_voice_clone is True
+        assert caps.supports_voice_design is False
+        assert caps.requires_reference_audio is True
+        assert caps.requires_reference_transcript is False
+        assert caps.sample_rate == 24000
+        assert "en" in caps.supported_languages
+        assert "it" in caps.supported_languages
+
+    def test_resolve_higgs_aliases(self):
+        from core.tts.catalog import resolve_model_capabilities
+        for alias in ["higgs", "higgs-audio-v3", "higgs-4b", "multimodalart/higgs-audio-v3-tts-4b-transformers"]:
+            caps = resolve_model_capabilities(alias)
+            assert caps.model_id == "higgs-audio-v3-4b"
+            assert caps.provider_id == "higgs"
+
     def test_resolve_unknown_model_raises_model_not_found(self):
         from core.tts.catalog import resolve_model_capabilities
         from core.tts.capabilities import ModelNotFoundError

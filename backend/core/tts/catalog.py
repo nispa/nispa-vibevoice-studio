@@ -173,6 +173,24 @@ _CATALOG: Dict[str, ModelCapabilities] = {
         sample_rate=24000,
         execution="local_worker",
     ),
+
+    # --- Higgs Audio v3 ---
+    "higgs-audio-v3-4b": ModelCapabilities(
+        provider_id="higgs",
+        model_id="higgs-audio-v3-4b",
+        display_name="Higgs Audio v3 (4B Emotion & Style)",
+        supports_voice_clone=True,
+        supports_voice_design=False,
+        supports_emotion_tags=True,
+        supports_batch=False,
+        supports_native_dialogue=False,
+        max_speakers=1,
+        requires_reference_audio=True,
+        requires_reference_transcript=False,
+        supported_languages=["en", "it", "fr", "de", "es", "ja", "zh"],
+        sample_rate=24000,
+        execution="local_worker",
+    ),
 }
 
 # Alias map: legacy folder names, directory names, and identifiers mapped to canonical model_id
@@ -208,6 +226,14 @@ _ALIASES: Dict[str, str] = {
     "OmniVoice": "omnivoice-0.2",
     "k2-fsa/OmniVoice": "omnivoice-0.2",
     "OmniVoice-0.2": "omnivoice-0.2",
+
+    # Higgs Audio v3 aliases
+    "higgs": "higgs-audio-v3-4b",
+    "higgs-audio-v3": "higgs-audio-v3-4b",
+    "higgs-4b": "higgs-audio-v3-4b",
+    "HiggsAudioV3": "higgs-audio-v3-4b",
+    "Higgs-Audio-v3": "higgs-audio-v3-4b",
+    "multimodalart/higgs-audio-v3-tts-4b-transformers": "higgs-audio-v3-4b",
 }
 
 

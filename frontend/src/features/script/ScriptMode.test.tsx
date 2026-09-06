@@ -76,4 +76,62 @@ it('shows Voice Design field when model supports it', () => {
     expect(vdHeading).toBeDefined();
     expect(screen.getByPlaceholderText(/Enter voice description/i)).toBeInTheDocument();
 });
+
+it('hides Tag Palette when model does not support emotion tags', () => {
+    vi.mocked(useScriptContext).mockReturnValue({
+        scriptFile: null,
+        scriptText: 'Speaker1: Hello',
+        speakers: [{ id: 's1', name: 'Speaker1', voiceId: 'voice1' }],
+        selectedModel: 'qwen-base',
+        setSelectedModel: vi.fn(),
+        selectedLanguage: 'English',
+        setSelectedLanguage: vi.fn(),
+        voiceDescription: '',
+        setVoiceDescription: vi.fn(),
+        errorMsg: ''
+    } as unknown as ReturnType<typeof useScriptContext>);
+
+    render(<ScriptMode />);
+    expect(screen.queryByText(/Tag Palette:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Anger')).not.toBeInTheDocument();
+});
+
+it('shows Tag Palette and inserts tag when model supports emotion tags', async () => {
+    const setScriptTextMock = vi.fn();
+    const modelsWithHiggs = [
+        ...mockModels,
+        { id: 'higgs-4b', name: 'Higgs Audio v3', engine: 'higgs', supports_emotion_tags: true, supports_voice_design: false }
+    ];
+
+    vi.mocked(useGlobalContext).mockReturnValue({
+        isProcessing: false,
+        models: modelsWithHiggs,
+        voices: []
+    } as unknown as ReturnType<typeof useGlobalContext>);
+
+    vi.mocked(useScriptContext).mockReturnValue({
+        scriptFile: null,
+        scriptText: 'Speaker1: Hello',
+        setScriptText: setScriptTextMock,
+        setDetectedSpeakers: vi.fn(),
+        speakers: [{ id: 's1', name: 'Speaker1', voiceId: 'voice1' }],
+        selectedModel: 'higgs-4b',
+        setSelectedModel: vi.fn(),
+        selectedLanguage: 'English',
+        setSelectedLanguage: vi.fn(),
+        voiceDescription: '',
+        setVoiceDescription: vi.fn(),
+        errorMsg: ''
+    } as unknown as ReturnType<typeof useScriptContext>);
+
+    const userEvent = (await import('@testing-library/user-event')).default;
+    render(<ScriptMode />);
+
+    expect(screen.getByText(/Tag Palette:/i)).toBeInTheDocument();
+    const angerBtn = screen.getByRole('button', { name: /Anger/i });
+    expect(angerBtn).toBeInTheDocument();
+
+    await userEvent.click(angerBtn);
+    expect(setScriptTextMock).toHaveBeenCalled();
+});
 });
