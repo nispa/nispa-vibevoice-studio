@@ -19,6 +19,12 @@
 </p>
 
 <p align="center">
+  <em>&ldquo;<strong>LANGUAGE MODEL</strong>, n. A magnificent automaton endowed with all the vocabulary of mankind and none of its discretion &mdash; in which respect it differs very little from the average orator.<br>
+  <strong>VOICE CLONING</strong>, n. The ingenious art of borrowing an honest man’s vocal cords to utter with supreme confidence that which he was far too wise ever to think.&rdquo;</em><br>
+  <small>&mdash; <strong>Ambrose Bierce</strong>, <em>The Devil&rsquo;s Dictionary (Modern Apocrypha)</em></small>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/version-0.9.0-blueviolet?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" alt="Python"/>
   <img src="https://img.shields.io/badge/react-19-61DAFB?style=flat-square&logo=react" alt="React"/>
@@ -138,65 +144,32 @@ brew install ffmpeg
 
 ---
 
-## 🤖 Models
+## 🤖 Models & Capabilities
 
-### TTS Models
+### TTS Engines
 
-| Model | Size | VRAM | Best For |
-|-------|------|------|----------|
-| **Higgs Audio v3** | 4B (~8GB bfloat16) | ~8-9GB | Expressive voice cloning with emotion, style, and paralinguistic tag control |
-| **OmniVoice** | 3.0GB | ~3GB | Ultra-fast cloning (RTF < 0.6), fast multi-speaker dialogue & rapid script iterations |
-| **Qwen3 1.7B** | Premium | ~6GB | Highest quality expressive cloning, voice design, zero-transcript cloning |
-| **Qwen3 0.6B** | Lightweight | ~2GB | Lightweight Qwen testing |
-| **VibeVoice 1.5B** | Standard | ~4GB | Production subtitle voiceover, synchronized multi-speaker (up to 4) |
-| **VibeVoice 7B** | Large | ~14GB | High fidelity subtitle synthesis |
-| **VibeVoice 0.5B** | Streaming | ~2GB | Real-time preview, single speaker |
+| Engine | Size / Precision | VRAM Footprint | Best For | Control Syntax |
+|--------|------------------|:--------------:|----------|:--------------:|
+| **Higgs Audio v3** | 4B (`bfloat16`) | ~8–9 GB | Expressive acting, emotions, vocal styles | `<|emotion:...|>`, `<|style:...|>` |
+| **OmniVoice** | 3.0 GB Diffusion | ~3 GB | Ultra-fast cloning, paralinguistic SFX, CMU phonetics | `[laughter]`, `[B EY1 S]` |
+| **Qwen3 1.7B** | Premium Base | ~6 GB | SOTA expressive cloning, natural conversational tone | Natural Respelling |
+| **Qwen3 0.6B** | Lightweight Base | ~2 GB | Fast testing, lower VRAM requirements | Natural Respelling |
+| **VibeVoice 1.5B/7B** | Long-form Diffusion | ~4–14 GB | Production subtitle voiceover, multi-speaker sync | Timing-aligned |
 
-### OmniVoice: expressive non-verbal tags
+> 💡 **Expressive Tag & Phonetic Guides**:
+> - **Higgs Audio v3**: See the [User Guide](docs/USER_GUIDE.md#32-higgs-audio-v3-tag-palette--emotion-guide) for the full 45-element acoustic palette (emotions, styles, prosody, SFX).
+> - **OmniVoice**: See the [CMU Phonetics Guide](docs/GUIDA_FONETICA_CMU.md) for the 39 ARPAbet phoneme dictionary and inline pronunciation override rules.
 
-Select **OmniVoice** in **Script Mode**, expand **Tag Palette: Suoni non verbali**, then click a tag to insert it at the cursor (or replace selected text). The guide beside the palette explains the syntax and also supports insertion. Switching models updates the menu without rewriting the script.
+### Translation Engines
 
-OmniVoice supports these 13 non-verbal symbols: `[laughter]`, `[sigh]`, `[confirmation-en]`, `[question-en]`, `[question-ah]`, `[question-oh]`, `[question-ei]`, `[question-yi]`, `[surprise-ah]`, `[surprise-oh]`, `[surprise-wa]`, `[surprise-yo]`, `[dissatisfaction-hnn]`.
+| Engine | Type | Languages | Offline Support |
+|--------|------|:---------:|:---------------:|
+| **NLLB-200-Distilled-600M** | Built-in Neural MT | 200+ | ✅ 100% Offline |
+| **Ollama (any local LLM)** | Extensible Local LLM | Depends on LLM | ✅ 100% Offline |
 
-```text
-Alice: [laughter] You really got me.
-Bob: [sigh] We will have to start again.
-```
-
-These insert vocalizations; they do not set an emotion for the entire sentence. English pronunciation overrides use uppercase CMU phonemes, e.g. `[B EY1 S]`. Voice-design attributes such as whisper or British accent are separate upstream features, not inline tags; Nispa uses cloning with a paired WAV/TXT and does not add design instructions. Use an authorised UK reference for UK voices. Higgs tokens are not interchangeable with OmniVoice symbols. Listen to the result: effect and reliability depend on voice and context.
-
-The catalog publishes additive `inline_tags` (token, label, description) and `inline_tag_guidance` fields in the model APIs. The existing `supports_emotion_tags` flag retains its emotion/style meaning for Higgs. All inserted text reaches the local worker; no download or transcription fallback is added. Automated tests check text preservation, not acoustic quality; real GPU listening validation of these tags remains outstanding.
-
-Syntax reference: [official OmniVoice documentation](https://github.com/k2-fsa/OmniVoice#non-verbal--pronunciation-control), also checked against the installed library's non-verbal token matcher.
-
-### 🎭 Higgs Audio v3 Emotion & Style Tagging
-
-When **Higgs Audio v3** is selected in **Script Mode**, a collapsible **Tag Palette** with an interactive **Syntax & Emotion Guide Modal** appears directly above the script text area. The tags correspond strictly to Higgs Audio v3 special tokens:
-
-- **Emotions**: `<|emotion:anger|>`, `<|emotion:sadness|>`, `<|emotion:amusement|>`, `<|emotion:elation|>`, `<|emotion:fear|>`, `<|emotion:contentment|>`, etc. (21 total)
-- **Styles**: `<|style:whispering|>`, `<|style:shouting|>`, `<|style:singing|>`
-- **SFX / Paralinguistic**: `<|sfx:laughter|>`, `<|sfx:sigh|>`, `<|sfx:cough|>`, `<|sfx:crying|>`, `<|sfx:screaming|>`, `<|sfx:humming|>`
-- **Prosody**: `<|prosody:pause|>`, `<|prosody:long_pause|>`, `<|prosody:speed_slow|>`, `<|prosody:speed_fast|>`, `<|prosody:pitch_high|>`, `<|prosody:pitch_low|>`
-- **Environment**: `<|env:music|>`, `<|env:noise|>`
-
-You can combine tags dynamically before or within dialogue lines, for example:
-```text
-<|style:whispering|>Keep quiet... <|sfx:laughter|> <|emotion:amusement|>Did you really think nobody was watching?
-```
-
-### 🔒 Privacy, Offline Operation & Biometric Voice Prompts
-
-- **100% Strict-Offline**: Network access is explicitly disabled during inference (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`). Model download is an explicit installation step; generation never triggers background downloads or remote API calls.
-- **Biometric Voice Clone Prompts**: OmniVoice creates derived acoustic prompts (`VoiceClonePrompt`), cached in `data/voice-prompts/omnivoice/`. These are treated as sensitive biometric derivatives, excluded from Git via `.gitignore`, keyed to cryptographic hashes of the reference audio and transcript, and can be invalidated or deleted at any time without deleting original voices.
-
-### Translation Models
-
-| Model | Type | Languages |
-|-------|------|-----------|
-| **NLLB-200-Distilled-600M** | Built-in | 200+ (offline) |
-| **Ollama (any model)** | External | Depends on LLM |
-
-> **Note**: The Dynamic Batching system adjusts automatically based on your available VRAM and the selected model's footprint.
+### 🔒 Privacy & Biometric Protection
+- **Strictly Offline**: Network access is explicitly disabled during inference (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`). No audio, transcript, or prompt leaves your machine.
+- **Biometric Derivative Protection**: Cached acoustic prompts (`VoiceClonePrompt`) are keyed to cryptographic hashes under `data/voice-prompts/`, excluded from Git, and can be invalidated or flushed anytime via the UI.
 
 ---
 
@@ -265,6 +238,7 @@ nispa-voiceover/
 |----------|-------------|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Full user guide (EN) — installation, workflows, FAQ |
 | [docs/GUIDA_UTENTE.md](docs/GUIDA_UTENTE.md) | Guida utente completa (IT) — installazione, workflow, FAQ |
+| [docs/GUIDA_FONETICA_CMU.md](docs/GUIDA_FONETICA_CMU.md) | Guida completa alla fonetica CMU inline per OmniVoice (IT/EN) |
 | [docs/SETTINGS_GUIDE.md](docs/SETTINGS_GUIDE.md) | Settings & Configuration guide (EN) — GPU tuning, paths, settings.json |
 | [docs/GUIDA_IMPOSTAZIONI.md](docs/GUIDA_IMPOSTAZIONI.md) | Guida impostazioni e configurazione (IT) — tuning GPU, percorsi, settings.json |
 | [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Backend REST API reference (v0.9.0) |
@@ -340,6 +314,7 @@ cd frontend && npm run dev
 - [x] **Untimed Script Mode Persistence & Isolated Archive**: Continuous local draft auto-save and dedicated database archive separate from subtitle jobs
 - [x] **Hardware-Aware Dynamic Batching & Multi-GPU**: Real-time VRAM budget calculation, manual batch overrides, and proportional CUDA distribution
 - [x] **Zero-Data-Loss Audio Persistence**: Instant SQLite & WAV disk saving during generation with session recovery
+- [x] **OmniVoice Expressive Non-Verbal Tags & CMU Phonetics**: 13 paralinguistic inline vocalization tokens (`[laughter]`, `[sigh]`, etc.), uppercase CMU ARPAbet pronunciation override syntax (`[B EY1 S]`), collapsible Script Mode tag palette, and dedicated guide
 
 ---
 

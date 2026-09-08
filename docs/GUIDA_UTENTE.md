@@ -90,7 +90,13 @@ Quando è selezionato **Higgs Audio v3**:
 - Clicca su un tag per inserirlo istantaneamente nella posizione del cursore.
 - Clicca sul pulsante **"Guida Sintassi & Emozioni"** per aprire il modal illustrativo sul condizionamento acustico del modello.
 
-### 3.3. Mappatura Voci degli Oratori
+### 3.3. OmniVoice: Tag Non-Verbali & Fonetica CMU Inline
+Quando è selezionato **OmniVoice**:
+- **Tag Paralinguistici Inline**: Inserisci vocalizzazioni espressive racchiuse tra quadre (es. `[laughter]`, `[sigh]`, `[confirmation-en]`).
+- **Fonetica CMU (ARPAbet)**: Per forzare la corretta pronuncia inglese di parole ambigue, eteronimi o nomi propri, puoi inserire la trascrizione fonetica in lettere maiuscole con accento tonico (es. `[B EY1 S]`).
+- Per tutti i dettagli e la tabella completa dei fonemi, consulta la [Guida alla Fonetica CMU (ARPAbet)](GUIDA_FONETICA_CMU.md).
+
+### 3.4. Mappatura Voci degli Oratori
 - Il sistema rileva automaticamente fino a 8 oratori nel testo.
 - Assegna a ciascun oratore la rispettiva voce di riferimento dalla libreria.
 - Clicca **"Generate Conversation"** per avviare la generazione del dialogo unificato.

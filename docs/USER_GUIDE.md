@@ -90,7 +90,13 @@ When **Higgs Audio v3** is selected:
 - Click any tag to insert it at your current cursor position.
 - Click the **"Guida Sintassi & Emozioni"** button to open the interactive guide modal explaining tag conditioning and syntax rules.
 
-### 3.3. Speaker Voice Mapping
+### 3.3. OmniVoice: Non-Verbal Tags & CMU Phonetics
+When **OmniVoice** is selected:
+- **Non-Verbal Paralinguistic Tags**: Insert expressive vocalizations using square brackets (`[laughter]`, `[sigh]`, `[confirmation-en]`, `[surprise-oh]`, etc.).
+- **CMU ARPAbet Phonetics**: Force exact pronunciation of ambiguous English words or heteronyms using uppercase phonemes with stress markers (e.g., `[B EY1 S]`).
+- See [CMU Phonetics Guide](GUIDA_FONETICA_CMU.md) for the complete phoneme reference table and usage rules.
+
+### 3.4. Speaker Voice Mapping
 - The system automatically detects up to 8 distinct speakers.
 - Assign each speaker their own voice reference file from your library.
 - Click **"Generate Conversation"** to synthesize the full dialogue.
