@@ -18,6 +18,8 @@ export interface ManagedModel {
     supports_voice_clone: boolean;
     supports_voice_design: boolean;
     supports_emotion_tags: boolean;
+    inline_tags?: { token: string; label: string; description: string }[];
+    inline_tag_guidance?: string | null;
     requires_reference_audio: boolean;
     requires_reference_transcript: boolean;
     sample_rate: number;

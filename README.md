@@ -47,7 +47,7 @@ Most AI voiceover tools send your data to remote APIs. Nispa VibeVoice Studio ru
 | Engine | Strengths | Voice Cloning | Voice Design |
 |--------|-----------|:---:|:---:|
 | **Higgs Audio v3** | 4B expressive voice cloning, inline emotion & style tag control | ✅ Zero-shot (WAV + optional transcript) | ❌ |
-| **OmniVoice** | Ultra-fast (RTF < 0.6), high throughput, natural conversational flow | ✅ Zero-shot (WAV + Transcript) | ❌ |
+| **OmniVoice** | Fast voice cloning with expressive non-verbal inline tags | ✅ Zero-shot (WAV + Transcript) | ❌ |
 | **Qwen3-TTS** | State-of-the-art expressive quality (1.7B recommended), multi-language | ✅ 3-second zero-shot (x-vector / transcript) | ✅ Text description |
 | **VibeVoice** | Stable long-form synthesis, multi-speaker synchronised | ✅ Reference audio | ❌ |
 
@@ -151,6 +151,23 @@ brew install ffmpeg
 | **VibeVoice 1.5B** | Standard | ~4GB | Production subtitle voiceover, synchronized multi-speaker (up to 4) |
 | **VibeVoice 7B** | Large | ~14GB | High fidelity subtitle synthesis |
 | **VibeVoice 0.5B** | Streaming | ~2GB | Real-time preview, single speaker |
+
+### OmniVoice: expressive non-verbal tags
+
+Select **OmniVoice** in **Script Mode**, expand **Tag Palette: Suoni non verbali**, then click a tag to insert it at the cursor (or replace selected text). The guide beside the palette explains the syntax and also supports insertion. Switching models updates the menu without rewriting the script.
+
+OmniVoice supports these 13 non-verbal symbols: `[laughter]`, `[sigh]`, `[confirmation-en]`, `[question-en]`, `[question-ah]`, `[question-oh]`, `[question-ei]`, `[question-yi]`, `[surprise-ah]`, `[surprise-oh]`, `[surprise-wa]`, `[surprise-yo]`, `[dissatisfaction-hnn]`.
+
+```text
+Alice: [laughter] You really got me.
+Bob: [sigh] We will have to start again.
+```
+
+These insert vocalizations; they do not set an emotion for the entire sentence. English pronunciation overrides use uppercase CMU phonemes, e.g. `[B EY1 S]`. Voice-design attributes such as whisper or British accent are separate upstream features, not inline tags; Nispa uses cloning with a paired WAV/TXT and does not add design instructions. Use an authorised UK reference for UK voices. Higgs tokens are not interchangeable with OmniVoice symbols. Listen to the result: effect and reliability depend on voice and context.
+
+The catalog publishes additive `inline_tags` (token, label, description) and `inline_tag_guidance` fields in the model APIs. The existing `supports_emotion_tags` flag retains its emotion/style meaning for Higgs. All inserted text reaches the local worker; no download or transcription fallback is added. Automated tests check text preservation, not acoustic quality; real GPU listening validation of these tags remains outstanding.
+
+Syntax reference: [official OmniVoice documentation](https://github.com/k2-fsa/OmniVoice#non-verbal--pronunciation-control), also checked against the installed library's non-verbal token matcher.
 
 ### 🎭 Higgs Audio v3 Emotion & Style Tagging
 

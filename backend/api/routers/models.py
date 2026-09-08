@@ -51,6 +51,8 @@ def list_models_for_management():
             "supports_voice_clone": caps.supports_voice_clone,
             "supports_voice_design": caps.supports_voice_design,
             "supports_emotion_tags": caps.supports_emotion_tags,
+            "inline_tags": [tag.model_dump() for tag in caps.inline_tags],
+            "inline_tag_guidance": caps.inline_tag_guidance,
             "requires_reference_audio": caps.requires_reference_audio,
             "requires_reference_transcript": caps.requires_reference_transcript,
             "sample_rate": caps.sample_rate,

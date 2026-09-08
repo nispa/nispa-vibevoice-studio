@@ -9,18 +9,23 @@ import {
 } from 'lucide-react';
 import {
     HIGGS_TAG_CATEGORIES,
-    TOTAL_HIGGS_TAGS_COUNT
+    type CategoryGroup
 } from './higgsTagsData';
 
 interface HiggsTagPaletteProps {
+    categories?: CategoryGroup[];
+    title?: string;
     onInsertTag: (tag: string) => void;
     onOpenGuide: () => void;
 }
 
 export const HiggsTagPalette: React.FC<HiggsTagPaletteProps> = ({
+    categories = HIGGS_TAG_CATEGORIES,
+    title = 'Emozioni & Stili',
     onInsertTag,
     onOpenGuide,
 }) => {
+    const totalTags = categories.reduce((count, category) => count + category.tags.length, 0);
     const [isOpen, setIsOpen] = useState<boolean>(false);
     const [activeTab, setActiveTab] = useState<string>('all');
     const [recentlyInserted, setRecentlyInserted] = useState<string | null>(null);
@@ -33,9 +38,9 @@ export const HiggsTagPalette: React.FC<HiggsTagPaletteProps> = ({
 
     // Filter categories based on active tab
     const displayedCategories = useMemo(() => {
-        if (activeTab === 'all') return HIGGS_TAG_CATEGORIES;
-        return HIGGS_TAG_CATEGORIES.filter(c => c.id === activeTab);
-    }, [activeTab]);
+        if (activeTab === 'all') return categories;
+        return categories.filter(c => c.id === activeTab);
+    }, [activeTab, categories]);
 
     const totalVisibleTags = useMemo(() => {
         return displayedCategories.reduce((acc, cat) => acc + cat.tags.length, 0);
@@ -48,13 +53,14 @@ export const HiggsTagPalette: React.FC<HiggsTagPaletteProps> = ({
                 <button
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
+                    aria-expanded={isOpen}
                     className="flex items-center gap-2 text-xs font-semibold text-indigo-300 hover:text-indigo-200 transition py-1 rounded-md"
                     title={isOpen ? "Comprimi la palette dei tag" : "Espandi la palette dei tag"}
                 >
                     <Sparkles size={14} className="text-indigo-400" />
-                    <span>Tag Palette: Emozioni & Stili</span>
+                    <span>Tag Palette: {title}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-normal border border-indigo-500/30">
-                        {TOTAL_HIGGS_TAGS_COUNT} tag
+                        {totalTags} tag
                     </span>
                     {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
@@ -85,10 +91,10 @@ export const HiggsTagPalette: React.FC<HiggsTagPaletteProps> = ({
                             }`}
                         >
                             <Layers size={12} />
-                            <span>Tutti ({TOTAL_HIGGS_TAGS_COUNT})</span>
+                            <span>Tutti ({totalTags})</span>
                         </button>
 
-                        {HIGGS_TAG_CATEGORIES.map(cat => {
+                        {categories.map(cat => {
                             const Icon = cat.icon;
                             const isSelected = activeTab === cat.id;
                             return (

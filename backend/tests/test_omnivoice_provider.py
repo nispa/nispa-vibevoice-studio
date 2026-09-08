@@ -59,9 +59,10 @@ def test_omnivoice_mocked_synthesis(tmp_path):
     provider._client = mock_client
 
     with patch("core.tts.omnivoice_provider.validate_voice_transcript", return_value=(wav_file, "Reference transcript")):
-        result = provider.synthesize("Hello world", "omnivoice-0.2", voice_id="speaker")
+        result = provider.synthesize("[laughter] Hello [sigh] [B EY1 S]", "omnivoice-0.2", voice_id="speaker")
         assert result == b"RIFF....WAVEfmt...."
         assert mock_client.post.call_count == 2
+        assert mock_client.post.call_args.kwargs["json"]["text"] == "[laughter] Hello [sigh] [B EY1 S]"
 
 
 def test_omnivoice_synthesize_oom_error(tmp_path):
@@ -208,7 +209,7 @@ def test_omnivoice_worker_language_forwarded(monkeypatch):
     resp = client.post(
         "/synthesize",
         json={
-            "text": "English dialogue turn",
+            "text": "[laughter] English [sigh] [B EY1 S]",
             "language": "en",
         },
         headers={"X-Session-Token": "test-token"}
@@ -220,5 +221,5 @@ def test_omnivoice_worker_language_forwarded(monkeypatch):
     mock_model.generate.assert_called_once()
     _, kwargs = mock_model.generate.call_args
     assert kwargs.get("language") == "en"
-    assert kwargs.get("text") == "English dialogue turn"
+    assert kwargs.get("text") == "[laughter] English [sigh] [B EY1 S]"
 

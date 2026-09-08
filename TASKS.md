@@ -153,3 +153,15 @@
 - [x] Aggiornare `CHANGELOG.md` con il rilascio della feature.
 
 **Completata quando:** guida all'uso dei tag e documentazione tecnica sono aggiornate.
+
+
+## Follow-up — Espressività OmniVoice (2026-09-08)
+
+- [x] Verificati i 13 simboli non verbali nella documentazione upstream e nel matcher della libreria installata.
+- [x] Aggiunti `inline_tags` e `inline_tag_guidance` al catalogo e alle API di selezione/gestione modelli; mantenuta distinta la capability emotion/style di Higgs.
+- [x] Estesa la palette di Script Mode con inserimento al cursore/selezione, guida dedicata e aggiornamento al cambio modello senza riscrittura del copione.
+- [x] Aggiornati README e CHANGELOG con sintassi, pronuncia CMU e limiti rispetto al voice design.
+- [x] Verificati catalogo/API, inserimento frontend e passaggio invariato di tag/fonemi al provider e al worker con test mock; regressione completa: 172 backend e 53 frontend passati, build frontend riuscita.
+- [ ] Prova reale GPU/offline e ascolto comparativo dei tag OmniVoice: non eseguiti in questa modifica.
+
+`npm run lint` eseguito: 3 errori preesistenti in file non modificati (`ModelsManagerModal.test.tsx`: due `any`; `GenerationProgressModal/index.tsx`: setState nell'effect), oltre a 6 warning. Nessun errore lint nei file modificati.

@@ -67,3 +67,22 @@ def test_list_models_include_all_query():
     
     for m in models:
         assert isinstance(m["installed"], bool)
+
+
+def test_inline_tags_are_catalog_driven():
+    from core.tts.catalog import resolve_model_capabilities
+    caps = resolve_model_capabilities("omnivoice-0.2")
+    tokens = [tag.token for tag in caps.inline_tags]
+    assert len(tokens) == len(set(tokens)) == 13
+    assert "[laughter]" in tokens
+    assert "[dissatisfaction-hnn]" in tokens
+    assert caps.supports_emotion_tags is False
+    assert caps.supports_voice_design is False
+    response = client.get("/api/models?include_all=true")
+    assert response.status_code == 200
+    models = {model["id"]: model for model in response.json()["models"]}
+    assert models["omnivoice-0.2"]["inline_tags"] == [tag.model_dump() for tag in caps.inline_tags]
+    assert models["omnivoice-0.2"]["inline_tag_guidance"] == caps.inline_tag_guidance
+    assert models["higgs-audio-v3-4b"]["supports_emotion_tags"] is True
+    assert models["qwen3-1.7b-base"]["inline_tags"] == []
+    assert models["vibevoice-1.5b"]["inline_tags"] == []

@@ -70,10 +70,10 @@ export const ModelCard: React.FC<ModelCardProps> = ({
                             Voice Design
                         </span>
                     )}
-                    {m.supports_emotion_tags && (
+                    {(m.supports_emotion_tags || Boolean(m.inline_tags?.length)) && (
                         <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-medium flex items-center gap-1">
                             <Sparkles size={10} />
-                            Emotion Tags
+                            {m.supports_emotion_tags ? "Emotion Tags" : "Non-verbal Tags"}
                         </span>
                     )}
                     {m.sample_rate > 0 && (

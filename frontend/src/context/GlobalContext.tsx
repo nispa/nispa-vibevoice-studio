@@ -38,6 +38,8 @@ export interface Model {
     supports_voice_design: boolean;
     supports_voice_clone?: boolean;
     supports_emotion_tags?: boolean;
+    inline_tags?: { token: string; label: string; description: string }[];
+    inline_tag_guidance?: string | null;
     requires_reference?: boolean;
     requires_transcript?: boolean;
     max_speakers?: number;

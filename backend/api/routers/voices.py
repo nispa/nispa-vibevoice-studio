@@ -31,6 +31,8 @@ def list_models(include_all: bool = False):
             "engine": caps.provider_id,
             "supports_voice_design": caps.supports_voice_design,
             "supports_emotion_tags": caps.supports_emotion_tags,
+            "inline_tags": [tag.model_dump() for tag in caps.inline_tags],
+            "inline_tag_guidance": caps.inline_tag_guidance,
             "requires_reference": caps.requires_reference_audio,
             "requires_transcript": caps.requires_reference_transcript,
             "max_speakers": caps.max_speakers,

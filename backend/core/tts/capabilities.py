@@ -3,6 +3,12 @@ from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
 
+class InlineTag(BaseModel):
+    token: str
+    label: str
+    description: str
+
+
 class ModelCapabilities(BaseModel):
     """
     Data-driven description of a model's capabilities and operational requirements.
@@ -14,6 +20,8 @@ class ModelCapabilities(BaseModel):
     supports_voice_clone: bool = Field(default=False, description="Whether zero-shot voice cloning is supported")
     supports_voice_design: bool = Field(default=False, description="Whether voice description/design is supported")
     supports_emotion_tags: bool = Field(default=False, description="Whether inline emotion and style tags are supported")
+    inline_tags: List[InlineTag] = Field(default_factory=list, description="Supported inline non-verbal controls")
+    inline_tag_guidance: Optional[str] = None
     supports_batch: bool = Field(default=False, description="Whether native batch inference is supported")
     supports_native_dialogue: bool = Field(default=False, description="Whether multi-speaker dialogue can be generated natively in one shot")
     max_speakers: int = Field(default=1, description="Maximum number of distinct speakers supported in a single generation")

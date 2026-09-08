@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
-import { Clipboard, FileText } from 'lucide-react';
+import { Clipboard, FileText, Mic } from 'lucide-react';
 import FileUploadArea from '../ui/FileUploadArea';
 import { useScriptContext } from '../../features/script/context/ScriptContext';
 import { useGlobalContext } from '../../context/GlobalContext';
 import HiggsEmotionGuideModal from './HiggsEmotionGuideModal';
 import { HiggsTagPalette } from './HiggsTagPalette';
+import type { CategoryGroup } from './higgsTagsData';
+import { Modal, ModalHeader, ModalFooter } from '../ui/modal';
 
 export default function ScriptInputArea() {
     const { models } = useGlobalContext();
@@ -19,7 +21,18 @@ export default function ScriptInputArea() {
     const [showGuideModal, setShowGuideModal] = useState(false);
 
     const currentModel = models.find(m => m.id === selectedModel);
+    const inlineTags = currentModel?.inline_tags;
+    const hasInlineTags = Boolean(inlineTags?.length);
     const supportsEmotionTags = Boolean(currentModel?.supports_emotion_tags);
+    const categories: CategoryGroup[] | undefined = hasInlineTags ? [{
+        id: 'sfx', title: 'Suoni non verbali', shortTitle: 'Vocalizzazioni',
+        icon: Mic, color: 'text-indigo-300',
+        badgeStyle: { bg: 'bg-indigo-500/10', text: 'text-indigo-300', border: 'border-indigo-500/30', hoverBg: 'hover:bg-indigo-500/20' },
+        tags: (inlineTags ?? []).map(tag => ({
+            tag: tag.token, name: tag.label, label: tag.label,
+            description: tag.description, example: `Alice: ${tag.token} Hello.`,
+        })),
+    }] : undefined;
 
     const insertTag = (tag: string) => {
         const textarea = textareaRef.current;
@@ -120,8 +133,11 @@ export default function ScriptInputArea() {
                     )}
                 </div>
 
-                {supportsEmotionTags && (
+                {(hasInlineTags || supportsEmotionTags) && (
                     <HiggsTagPalette
+                        key={selectedModel}
+                        categories={categories}
+                        title={hasInlineTags ? "Suoni non verbali" : undefined}
                         onInsertTag={insertTag}
                         onOpenGuide={() => setShowGuideModal(true)}
                     />
@@ -136,11 +152,26 @@ export default function ScriptInputArea() {
                     className="input-style w-full h-36 resize-none bg-slate-900/50"
                 />
 
-                <HiggsEmotionGuideModal
+                {hasInlineTags ? (
+                    <Modal isOpen={showGuideModal} onClose={() => setShowGuideModal(false)}>
+                        <ModalHeader title={`Guida tag: ${currentModel?.name}`} onClose={() => setShowGuideModal(false)} />
+                        <div className="p-6 space-y-4 overflow-y-auto">
+                            <p className="text-sm text-slate-300">{currentModel?.inline_tag_guidance}</p>
+                            {inlineTags?.map(tag => (
+                                <button key={tag.token} type="button"
+                                    className="block w-full text-left p-3 rounded border border-slate-700 text-indigo-300 hover:bg-slate-800"
+                                    onClick={() => { insertTag(tag.token); setShowGuideModal(false); }}>
+                                    <code>{tag.token}</code> — {tag.description} · Inserisci
+                                </button>
+                            ))}
+                        </div>
+                        <ModalFooter onClose={() => setShowGuideModal(false)} closeLabel="Chiudi" />
+                    </Modal>
+                ) : supportsEmotionTags && <HiggsEmotionGuideModal
                     isOpen={showGuideModal}
                     onClose={() => setShowGuideModal(false)}
                     onInsertTag={insertTag}
-                />
+                />}
             </div>
         </div>
     );
